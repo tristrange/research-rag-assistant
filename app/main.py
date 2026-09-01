@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from app.llm.ollama import generate
+from app.rag import answer_question
 
 
 app = FastAPI()
@@ -17,5 +17,5 @@ class QueryResponse(BaseModel):
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
-    answer = generate(request.question)
+    answer = answer_question(request.question)
     return QueryResponse(answer=answer)
