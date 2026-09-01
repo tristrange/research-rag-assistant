@@ -11,11 +11,23 @@ class QueryRequest(BaseModel):
     question: str
 
 
+class Source(BaseModel):
+    document: str
+    page: int
+    chunk_index: int
+    text: str
+
+
 class QueryResponse(BaseModel):
     answer: str
+    sources: list[Source]
 
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
-    answer = answer_question(request.question)
-    return QueryResponse(answer=answer)
+    result = answer_question(request.question)
+
+    return QueryResponse(
+        answer=result["answer"],
+        sources=result["sources"],
+    )

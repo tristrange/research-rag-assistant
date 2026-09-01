@@ -2,7 +2,7 @@ from app.llm.ollama import generate
 from app.retrieval.search import search_chunks
 
 
-def answer_question(question: str, limit: int = 5) -> str:
+def answer_question(question: str, limit: int = 5) -> dict:
     chunks = search_chunks(question, limit=limit)
 
     context_parts = []
@@ -30,4 +30,19 @@ Question:
 Answer:
 """
 
-    return generate(prompt)
+    answer = generate(prompt)
+
+    sources = [
+        {
+            "document": chunk.document,
+            "page": chunk.page,
+            "chunk_index": chunk.chunk_index,
+            "text": chunk.text,
+        }
+        for chunk in chunks
+    ]
+
+    return {
+        "answer": answer,
+        "sources": sources,
+    }
