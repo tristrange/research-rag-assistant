@@ -7,10 +7,17 @@ from app.ingestion.pdf import extract_pages
 
 PDF_PATH = "data/sample.pdf"
 
+CHUNK_SIZE = 1000
+OVERLAP = 200
+
 
 def main():
     pages = extract_pages(PDF_PATH)
-    chunks = chunk_pages(pages)
+    chunks = chunk_pages(
+        pages,
+        chunk_size=CHUNK_SIZE,
+        overlap=OVERLAP,
+    )
 
     db = SessionLocal()
 
@@ -29,7 +36,6 @@ def main():
             db.add(db_chunk)
 
         db.commit()
-
         print(f"Indexed {len(chunks)} chunks")
 
     finally:
@@ -38,3 +44,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
