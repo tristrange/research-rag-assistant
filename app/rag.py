@@ -2,7 +2,7 @@ from app.llm.ollama import generate
 from app.retrieval.search import search_chunks
 
 
-def answer_question(question: str, limit: int = 5) -> dict:
+def answer_question(question: str, limit: int = 3) -> dict:
     chunks = search_chunks(question, limit=limit)
 
     context_parts = []
