@@ -7,8 +7,8 @@ from app.ingestion.pdf import extract_pages
 
 PDF_PATH = "data/sample.pdf"
 
-CHUNK_SIZE = 1000
-OVERLAP = 200
+CHUNK_SIZE = 500
+OVERLAP = 100
 
 
 def main():
