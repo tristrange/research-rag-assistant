@@ -1,9 +1,16 @@
 from app.llm.ollama import generate
+from app.retrieval.rerank import rerank_chunks
 from app.retrieval.search import search_chunks
 
 
 def answer_question(question: str, limit: int = 3) -> dict:
-    chunks = search_chunks(question, limit=limit)
+    candidates = search_chunks(question, limit=10)
+    
+    chunks = rerank_chunks(
+        question,
+        candidates,
+        limit=limit,
+    )
 
     context_parts = []
 
