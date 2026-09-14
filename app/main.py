@@ -29,5 +29,5 @@ def query(request: QueryRequest) -> QueryResponse:
 
     return QueryResponse(
         answer=result["answer"],
-        sources=result["sources"],
+        sources=[Source(**source) for source in result["sources"]],
     )

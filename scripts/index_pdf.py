@@ -43,7 +43,7 @@ def index_pdf(pdf_path: str = PDF_PATH) -> int:
     return len(db_chunks)
 
 
-def main():
+def main() -> None:
     print(f"Indexed {index_pdf()} chunks")
 
 

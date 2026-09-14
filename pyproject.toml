@@ -21,3 +21,23 @@ research-rag-assistant = "research_rag_assistant:main"
 [build-system]
 requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.mypy]
+files = ["app", "scripts", "tests", "src"]
+strict = true
+explicit_package_bases = true
+follow_imports = "silent"
+
+# These dependencies do not provide complete type information.
+[[tool.mypy.overrides]]
+module = ["pgvector.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pymupdf", "pymupdf.*"]
+follow_imports = "skip"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+]

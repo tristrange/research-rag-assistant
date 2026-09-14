@@ -1,4 +1,14 @@
+from typing import TypedDict, cast
+
 import httpx
+
+
+class ChatMessage(TypedDict):
+    content: str
+
+
+class ChatResponse(TypedDict):
+    message: ChatMessage
 
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
@@ -23,5 +33,5 @@ def generate(prompt: str) -> str:
 
     response.raise_for_status()
 
-    data = response.json()
+    data = cast(ChatResponse, response.json())
     return data["message"]["content"]
