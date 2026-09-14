@@ -1,7 +1,8 @@
 from app.retrieval.search import search_chunks
+from app.types import RetrievalTestCase
 
 
-TEST_CASES = [
+TEST_CASES: list[RetrievalTestCase] = [
     {
         "question": "What is the main contribution of the paper?",
         "expected_pages": [1, 7, 9],
@@ -61,7 +62,7 @@ def first_relevant_rank(retrieved_pages: list[int], expected_pages: list[int]) -
     return None
 
 
-def main():
+def main() -> None:
     hit_at_1 = 0
     hit_at_3 = 0
     hit_at_5 = 0

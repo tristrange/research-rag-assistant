@@ -1,9 +1,10 @@
 from app.llm.ollama import generate
 from app.retrieval.rerank import rerank_chunks
 from app.retrieval.search import search_chunks
+from app.types import AnswerResult, ChunkData
 
 
-def answer_question(question: str, limit: int = 3) -> dict:
+def answer_question(question: str, limit: int = 3) -> AnswerResult:
     candidates = search_chunks(question, limit=10)
     
     chunks = rerank_chunks(
@@ -39,7 +40,7 @@ Answer:
 
     answer = generate(prompt)
 
-    sources = [
+    sources: list[ChunkData] = [
         {
             "document": chunk.document,
             "page": chunk.page,

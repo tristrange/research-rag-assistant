@@ -1,4 +1,10 @@
+from typing import TypedDict, cast
+
 import httpx
+
+
+class EmbeddingResponse(TypedDict):
+    embeddings: list[list[float]]
 
 
 OLLAMA_EMBED_URL = "http://localhost:11434/api/embed"
@@ -17,5 +23,5 @@ def embed_text(text: str) -> list[float]:
 
     response.raise_for_status()
 
-    data = response.json()
+    data = cast(EmbeddingResponse, response.json())
     return data["embeddings"][0]

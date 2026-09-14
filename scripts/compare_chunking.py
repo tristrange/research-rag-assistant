@@ -6,6 +6,7 @@ from app.embeddings import embed_text
 from app.ingestion.chunking import chunk_pages
 from app.ingestion.pdf import extract_pages
 from app.retrieval.search import search_chunks
+from app.types import RetrievalTestCase
 
 
 PDF_PATH = "data/sample.pdf"
@@ -17,7 +18,7 @@ CONFIGURATIONS = [
 ]
 
 
-TEST_CASES = [
+TEST_CASES: list[RetrievalTestCase] = [
     {
         "question": "What is the main contribution of the paper?",
         "expected_pages": [1, 7, 9],
@@ -158,7 +159,7 @@ def evaluate() -> dict[str, float]:
     }
 
 
-def main():
+def main() -> None:
     print(
         f"{'Chunk':>8} "
         f"{'Overlap':>8} "

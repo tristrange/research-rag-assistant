@@ -1,9 +1,12 @@
+from app.types import ChunkData, PageData
+
+
 def chunk_pages(
-    pages: list[dict],
+    pages: list[PageData],
     chunk_size: int = 1000,
     overlap: int = 200,
-) -> list[dict]:
-    chunks = []
+) -> list[ChunkData]:
+    chunks: list[ChunkData] = []
 
     for page in pages:
         text = page["text"]

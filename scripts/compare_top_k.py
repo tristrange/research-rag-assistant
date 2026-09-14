@@ -1,7 +1,8 @@
 from app.retrieval.search import search_chunks
+from app.types import RetrievalTestCase
 
 
-TEST_CASES = [
+TEST_CASES: list[RetrievalTestCase] = [
     {
         "question": "What is the main contribution of the paper?",
         "expected_pages": [1, 7, 9],
@@ -96,7 +97,7 @@ def evaluate(top_k: int) -> dict[str, float]:
     }
 
 
-def main():
+def main() -> None:
     print(
         f"{'Top-k':>8} "
         f"{'Hit@k':>10} "

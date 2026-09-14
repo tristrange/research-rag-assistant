@@ -125,3 +125,17 @@ uv run python -m unittest discover -s tests -v
 
 These tests use SQLite and stubbed PDF extraction and embeddings to check
 replacement, isolation between documents, and rollback on failure.
+
+## Type checking
+
+Install development dependencies with `uv sync`, then check all application code,
+scripts, tests, and the package entry point:
+
+```bash
+uv run mypy
+```
+
+Strict checking uses shared typed dictionaries for pages, chunks, answers, and
+evaluation cases. Ollama response types describe the expected JSON structure;
+they do not add runtime validation. PyMuPDF's incomplete annotations are skipped,
+and missing pgvector stubs are tolerated in the checker configuration.
