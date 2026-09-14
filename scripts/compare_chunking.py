@@ -122,9 +122,9 @@ def first_relevant_rank(
 
 
 def evaluate() -> dict[str, float]:
-    recall_at_1 = 0
-    recall_at_3 = 0
-    recall_at_5 = 0
+    hit_at_1 = 0
+    hit_at_3 = 0
+    hit_at_5 = 0
     reciprocal_rank_sum = 0.0
 
     for test in TEST_CASES:
@@ -140,20 +140,20 @@ def evaluate() -> dict[str, float]:
             reciprocal_rank_sum += 1 / rank
 
         if rank is not None and rank <= 1:
-            recall_at_1 += 1
+            hit_at_1 += 1
 
         if rank is not None and rank <= 3:
-            recall_at_3 += 1
+            hit_at_3 += 1
 
         if rank is not None and rank <= 5:
-            recall_at_5 += 1
+            hit_at_5 += 1
 
     total = len(TEST_CASES)
 
     return {
-        "recall@1": recall_at_1 / total,
-        "recall@3": recall_at_3 / total,
-        "recall@5": recall_at_5 / total,
+        "hit@1": hit_at_1 / total,
+        "hit@3": hit_at_3 / total,
+        "hit@5": hit_at_5 / total,
         "mrr": reciprocal_rank_sum / total,
     }
 
@@ -163,9 +163,9 @@ def main():
         f"{'Chunk':>8} "
         f"{'Overlap':>8} "
         f"{'Chunks':>8} "
-        f"{'R@1':>8} "
-        f"{'R@3':>8} "
-        f"{'R@5':>8} "
+        f"{'H@1':>8} "
+        f"{'H@3':>8} "
+        f"{'H@5':>8} "
         f"{'MRR':>8}"
     )
 
@@ -183,9 +183,9 @@ def main():
             f"{chunk_size:>8} "
             f"{overlap:>8} "
             f"{chunk_count:>8} "
-            f"{metrics['recall@1']:>8.2f} "
-            f"{metrics['recall@3']:>8.2f} "
-            f"{metrics['recall@5']:>8.2f} "
+            f"{metrics['hit@1']:>8.2f} "
+            f"{metrics['hit@3']:>8.2f} "
+            f"{metrics['hit@5']:>8.2f} "
             f"{metrics['mrr']:>8.2f}"
         )
 
