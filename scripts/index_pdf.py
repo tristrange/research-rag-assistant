@@ -1,3 +1,7 @@
+from pathlib import Path
+
+from sqlalchemy import delete
+
 from app.db.database import SessionLocal
 from app.db.models import Chunk
 from app.embeddings import embed_text
@@ -11,37 +15,37 @@ CHUNK_SIZE = 500
 OVERLAP = 100
 
 
-def main():
-    pages = extract_pages(PDF_PATH)
+def index_pdf(pdf_path: str = PDF_PATH) -> int:
+    """Replace a document's chunks atomically, using its filename as identity."""
+    pages = extract_pages(pdf_path)
     chunks = chunk_pages(
         pages,
         chunk_size=CHUNK_SIZE,
         overlap=OVERLAP,
     )
 
-    db = SessionLocal()
+    # Finish extraction and embedding before touching the existing index.
+    db_chunks = [
+        Chunk(
+            document=chunk["document"],
+            page=chunk["page"],
+            chunk_index=chunk["chunk_index"],
+            text=chunk["text"],
+            embedding=embed_text(chunk["text"]),
+        )
+        for chunk in chunks
+    ]
 
-    try:
-        for chunk in chunks:
-            embedding = embed_text(chunk["text"])
+    with SessionLocal.begin() as db:
+        db.execute(delete(Chunk).where(Chunk.document == Path(pdf_path).name))
+        db.add_all(db_chunks)
 
-            db_chunk = Chunk(
-                document=chunk["document"],
-                page=chunk["page"],
-                chunk_index=chunk["chunk_index"],
-                text=chunk["text"],
-                embedding=embedding,
-            )
+    return len(db_chunks)
 
-            db.add(db_chunk)
 
-        db.commit()
-        print(f"Indexed {len(chunks)} chunks")
-
-    finally:
-        db.close()
+def main():
+    print(f"Indexed {index_pdf()} chunks")
 
 
 if __name__ == "__main__":
     main()
-    

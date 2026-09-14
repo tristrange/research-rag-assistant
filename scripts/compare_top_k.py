@@ -91,7 +91,7 @@ def evaluate(top_k: int) -> dict[str, float]:
     total = len(TEST_CASES)
 
     return {
-        "recall": hits / total,
+        "hit": hits / total,
         "mrr": reciprocal_rank_sum / total,
     }
 
@@ -99,7 +99,7 @@ def evaluate(top_k: int) -> dict[str, float]:
 def main():
     print(
         f"{'Top-k':>8} "
-        f"{'Recall@k':>10} "
+        f"{'Hit@k':>10} "
         f"{'MRR':>8}"
     )
 
@@ -108,7 +108,7 @@ def main():
 
         print(
             f"{top_k:>8} "
-            f"{metrics['recall']:>10.2f} "
+            f"{metrics['hit']:>10.2f} "
             f"{metrics['mrr']:>8.2f}"
         )
 

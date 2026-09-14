@@ -64,11 +64,16 @@ Place a paper at:
 data/sample.pdf
 ```
 
-Index it:
+Index it (running this again replaces the chunks for `sample.pdf`):
 
 ```bash
 uv run python -m scripts.index_pdf
 ```
+
+Documents are currently identified by filename. Reindexing replaces only that
+filename's chunks, including removing stale chunks if the PDF becomes shorter or
+has no extractable text. Extraction, embedding, or database failures preserve the
+previous index. Use distinct filenames for distinct papers.
 
 Start the API:
 
@@ -89,6 +94,8 @@ curl -X POST http://127.0.0.1:8000/query \
 
 The retrieval pipeline is evaluated on a manually labelled set of research-paper questions.
 
+Hit@k is the fraction of questions with at least one expected page among the first k chunks. Relevance is currently labelled at page level.
+
 Current best configuration:
 
 - chunk size: `500`
@@ -99,11 +106,22 @@ Results:
 
 | Metric | Score |
 |---|---:|
-| Recall@1 | 0.75 |
-| Recall@3 | 0.92 |
-| Recall@5 | 0.92 |
+| Hit@1 | 0.75 |
+| Hit@3 | 0.92 |
+| Hit@5 | 0.92 |
 | MRR | 0.82 |
 
 ## Status
 
 Still in development. Next steps include evaluating reranking, improving multi-document support, and adding a small frontend.
+
+## Tests
+
+Run the indexing regression tests without Ollama or PostgreSQL:
+
+```bash
+uv run python -m unittest discover -s tests -v
+```
+
+These tests use SQLite and stubbed PDF extraction and embeddings to check
+replacement, isolation between documents, and rollback on failure.

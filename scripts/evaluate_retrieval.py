@@ -62,9 +62,9 @@ def first_relevant_rank(retrieved_pages: list[int], expected_pages: list[int]) -
 
 
 def main():
-    recall_at_1 = 0
-    recall_at_3 = 0
-    recall_at_5 = 0
+    hit_at_1 = 0
+    hit_at_3 = 0
+    hit_at_5 = 0
     reciprocal_rank_sum = 0.0
 
     for test in TEST_CASES:
@@ -80,13 +80,13 @@ def main():
             reciprocal_rank_sum += 1 / rank
 
         if rank is not None and rank <= 1:
-            recall_at_1 += 1
+            hit_at_1 += 1
 
         if rank is not None and rank <= 3:
-            recall_at_3 += 1
+            hit_at_3 += 1
 
         if rank is not None and rank <= 5:
-            recall_at_5 += 1
+            hit_at_5 += 1
 
         print(f"\nQuestion: {test['question']}")
         print(f"Expected pages: {test['expected_pages']}")
@@ -96,9 +96,9 @@ def main():
     total = len(TEST_CASES)
 
     print("\n--- Results ---")
-    print(f"Recall@1: {recall_at_1 / total:.2f}")
-    print(f"Recall@3: {recall_at_3 / total:.2f}")
-    print(f"Recall@5: {recall_at_5 / total:.2f}")
+    print(f"Hit@1: {hit_at_1 / total:.2f}")
+    print(f"Hit@3: {hit_at_3 / total:.2f}")
+    print(f"Hit@5: {hit_at_5 / total:.2f}")
     print(f"MRR:      {reciprocal_rank_sum / total:.2f}")
 
 
