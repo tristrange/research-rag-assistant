@@ -13,7 +13,7 @@ def search_chunks(query: str, limit: int = 5) -> list[Chunk]:
     try:
         statement = (
             select(Chunk)
-            .order_by(Chunk.embedding.cosine_distance(query_embedding))
+            .order_by(Chunk.embedding.cosine_distance(query_embedding), Chunk.id)
             .limit(limit)
         )
 

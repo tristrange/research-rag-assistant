@@ -1,3 +1,5 @@
+from functools import cache
+
 from sentence_transformers import CrossEncoder
 
 from app.db.models import Chunk
@@ -5,7 +7,10 @@ from app.db.models import Chunk
 
 MODEL_NAME = "BAAI/bge-reranker-base"
 
-model = CrossEncoder(MODEL_NAME)
+@cache
+def get_model() -> CrossEncoder:
+    model: CrossEncoder = CrossEncoder(MODEL_NAME)
+    return model
 
 
 def rerank_chunks(
@@ -13,12 +18,15 @@ def rerank_chunks(
     chunks: list[Chunk],
     limit: int = 3,
 ) -> list[Chunk]:
+    if not chunks:
+        return []
+
     pairs = [
         (query, chunk.text)
         for chunk in chunks
     ]
 
-    scores = model.predict(pairs)
+    scores = get_model().predict(pairs)
 
     ranked = sorted(
         zip(chunks, scores),
