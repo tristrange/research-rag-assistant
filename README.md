@@ -261,17 +261,43 @@ through a percentage led to an incorrect body-mass answer, and the judge credite
 another answer with a numerical detail present only in the reference. These examples
 are why both the exact-evidence diagnostic and manual review are needed.
 
-The full run makes 40 model calls and can take several minutes. There is no warmup:
-answer timing includes retrieval, generation, and any model loading; judge timing is
-separate. Generation uses its existing model-default sampling, so results can vary.
+Before generating benchmark answers, the judge grades six synthetic examples with
+known expectations: a correct answer, a missing number, a contradiction, an
+answerable refusal, an unanswerable refusal, and an unsupported claim. The report
+records its scores and which checks passed. A failed check stops the run with
+`calibration_failed` and no aggregate metrics. Transport or invalid-output errors
+produce a `failed` report. Passing this small calibration does **not** establish
+judge accuracy or remove the need for human review.
+
+A fresh full run makes 46 model calls (six calibration calls plus 40 benchmark
+calls) and can take several minutes. Calibration may warm the local model; there
+is no dedicated timing warmup. Answer timing includes retrieval, generation, and
+any model loading; judge timing is separate. Generation uses its existing
+model-default sampling, so results can vary.
 Use the retrieval comparison for warmed latency measurements.
 
 Reports in the Git-ignored `evaluation-results/` directory include questions, answers,
 sources, judge explanations, timings, paper/corpus/case fingerprints, model names,
-settings, and package versions. Each completed question is saved immediately. Failure
-or interruption leaves a `failed` report with completed results and no aggregate
-score. Retry selected cases using `--case` and a new report; runs are not resumed
-automatically. `--output PATH` chooses a filename; existing reports are never overwritten.
+settings, and package versions. Generated answers, sources, and generation timing
+are saved **before judging**, then completed scores are saved separately. Failure
+or interruption leaves a report with completed results and any pending answer,
+but no aggregate scores. Checkpoints are replaced atomically.
+
+Resume a failed or interrupted run into a new report:
+
+```bash
+uv run python -m scripts.evaluate_answers \
+  --resume evaluation-results/answers-original.json \
+  --output evaluation-results/answers-resumed.json
+```
+
+Resume keeps the original report, skips completed cases, and reuses a saved pending
+answer instead of regenerating it. Calibration runs again before work continues.
+The source paper, corpus, cases, model names, settings, and evaluator version must
+match; incompatible or malformed reports are rejected. Model names do not pin
+Ollama model weights: keep the installed models unchanged between attempts.
+Reports from the old schema (version 1) cannot be resumed; start a new run for them.
+`--output PATH` chooses a filename; existing reports are never overwritten.
 
 ## Tests
 
