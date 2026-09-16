@@ -440,10 +440,11 @@ def main() -> None:
     else:
         validate_resume_consistency(saved, cases, before, strategy, reranker_model)
         report = cast(dict[str, object], saved.model_dump())
-        report.update({
+        report = {
+            **report,
             "status": "running", "finished_at": None, "resumed_from": str(args.resume),
             "error": None, "metrics": None, "calibration": None,
-        })
+        }
 
     try:
         reserve_output(output)
@@ -453,39 +454,44 @@ def main() -> None:
     try:
         print("Checking the judge against known calibration examples...", flush=True)
         calibration = CalibrationModel.model_validate(run_calibration(generate_json)).model_dump()
-        report["calibration"] = calibration
+        report = {**report, "calibration": calibration}
         save_report(output, report)
         if not calibration["passed"]:
-            report["status"] = "calibration_failed"
-            report["error"] = "Judge calibration failed; benchmark answers were not evaluated"
+            report = {
+                **report,
+                "status": "calibration_failed",
+                "error": "Judge calibration failed; benchmark answers were not evaluated",
+            }
             raise SystemExit(report["error"])
 
         answer = partial(answer_question, use_reranking=strategy == "reranked")
-        results = cast(list[CaseEvaluation], report["results"])
-        pending = cast(GeneratedCaseAnswer | None, report["pending"])
-        for index in range(len(results), len(cases)):
+        for index in range(len(cast(list[CaseEvaluation], report["results"])), len(cases)):
             case = cases[index]
             print(f"Evaluating {index + 1}/{len(cases)}: {case['id']}...", flush=True)
+            pending = cast(GeneratedCaseAnswer | None, report["pending"])
             if pending is None:
                 pending = generate_case_answer(case, answer)
-                report["pending"] = pending
+                report = {**report, "pending": pending}
                 save_report(output, report)
             result = judge_case_answer(pending, generate_json)
-            results.append(result)
-            pending = None
-            report["pending"] = None
+            results = [*cast(list[CaseEvaluation], report["results"]), result]
+            report = {**report, "results": results, "pending": None}
             save_report(output, report)
             print_result(result)
         if snapshot("sample.pdf") != before:
             raise RuntimeError("The index changed during evaluation; results are invalid")
-        report["metrics"] = summarize(results)
-        report["status"] = "complete"
+        results = cast(list[CaseEvaluation], report["results"])
+        report = {**report, "metrics": summarize(results), "status": "complete"}
     except (Exception, KeyboardInterrupt) as error:
-        report["status"] = "failed"
-        report["error"] = f"{type(error).__name__}: {error}"
+        report = {
+            **report,
+            "status": "failed",
+            "error": f"{type(error).__name__}: {error}",
+            "metrics": None,
+        }
         raise
     finally:
-        report["finished_at"] = datetime.now(timezone.utc).isoformat()
+        report = {**report, "finished_at": datetime.now(timezone.utc).isoformat()}
         save_report(output, report)
         print(f"Saved {report['status']} report: {output}", flush=True)
     print(json.dumps(report["metrics"], indent=2))
