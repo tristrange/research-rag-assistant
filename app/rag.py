@@ -4,14 +4,12 @@ from app.retrieval.search import search_chunks
 from app.types import AnswerResult, ChunkData
 
 
-def answer_question(question: str, limit: int = 3) -> AnswerResult:
-    candidates = search_chunks(question, limit=10)
-    
-    chunks = rerank_chunks(
-        question,
-        candidates,
-        limit=limit,
-    )
+def answer_question(
+    question: str, limit: int = 3, *, use_reranking: bool = True,
+) -> AnswerResult:
+    candidates = search_chunks(question, limit=10 if use_reranking else limit)
+
+    chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
 
     context_parts = []
 

@@ -176,8 +176,89 @@ Latency is specific to this local run. The assistant's retrieval defaults are un
 
 ## Status
 
-Still in development. Next steps include passage-level and answer-quality evaluation,
+Still in development. Initial passage-level and answer-quality evaluation is available.
+Next steps include reviewing the reference labels and judge scores, testing more papers,
 improving multi-document support, and adding a small frontend.
+
+## Answer-quality evaluation
+
+Run the complete question → retrieval → generation pipeline, then score each answer:
+
+```bash
+uv run python -m scripts.evaluate_answers
+```
+
+This requires PostgreSQL, Ollama with `nomic-embed-text` and `qwen3:8b`, the reranker
+(downloaded on first use if not cached), and the original paper at `data/sample.pdf`.
+The paper is *Pre-clinical cancer cachexia causes glucose hypermetabolism prior to
+overt weight loss*, DOI `10.1016/j.molmet.2026.102422`. Its SHA-256 must match the
+labelled version, and the index must contain only this paper because the
+unanswerability labels apply to this corpus.
+
+The 20 cases in `scripts/answer_quality_cases.py` contain 16 answerable questions with
+reference answers and evidence quotes, plus four unanswerable questions. They are
+assistant-authored, exploratory labels on the same paper used for retrieval tuning,
+with overlapping topics. Review them before using the results to make claims about
+general answer quality; this is not an independently reviewed benchmark.
+
+For a quick trial, select one answerable and one unanswerable question:
+
+```bash
+uv run python -m scripts.evaluate_answers \
+  --case c26-body-mass-loss --case female-mice
+```
+
+To compare without reranking, run a separate report:
+
+```bash
+uv run python -m scripts.evaluate_answers --strategy vector
+```
+
+The default `reranked` strategy uses the assistant's existing top-10 → top-3 pipeline.
+The `vector` strategy retrieves the top 3 directly. Both use the same prompt and
+answer-generation function. Reference answers and labels go only to the judge.
+The FastAPI endpoint continues to use reranking.
+
+### Scores and limitations
+
+| Metric | Meaning |
+|---|---|
+| Correctness / completeness / citation support | Judge scores from 0–2, averaged and divided by 2 across answerable cases only. Support checks the returned source bundle, not inline citation attribution. |
+| Evidence hit rate | Fraction of answerable cases with at least one labelled quote fully present in a returned chunk on the correct document/page. |
+| Mean evidence recall | Average fraction of each answerable case's labelled quotes found in returned chunks. |
+| Abstention accuracy | Fraction of all cases where answering versus declining matches the paper's answerability label, using the judge's classification. |
+| Unanswerable abstention rate | Fraction of unanswerable cases where the judge classifies the response as a refusal without guessing. |
+| Answerable false abstention rate | Fraction of answerable cases where the assistant declined. Lower is better. |
+| Pass rate | All three judge scores equal 2, expected abstention behavior, and at least one evidence match for answerable cases. |
+
+Quotes are validated against the PDF before running, independently of chunk boundaries.
+Evidence matching normalizes line breaks and hyphenation but requires the whole quote
+in one returned chunk; it can miss split or alternative supporting passages. Indexed
+text must belong to the PDF; duplicate chunk identities and a changed index are rejected.
+The evaluator never reindexes the paper.
+
+Semantic scores and abstention classification use schema-constrained JSON from
+**the same Qwen model that generated the answer**, at temperature 0. This judge can
+be biased or wrong: inspect the saved explanations and passages. Invalid judge output
+fails the run. Correct refusals do not inflate answerable-case quality scores.
+Unavailable metric groups in selected-case runs are reported as `null`.
+
+The initial local trial exposed both kinds of failure: a chunk beginning partway
+through a percentage led to an incorrect body-mass answer, and the judge credited
+another answer with a numerical detail present only in the reference. These examples
+are why both the exact-evidence diagnostic and manual review are needed.
+
+The full run makes 40 model calls and can take several minutes. There is no warmup:
+answer timing includes retrieval, generation, and any model loading; judge timing is
+separate. Generation uses its existing model-default sampling, so results can vary.
+Use the retrieval comparison for warmed latency measurements.
+
+Reports in the Git-ignored `evaluation-results/` directory include questions, answers,
+sources, judge explanations, timings, paper/corpus/case fingerprints, model names,
+settings, and package versions. Each completed question is saved immediately. Failure
+or interruption leaves a `failed` report with completed results and no aggregate
+score. Retry selected cases using `--case` and a new report; runs are not resumed
+automatically. `--output PATH` chooses a filename; existing reports are never overwritten.
 
 ## Tests
 
@@ -190,6 +271,8 @@ uv run python -m unittest discover -s tests -v
 These tests use SQLite and stubbed extraction, embeddings, and reranking to check
 index replacement and rollback, evaluation metrics and cutoffs, timing boundaries,
 warmup exclusion, document matching, index validation, and reranker ordering.
+Answer-evaluation tests additionally cover evidence labels, strict judge validation,
+abstention scoring, reference isolation, report preservation, and both generation paths.
 
 ## Type checking
 
@@ -202,5 +285,6 @@ uv run mypy
 
 Strict checking uses shared typed dictionaries for pages, chunks, answers, and
 evaluation cases. Ollama response types describe the expected JSON structure;
-they do not add runtime validation. PyMuPDF's incomplete annotations are skipped,
+the ordinary chat response types do not add runtime validation. The evaluation judge's
+JSON output is validated with Pydantic. PyMuPDF's incomplete annotations are skipped,
 and missing pgvector stubs are tolerated in the checker configuration.
