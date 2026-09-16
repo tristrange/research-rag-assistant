@@ -59,6 +59,17 @@ class CaseEvaluation(TypedDict):
     passed: bool
 
 
+class GeneratedCaseAnswer(TypedDict):
+    """A generated answer checkpoint that can be judged without regeneration."""
+
+    case: AnswerEvaluationCase
+    answer: str
+    sources: list[ChunkData]
+    evidence_found: list[bool]
+    evidence_recall: float | None
+    answer_ms: float
+
+
 class AnswerMetrics(TypedDict):
     cases: int
     answerable_cases: int
@@ -125,18 +136,32 @@ Evaluation data (JSON):
 {data}"""
 
 
-def evaluate_case(case: AnswerEvaluationCase, answer: Answer, judge: Judge) -> CaseEvaluation:
+def generate_case_answer(case: AnswerEvaluationCase, answer: Answer) -> GeneratedCaseAnswer:
     started = perf_counter()
     result = answer(case["question"])
     answered = perf_counter()
     found = [evidence_found(label, result["sources"]) for label in case["evidence"]]
     evidence_recall = mean(float(value) for value in found) if found else None
+    return {
+        "case": case,
+        "answer": result["answer"],
+        "sources": result["sources"],
+        "evidence_found": found,
+        "evidence_recall": evidence_recall,
+        "answer_ms": (answered - started) * 1000,
+    }
+
+
+def judge_case_answer(generated: GeneratedCaseAnswer, judge: Judge) -> CaseEvaluation:
+    result = AnswerResult(answer=generated["answer"], sources=generated["sources"])
     judging_started = perf_counter()
     scores = JudgeScores.model_validate(
-        judge(judge_prompt(case, result), JudgeScores.model_json_schema())
+        judge(judge_prompt(generated["case"], result), JudgeScores.model_json_schema())
     )
     judged = perf_counter()
     abstained = scores.abstained
+    case = generated["case"]
+    evidence_recall = generated["evidence_recall"]
     correct_behavior = not abstained if case["answerable"] else abstained
     passed = (
         correct_behavior
@@ -146,10 +171,7 @@ def evaluate_case(case: AnswerEvaluationCase, answer: Answer, judge: Judge) -> C
         and (evidence_recall is None or evidence_recall > 0)
     )
     return {
-        "case": case,
-        "answer": result["answer"],
-        "sources": result["sources"],
-        "evidence_found": found,
+        **generated,
         "evidence_recall": evidence_recall,
         "abstained": abstained,
         "judge": {
@@ -158,10 +180,14 @@ def evaluate_case(case: AnswerEvaluationCase, answer: Answer, judge: Judge) -> C
             "citation_support": scores.citation_support,
             "explanation": scores.explanation,
         },
-        "answer_ms": (answered - started) * 1000,
         "judge_ms": (judged - judging_started) * 1000,
         "passed": passed,
     }
+
+
+def evaluate_case(case: AnswerEvaluationCase, answer: Answer, judge: Judge) -> CaseEvaluation:
+    """Generate and judge a case in one call for callers that do not checkpoint."""
+    return judge_case_answer(generate_case_answer(case, answer), judge)
 
 
 def summarize(results: list[CaseEvaluation]) -> AnswerMetrics:
