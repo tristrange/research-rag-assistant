@@ -75,6 +75,19 @@ filename's chunks, including removing stale chunks if the PDF becomes shorter or
 has no extractable text. Extraction, embedding, or database failures preserve the
 previous index. Use distinct filenames for distinct papers.
 
+Chunking prefers sentence boundaries and falls back to whitespace for long
+sentences. It keeps the original page text and metadata, with a hard character
+limit; exceptionally long tokens may still be split. Overlap is adjusted to
+boundaries rather than being an exact number of characters. This reduces partial
+numbers and detached sentence fragments, but does not guarantee correct retrieval
+or answers. Sentence detection is a lightweight punctuation heuristic, not a full
+parser for scientific prose.
+
+After updating the chunker, rerun `uv run python -m scripts.index_pdf` to replace
+the stored chunks and embeddings. Existing indexes do not change automatically.
+Then rerun the retrieval and answer evaluations below; older reports describe the
+old chunk boundaries and should not be treated as measurements of the new index.
+
 Start the API:
 
 ```bash
