@@ -4,10 +4,13 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
 import io
+import inspect
 import json
 from pathlib import Path
+import sys
 from tempfile import TemporaryDirectory
-from typing import cast
+from types import FrameType
+from typing import Any, cast
 import unittest
 from unittest.mock import Mock, patch
 
@@ -186,6 +189,102 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertIsNotNone(resumed["metrics"])
             generate_mock.assert_not_called()
             calibration_mock.assert_called_once()
+
+    def test_interrupt_around_atomic_transitions_produces_resumable_reports(self) -> None:
+        case = ANSWER_CASES[0]
+        generated = pending_answer(case)
+        completed = judged_answer(generated)
+
+        source_lines, first_line = inspect.getsourcelines(main)
+
+        def line_containing(fragment: str) -> int:
+            matches = [
+                first_line + offset for offset, line in enumerate(source_lines)
+                if fragment in line
+            ]
+            self.assertEqual(len(matches), 1)
+            return matches[0]
+
+        result_transition = line_containing(
+            'report = {**report, "results": results, "pending": None}'
+        )
+        completion_transition = line_containing(
+            'report = {**report, "metrics": summarize(results), "status": "complete"}'
+        )
+        finish_transition = line_containing(
+            'report = {**report, "finished_at": datetime.now(timezone.utc).isoformat()}'
+        )
+        phases = [
+            ("before-result", result_transition, "failed", True, 0, 1),
+            ("after-result", result_transition + 1, "failed", False, 1, 0),
+            ("before-completion", completion_transition, "failed", False, 1, 0),
+            ("after-completion", finish_transition, "running", False, 1, 0),
+        ]
+
+        with TemporaryDirectory() as directory:
+            for name, target_line, status, has_pending, result_count, judge_calls in phases:
+                with self.subTest(phase=name):
+                    source = Path(directory) / f"{name}-interrupted.json"
+                    output = Path(directory) / f"{name}-resumed.json"
+                    interrupted = False
+
+                    def interrupt_at_line(
+                        frame: FrameType, event: str, argument: object,
+                    ) -> Any:
+                        nonlocal interrupted
+                        if (frame.f_code is main.__code__ and event == "line"
+                                and frame.f_lineno == target_line):
+                            interrupted = True
+                            raise KeyboardInterrupt(f"interrupted {name}")
+                        return interrupt_at_line
+
+                    with ExitStack() as stack:
+                        stack.enter_context(patch("sys.argv", [
+                            "evaluate_answers", "--case", case["id"], "--output", str(source),
+                        ]))
+                        self.patch_preflight(stack)
+                        stack.enter_context(patch(
+                            "scripts.evaluate_answers.generate_case_answer", return_value=generated,
+                        ))
+                        stack.enter_context(patch(
+                            "scripts.evaluate_answers.judge_case_answer", return_value=completed,
+                        ))
+                        previous_trace = sys.gettrace()
+                        sys.settrace(interrupt_at_line)
+                        try:
+                            with redirect_stdout(io.StringIO()), self.assertRaises(KeyboardInterrupt):
+                                main()
+                        finally:
+                            sys.settrace(previous_trace)
+
+                    self.assertTrue(interrupted)
+                    interrupted_report = load_report(source)
+                    self.assertEqual(interrupted_report.status, status)
+                    self.assertEqual(interrupted_report.pending is not None, has_pending)
+                    self.assertEqual(len(interrupted_report.results), result_count)
+                    self.assertIsNone(interrupted_report.metrics)
+
+                    with ExitStack() as stack:
+                        stack.enter_context(patch("sys.argv", [
+                            "evaluate_answers", "--resume", str(source), "--output", str(output),
+                        ]))
+                        self.patch_preflight(stack)
+                        generate_mock = stack.enter_context(patch(
+                            "scripts.evaluate_answers.generate_case_answer"
+                        ))
+                        judge_mock = stack.enter_context(patch(
+                            "scripts.evaluate_answers.judge_case_answer", return_value=completed,
+                        ))
+                        with redirect_stdout(io.StringIO()):
+                            main()
+
+                    resumed = load_report(output)
+                    self.assertEqual(resumed.status, "complete")
+                    self.assertEqual(
+                        [result.case.id for result in resumed.results], [case["id"]]
+                    )
+                    generate_mock.assert_not_called()
+                    self.assertEqual(judge_mock.call_count, judge_calls)
 
     def test_calibration_failure_stops_before_answers_and_has_no_metrics(self) -> None:
         case = ANSWER_CASES[0]
