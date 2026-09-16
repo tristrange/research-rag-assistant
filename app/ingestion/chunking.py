@@ -7,7 +7,18 @@ from app.types import ChunkData, PageData
 # page. Requiring whitespace avoids treating the decimal point in values such
 # as ``3.9%`` as a sentence boundary.
 _SENTENCE_END = re.compile(r"[.!?][\"')\]]*(?=\s|$)")
-_ABBREVIATIONS = ("fig.", "e.g.", "i.e.", "dr.", "mr.", "mrs.", "vs.")
+_ABBREVIATION_PERIOD = re.compile(
+    r"(?:\bet\s+al|\b(?:fig|e\.g|i\.e|dr|mr|mrs|vs))\.$",
+    re.IGNORECASE,
+)
+
+
+def _is_abbreviation_period(text: str, match: re.Match[str]) -> bool:
+    """Return whether a sentence-ending period belongs to a known abbreviation."""
+    # et al. permits any whitespace (including extracted PDF line breaks)
+    # between its tokens. Search against the full prefix so token boundaries
+    # cannot be fabricated by trimming the text.
+    return _ABBREVIATION_PERIOD.search(text, 0, match.start() + 1) is not None
 
 
 def _next_chunk_end(text: str, start: int, chunk_size: int, previous_end: int) -> int:
@@ -18,8 +29,7 @@ def _next_chunk_end(text: str, start: int, chunk_size: int, previous_end: int) -
 
     sentence_end = None
     for match in _SENTENCE_END.finditer(text, start, limit):
-        before = text[max(start, match.start() - 4):match.start() + 1].lower()
-        if any(before.endswith(abbreviation) for abbreviation in _ABBREVIATIONS):
+        if _is_abbreviation_period(text, match):
             continue
         if match.end() > previous_end:
             sentence_end = match.end()
@@ -48,8 +58,7 @@ def _next_chunk_start(text: str, start: int, end: int, overlap: int, chunk_size:
     # Prefer a sentence boundary at or before the desired overlap start.
     sentence_starts = []
     for match in _SENTENCE_END.finditer(text, start + 1, desired + 1):
-        before = text[max(start, match.start() - 4):match.start() + 1].lower()
-        if not any(before.endswith(abbreviation) for abbreviation in _ABBREVIATIONS):
+        if not _is_abbreviation_period(text, match):
             sentence_starts.append(match.end())
     if sentence_starts:
         return sentence_starts[-1]

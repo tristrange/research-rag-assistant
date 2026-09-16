@@ -1,6 +1,6 @@
 import unittest
 
-from app.ingestion.chunking import chunk_pages
+from app.ingestion.chunking import _next_chunk_start, chunk_pages
 from app.types import PageData
 
 
@@ -41,6 +41,41 @@ class ChunkingTests(unittest.TestCase):
 
         self.assertTrue(all(not chunk["text"].startswith("9%)") for chunk in chunks))
         self.assertTrue(all(not chunk["text"].startswith("3 for the result") for chunk in chunks))
+
+    def test_et_al_period_is_not_a_sentence_boundary(self) -> None:
+        text = "Prior findings from Smith et al. 2020 show a consistent effect across later studies."
+        chunks = chunk_pages([page(text)], chunk_size=40, overlap=0)
+
+        self.assertTrue(all(not chunk["text"].endswith("et al.") for chunk in chunks))
+        self.assertEqual("".join(chunk["text"] for chunk in chunks), text)
+
+    def test_et_al_with_pdf_newline_is_not_a_sentence_boundary(self) -> None:
+        text = "Prior findings from Smith et\n al. 2020 show a consistent effect."
+        chunks = chunk_pages([page(text)], chunk_size=40, overlap=0)
+
+        self.assertTrue(all(not chunk["text"].endswith("al.") for chunk in chunks))
+        self.assertEqual("".join(chunk["text"] for chunk in chunks), text)
+
+    def test_overlap_does_not_treat_et_al_as_sentence_before_citation_year(self) -> None:
+        text = "Intro sentence. Prior findings from Smith et al. 2020 show a consistent effect."
+        citation_period = text.index("al.") + 2
+
+        next_start = _next_chunk_start(text, 0, len(text), overlap=len(text) - (citation_period + 2), chunk_size=len(text))
+
+        self.assertEqual(next_start, text.index(".") + 1)
+
+    def test_abbreviation_check_does_not_match_ordinary_word_suffix(self) -> None:
+        text = "The result was normal. A second sentence follows."
+        chunks = chunk_pages([page(text)], chunk_size=len("The result was normal."), overlap=0)
+
+        self.assertEqual(chunks[0]["text"], "The result was normal.")
+
+    def test_existing_abbreviations_and_decimal_still_work(self) -> None:
+        text = "See Fig. 3 and e.g. 1.5 units. Dr. Lee agreed."
+        chunks = chunk_pages([page(text)], chunk_size=30, overlap=0)
+
+        self.assertTrue(all(not chunk["text"].endswith(("Fig.", "e.g.", "Dr.")) for chunk in chunks))
+        self.assertEqual("".join(chunk["text"] for chunk in chunks), text)
 
     def test_page_chunk_indices_restart_and_size_one_makes_progress(self) -> None:
         chunks = chunk_pages([page("abcdef", number=1), page("gh", number=2)], chunk_size=1, overlap=0)
