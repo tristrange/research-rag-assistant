@@ -303,6 +303,33 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertIsNone(report["metrics"])
             generate_mock.assert_not_called()
 
+    def test_expanded_strategy_is_recorded_and_passed_to_answer_generation(self) -> None:
+        case = ANSWER_CASES[0]
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory) / "expanded.json"
+            stack.enter_context(patch("sys.argv", [
+                "evaluate_answers", "--case", case["id"], "--strategy", "expanded",
+                "--output", str(output),
+            ]))
+            self.patch_preflight(stack)
+            answer = stack.enter_context(patch("app.rag.answer_question", return_value={
+                "answer": "Unknown", "sources": [],
+            }))
+
+            def judge(generated: GeneratedCaseAnswer, ignored: object) -> CaseEvaluation:
+                return judged_answer(generated)
+
+            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge))
+            with redirect_stdout(io.StringIO()):
+                main()
+            answer.assert_called_once_with(case["question"], use_reranking=True, expand_context=True)
+            report = load_report(output)
+            self.assertEqual(report.settings.strategy, "expanded")
+            self.assertEqual(report.settings.candidate_count, 10)
+            self.assertEqual(report.settings.neighbor_radius, 2)
+            self.assertEqual(report.settings.max_context_chars, 6000)
+            self.assertEqual(report.reranker_model, MODEL_NAME)
+
     def test_schema_v1_resume_is_rejected_before_services(self) -> None:
         with TemporaryDirectory() as directory, ExitStack() as stack:
             source = Path(directory) / "old.json"

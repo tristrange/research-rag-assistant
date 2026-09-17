@@ -230,10 +230,31 @@ To compare without reranking, run a separate report:
 uv run python -m scripts.evaluate_answers --strategy vector
 ```
 
+To evaluate reranked passages with neighboring context:
+
+```bash
+uv run python -m scripts.evaluate_answers --strategy expanded
+```
+
+`expanded` starts from the same top-10 → top-3 reranked passages, then adds the
+two preceding and two following chunks on each passage's document and page.
+Overlapping windows are merged, repeated text at chunk boundaries is removed,
+and the rendered context (including source labels) is capped at 6,000 characters.
+Budgeting retains whole passages rather than cutting through a numerical result.
+Returned sources contain exactly the passages provided to the model. For a merged
+window, `chunk_index` identifies its first included chunk; document and page remain
+unchanged. Neighboring text is context, not independently ranked evidence.
+
+The strategy, neighbor radius, and context budget are recorded in reports and
+checked on resume. Older reports without these settings require a fresh run.
+
 The default `reranked` strategy uses the assistant's existing top-10 → top-3 pipeline.
 The `vector` strategy retrieves the top 3 directly. Both use the same prompt and
 answer-generation function. Reference answers and labels go only to the judge.
-The FastAPI endpoint continues to use reranking.
+The FastAPI endpoint continues to use reranking without expansion. Expansion stays
+opt-in because the full trial improved retrieval but introduced an unsupported
+drug-treatment answer. See the [neighboring-context evaluation](docs/neighbor-context-evaluation.md)
+for results, inspected failures, and the rollout decision.
 
 ### Scores and limitations
 
