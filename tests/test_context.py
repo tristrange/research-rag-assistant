@@ -38,6 +38,27 @@ class ContextExpansionTests(unittest.TestCase):
         db.close.assert_called_once_with()
         return sources, db
 
+    def test_expansion_cannot_cross_or_jump_over_a_section_boundary(self) -> None:
+        seed = chunk(2, "Own result.")
+        seed.section = "results"
+        boundary = chunk(3, "Cited work.")
+        boundary.section = "references"
+        beyond = chunk(4, "Unrelated result.")
+        beyond.section = "results"
+        sources, _ = self._expand_with_rows([seed], [boundary, beyond])
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["text"], "Own result.")
+        self.assertEqual(sources[0]["section"], "results")
+
+    def test_adjacent_seeds_in_different_sections_stay_separate(self) -> None:
+        result = chunk(2, "Own result.")
+        result.section = "results"
+        reference = chunk(3, "Cited work.")
+        reference.section = "references"
+        sources, _ = self._expand_with_rows([result, reference], [])
+        self.assertEqual([s["section"] for s in sources], ["results", "references"])
+        self.assertIn("section references", render_context(sources))
+
     def test_empty_seeds_need_no_database_lookup(self) -> None:
         with patch("app.retrieval.context.SessionLocal") as session:
             self.assertEqual(expand_chunks([]), [])
@@ -56,6 +77,7 @@ class ContextExpansionTests(unittest.TestCase):
 
         self.assertEqual(sources, [{
             "document": "paper.pdf",
+            "section": "unknown",
             "page": 4,
             "chunk_index": 0,
             "text": (
@@ -115,8 +137,8 @@ class ContextExpansionTests(unittest.TestCase):
         second = chunk(8, "Second seed.", document="b.pdf", page=2)
         neighbor = chunk(4, "A neighbor that cannot fit. ", document="a.pdf", page=1)
         seed_sources = [
-            ChunkData(document="a.pdf", page=1, chunk_index=5, text="First seed."),
-            ChunkData(document="b.pdf", page=2, chunk_index=8, text="Second seed."),
+            ChunkData(document="a.pdf", page=1, chunk_index=5, text="First seed.", section="unknown"),
+            ChunkData(document="b.pdf", page=2, chunk_index=8, text="Second seed.", section="unknown"),
         ]
         budget = len(render_context(seed_sources))
 
@@ -131,7 +153,7 @@ class ContextExpansionTests(unittest.TestCase):
         first = chunk(5, "First seed.", document="a.pdf", page=1)
         second = chunk(8, "Second seed.", document="b.pdf", page=2)
         first_source = ChunkData(
-            document="a.pdf", page=1, chunk_index=5, text="First seed.",
+            document="a.pdf", page=1, chunk_index=5, text="First seed.", section="unknown",
         )
         budget = len(render_context([first_source]))
 

@@ -88,6 +88,25 @@ the stored chunks and embeddings. Existing indexes do not change automatically.
 Then rerun the retrieval and answer evaluations below; older reports describe the
 old chunk boundaries and should not be treated as measurements of the new index.
 
+Section metadata is recognized from standalone headings during chunking and carried
+across pages. Chunks and expanded windows do not cross recognized section boundaries.
+Sources expose a `section` field; unrecognized sections are `unknown`. These labels
+are hints: discussion/results passages may still cite other studies, and PDF reading
+order or unconventional headings can prevent reliable classification. References
+remain retrievable for questions explicitly about cited literature.
+
+After upgrading an existing database, run both commands in order:
+
+```bash
+uv run python -m scripts.init_db
+uv run python -m scripts.index_pdf
+```
+
+Initialization adds the section column idempotently and marks existing rows `unknown`.
+Reindexing replaces them with section-aware chunks and embeddings. The answer prompt
+requires evidence of attribution to the current study, but cannot guarantee that the
+model follows it. See the [attribution evaluation](docs/source-attribution-evaluation.md).
+
 Start the API:
 
 ```bash
@@ -211,8 +230,9 @@ overt weight loss*, DOI `10.1016/j.molmet.2026.102422`. Its SHA-256 must match t
 labelled version, and the index must contain only this paper because the
 unanswerability labels apply to this corpus.
 
-The 20 cases in `scripts/answer_quality_cases.py` contain 16 answerable questions with
-reference answers and evidence quotes, plus four unanswerable questions. They are
+The 24 cases in `scripts/answer_quality_cases.py` contain 18 answerable questions with
+reference answers and evidence quotes, plus six unanswerable questions. Four
+attribution cases distinguish cited treatment studies from the current paper. They are
 assistant-authored, exploratory labels on the same paper used for retrieval tuning,
 with overlapping topics. Review them before using the results to make claims about
 general answer quality; this is not an independently reviewed benchmark.
@@ -245,14 +265,14 @@ Returned sources contain exactly the passages provided to the model. For a merge
 window, `chunk_index` identifies its first included chunk; document and page remain
 unchanged. Neighboring text is context, not independently ranked evidence.
 
-The strategy, neighbor radius, and context budget are recorded in reports and
+The strategy, neighbor radius, context budget, and generator prompt fingerprint are recorded in reports and
 checked on resume. Older reports without these settings require a fresh run.
 
 The default `reranked` strategy uses the assistant's existing top-10 → top-3 pipeline.
 The `vector` strategy retrieves the top 3 directly. Both use the same prompt and
 answer-generation function. Reference answers and labels go only to the judge.
 The FastAPI endpoint continues to use reranking without expansion. Expansion stays
-opt-in because the full trial improved retrieval but introduced an unsupported
+opt-in because the previous trial improved retrieval but introduced an unsupported
 drug-treatment answer. See the [neighboring-context evaluation](docs/neighbor-context-evaluation.md)
 for results, inspected failures, and the rollout decision.
 
@@ -328,8 +348,9 @@ The source paper, corpus, cases, model names, settings, and evaluator version mu
 match; incompatible or malformed reports are rejected. Model names do not pin
 Ollama model weights: keep the installed models unchanged between attempts.
 Reports from the old schema (version 1), or older evaluations without recorded
-thinking settings, cannot be resumed; start a new run for them. Changing the judge
-prompt or thinking settings also requires a fresh evaluation. The 120-second
+thinking settings or the generator prompt fingerprint, cannot be resumed; start
+a new run for them. Changing either prompt or thinking settings also requires a
+fresh evaluation. The 120-second
 request timeout is unchanged; disabling judge thinking is not a guarantee against
 timeouts on every machine.
 `--output PATH` chooses a filename; existing reports are never overwritten.

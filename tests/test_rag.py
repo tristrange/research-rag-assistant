@@ -6,6 +6,19 @@ from app.rag import answer_question
 
 
 class RagTests(unittest.TestCase):
+    def test_reference_sources_are_labelled_and_retained(self) -> None:
+        reference = Chunk(document="paper.pdf", page=10, chunk_index=1,
+                          text="A cited intervention study.", section="references")
+        with patch("app.rag.search_chunks", return_value=[reference]), \
+                patch("app.rag.rerank_chunks", return_value=[reference]), \
+                patch("app.rag.generate", return_value="Cited work") as generate:
+            result = answer_question("What does the cited study report?")
+        self.assertEqual(result["sources"][0]["section"], "references")
+        prompt = generate.call_args.args[0]
+        self.assertIn("[paper.pdf, page 10, section references]", prompt)
+        self.assertIn("A cited intervention study.", prompt)
+        self.assertIn("require explicit evidence", prompt)
+
     def test_default_uses_reranking_and_passes_selected_context_to_generator(self) -> None:
         selected = Chunk(document="paper.pdf", page=2, chunk_index=1, text="Evidence")
         rejected = Chunk(document="paper.pdf", page=3, chunk_index=1, text="Distractor")
@@ -48,7 +61,7 @@ class RagTests(unittest.TestCase):
 
         expand.assert_called_once_with([selected])
         prompt = generate.call_args.args[0]
-        self.assertIn("[paper.pdf, page 2]\nPrevious. Seed. Following.", prompt)
+        self.assertIn("[paper.pdf, page 2, section unknown]\nPrevious. Seed. Following.", prompt)
         self.assertEqual(result["sources"], expanded)
 
     def test_unexpanded_path_preserves_ranked_chunks_and_does_not_lookup_neighbors(self) -> None:
@@ -60,12 +73,13 @@ class RagTests(unittest.TestCase):
             result = answer_question("Question")
 
         expand.assert_not_called()
-        self.assertIn("[paper.pdf, page 2]\nEvidence", generate.call_args.args[0])
+        self.assertIn("[paper.pdf, page 2, section unknown]\nEvidence", generate.call_args.args[0])
         self.assertEqual(result["sources"], [{
             "document": "paper.pdf",
             "page": 2,
             "chunk_index": 7,
             "text": "Evidence",
+            "section": "unknown",
         }])
 
 

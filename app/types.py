@@ -1,12 +1,13 @@
 """Typed dictionary contracts shared across the RAG pipeline."""
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class PageData(TypedDict):
     document: str
     page: int
     text: str
+    section: NotRequired[str]
 
 
 class ChunkData(PageData):

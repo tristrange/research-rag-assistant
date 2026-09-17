@@ -1,5 +1,6 @@
 import re
 
+from app.ingestion.sections import UNKNOWN_SECTION, section_ranges
 from app.types import ChunkData, PageData
 
 
@@ -91,40 +92,57 @@ def chunk_pages(
         raise ValueError("overlap must be between zero and chunk_size - 1")
 
     chunks: list[ChunkData] = []
+    current_document: str | None = None
+    current_section = UNKNOWN_SECTION
 
     for page in pages:
         text = page["text"]
         if not text.strip():
             continue
 
-        start = 0
-        previous_end = 0
+        if page["document"] != current_document:
+            current_document = page["document"]
+            current_section = UNKNOWN_SECTION
+        if "section" in page:
+            current_section = page["section"]
+
+        ranges, ending_section = section_ranges(text, current_section)
         chunk_index = 0
 
-        while start < len(text):
-            end = _next_chunk_end(text, start, chunk_size, previous_end)
-            if chunk_index > 0 and end <= previous_end:
-                # The proposed overlap leaves too little room for new text.
-                # Resume at the covered edge and recalculate without overlap.
-                start = previous_end
-                continue
-            # Text is emitted as an exact page substring, without strip(), so
-            # punctuation, numbers, and whitespace at either edge are retained.
-            chunks.append(
-                {
-                    "document": page["document"],
-                    "page": page["page"],
-                    "chunk_index": chunk_index,
-                    "text": text[start:end],
-                }
-            )
-            if end == len(text):
-                break
+        for range_start, range_end, section in ranges:
+            section_text = text[range_start:range_end]
+            start = 0
+            previous_end = 0
 
-            next_start = _next_chunk_start(text, start, end, overlap, chunk_size)
-            # Defensive progress guarantee for pathological inputs.
-            start = max(start + 1, next_start)
-            previous_end = end
-            chunk_index += 1
+            while start < len(section_text):
+                end = _next_chunk_end(section_text, start, chunk_size, previous_end)
+                if start > 0 and end <= previous_end:
+                    # The proposed overlap leaves too little room for new text.
+                    # Resume at the covered edge and recalculate without overlap.
+                    start = previous_end
+                    continue
+                # Text is emitted as an exact page substring, without strip(), so
+                # punctuation, numbers, and whitespace at either edge are retained.
+                chunks.append(
+                    {
+                        "document": page["document"],
+                        "page": page["page"],
+                        "chunk_index": chunk_index,
+                        "text": section_text[start:end],
+                        "section": section,
+                    }
+                )
+                chunk_index += 1
+                if end == len(section_text):
+                    break
+
+                next_start = _next_chunk_start(
+                    section_text, start, end, overlap, chunk_size,
+                )
+                # Defensive progress guarantee for pathological inputs.
+                start = max(start + 1, next_start)
+                previous_end = end
+
+        current_section = ending_section
 
     return chunks
