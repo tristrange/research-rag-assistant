@@ -18,10 +18,12 @@ class ChatRequest(TypedDict, total=False):
     stream: bool
     format: dict[str, object]
     options: dict[str, float]
+    think: bool
 
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL = "qwen3:8b"
+JUDGE_THINK = False
 
 
 def chat(
@@ -29,6 +31,7 @@ def chat(
     *,
     response_format: dict[str, object] | None = None,
     temperature: float | None = None,
+    think: bool | None = None,
 ) -> str:
     payload = ChatRequest(
         model=MODEL,
@@ -39,6 +42,8 @@ def chat(
         payload["format"] = response_format
     if temperature is not None:
         payload["options"] = {"temperature": temperature}
+    if think is not None:
+        payload["think"] = think
 
     response = httpx.post(
         OLLAMA_URL,
@@ -58,7 +63,7 @@ def generate(prompt: str) -> str:
 
 def generate_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
     """Generate JSON constrained by an Ollama schema and parse it at runtime."""
-    content = chat(prompt, response_format=schema, temperature=0.0)
+    content = chat(prompt, response_format=schema, temperature=0.0, think=JUDGE_THINK)
     parsed: object = json.loads(content)
     if not isinstance(parsed, dict):
         raise ValueError("Ollama returned JSON that was not an object")

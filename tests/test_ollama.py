@@ -10,7 +10,9 @@ class OllamaTests(unittest.TestCase):
         post.return_value.json.return_value = {"message": {"content": "Answer"}}
         self.assertEqual(generate("Question"), "Answer")
         post.return_value.raise_for_status.assert_called_once()
-        self.assertNotIn("format", post.call_args.kwargs["json"])
+        payload = post.call_args.kwargs["json"]
+        self.assertNotIn("format", payload)
+        self.assertNotIn("think", payload)
 
     @patch("app.llm.ollama.httpx.post")
     def test_generate_json_sends_schema_and_parses_object(self, post: Mock) -> None:
@@ -22,6 +24,7 @@ class OllamaTests(unittest.TestCase):
         payload = post.call_args.kwargs["json"]
         self.assertEqual(payload["format"], schema)
         self.assertEqual(payload["options"], {"temperature": 0.0})
+        self.assertIs(payload["think"], False)
 
     @patch("app.llm.ollama.httpx.post")
     def test_generate_json_rejects_non_object(self, post: Mock) -> None:

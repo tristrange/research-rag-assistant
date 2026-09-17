@@ -318,6 +318,17 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertFalse(output.exists())
             snapshot_mock.assert_not_called()
 
+    def test_resume_rejects_reports_without_explicit_thinking_settings(self) -> None:
+        report = self.base_report([ANSWER_CASES[0]])
+        settings = cast(dict[str, object], report["settings"])
+        settings.pop("generator_think")
+        settings.pop("judge_think")
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "old.json"
+            source.write_text(json.dumps(report))
+            with self.assertRaisesRegex(ValueError, r"(?s)generator_think.*judge_think"):
+                load_report(source)
+
     def test_loaded_report_rejects_invalid_order_duplicates_pending_and_timings(self) -> None:
         first, second = ANSWER_CASES[:2]
         baseline = self.base_report([first, second])

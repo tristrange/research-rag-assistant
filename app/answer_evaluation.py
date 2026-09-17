@@ -35,7 +35,10 @@ class JudgeScores(BaseModel):
     correctness: Score
     completeness: Score
     citation_support: Score
-    abstained: bool
+    abstained: bool = Field(description=(
+        "True when the answer declines to answer for lack of information without guessing. "
+        "Classify only the answer text, independently of whether the reference contains an answer."
+    ))
     explanation: str = Field(min_length=1)
 
 
@@ -123,6 +126,12 @@ Score each dimension from 0 to 2:
 - correctness: 2 means the answer is factually correct with no contradictory or invented claims; 1 means partly correct; 0 means wrong or an answer was invented for an unanswerable question.
 - completeness: 2 means all important reference facts are present; 1 means some are missing; 0 means the response does not answer appropriately. For an unanswerable question, a clear refusal is complete.
 - citation_support: 2 means the returned source passages support every material factual claim; 1 means support is partial; 0 means support is absent or contradictory. A pure refusal has no factual claims and receives 2, even if the paper actually contains an answer elsewhere.
+
+Determine abstained from the ANSWER TEXT, independently of the answerable label,
+reference, and sources. For example, 'I do not have enough information to answer'
+is abstained=true even when the reference contains the answer. This flag describes
+what the assistant did, not whether refusing was correct. A refusal followed by
+a guessed factual answer is abstained=false.
 
 Set abstained=true ONLY if the response explicitly declines to answer for lack of
 evidence and does not then guess an answer. Saying 'not provided' about one detail

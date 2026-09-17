@@ -25,14 +25,14 @@ from app.db.models import Chunk
 from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
-from app.llm.ollama import MODEL, generate_json
+from app.llm.ollama import JUDGE_THINK, MODEL, generate_json
 from app.types import AnswerResult, ChunkData, PageData
 from scripts.answer_quality_cases import ANSWER_CASES, PAPER_SHA256
 from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "2"
+EVALUATOR_VERSION = "3"
 
 
 def _prompt_fingerprint() -> str:
@@ -118,7 +118,9 @@ class SettingsModel(StrictModel):
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1)
     generator_temperature: str
+    generator_think: str
     judge_temperature: float
+    judge_think: bool
 
 
 class EnvironmentModel(StrictModel):
@@ -310,7 +312,8 @@ def settings_for(strategy: str) -> dict[str, object]:
     return {
         "strategy": strategy, "top_k": 3,
         "candidate_count": 10 if strategy == "reranked" else 3,
-        "generator_temperature": "model default", "judge_temperature": 0.0,
+        "generator_temperature": "model default", "generator_think": "model default",
+        "judge_temperature": 0.0, "judge_think": JUDGE_THINK,
     }
 
 
