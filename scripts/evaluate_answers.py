@@ -26,13 +26,14 @@ from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_THINK, MODEL, generate_json
+from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS
 from app.types import AnswerResult, ChunkData, PageData
 from scripts.answer_quality_cases import ANSWER_CASES, PAPER_SHA256
 from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "3"
+EVALUATOR_VERSION = "4"
 
 
 def _prompt_fingerprint() -> str:
@@ -114,13 +115,15 @@ class CorpusModel(StrictModel):
 
 
 class SettingsModel(StrictModel):
-    strategy: Literal["vector", "reranked"]
+    strategy: Literal["vector", "reranked", "expanded"]
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1)
     generator_temperature: str
     generator_think: str
     judge_temperature: float
     judge_think: bool
+    neighbor_radius: int = Field(ge=0)
+    max_context_chars: int | None = Field(default=None, ge=1)
 
 
 class EnvironmentModel(StrictModel):
@@ -311,9 +314,11 @@ def cases_hash(cases: list[AnswerEvaluationCase]) -> str:
 def settings_for(strategy: str) -> dict[str, object]:
     return {
         "strategy": strategy, "top_k": 3,
-        "candidate_count": 10 if strategy == "reranked" else 3,
+        "candidate_count": 3 if strategy == "vector" else 10,
         "generator_temperature": "model default", "generator_think": "model default",
         "judge_temperature": 0.0, "judge_think": JUDGE_THINK,
+        "neighbor_radius": NEIGHBOR_RADIUS if strategy == "expanded" else 0,
+        "max_context_chars": MAX_CONTEXT_CHARS if strategy == "expanded" else None,
     }
 
 
@@ -392,7 +397,7 @@ def main() -> None:
                         help="resume a schema-v2 report into a new output without changing the original")
     parser.add_argument("--case", dest="case_ids", action="append", choices=[c["id"] for c in ANSWER_CASES],
                         help="run just this case (repeat the flag to select more)")
-    parser.add_argument("--strategy", choices=["vector", "reranked"], default=None)
+    parser.add_argument("--strategy", choices=["vector", "reranked", "expanded"], default=None)
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
     output = args.output or Path("evaluation-results") / f"answers-{now.strftime('%Y%m%dT%H%M%S%fZ')}.json"
@@ -435,7 +440,7 @@ def main() -> None:
     from app.rag import answer_question
     from app.retrieval.rerank import MODEL_NAME
 
-    reranker_model = MODEL_NAME if strategy == "reranked" else None
+    reranker_model = None if strategy == "vector" else MODEL_NAME
     if saved is None:
         report = ReportModel.model_validate(
             _new_report(now, before, cases, strategy, reranker_model)
@@ -467,7 +472,8 @@ def main() -> None:
             }
             raise SystemExit(report["error"])
 
-        answer = partial(answer_question, use_reranking=strategy == "reranked")
+        answer = partial(answer_question, use_reranking=strategy != "vector",
+                         expand_context=strategy == "expanded")
         for index in range(len(cast(list[CaseEvaluation], report["results"])), len(cases)):
             case = cases[index]
             print(f"Evaluating {index + 1}/{len(cases)}: {case['id']}...", flush=True)
