@@ -195,6 +195,9 @@ improving multi-document support, and adding a small frontend.
 
 ## Answer-quality evaluation
 
+See the [17 September local evaluation](docs/evaluation-2026-09-17.md) for a completed
+20-question run, its configuration, and a manual review of the observed failures.
+
 Run the complete question → retrieval → generation pipeline, then score each answer:
 
 ```bash
@@ -251,10 +254,17 @@ text must belong to the PDF; duplicate chunk identities and a changed index are 
 The evaluator never reindexes the paper.
 
 Semantic scores and abstention classification use schema-constrained JSON from
-**the same Qwen model that generated the answer**, at temperature 0. This judge can
+**the same Qwen model that generated the answer**, at temperature 0 and with
+`think: false`. Answer generation retains the model's default thinking behavior.
+Ollama supports this switch for Qwen3; see its
+[thinking documentation](https://docs.ollama.com/capabilities/thinking).
+This judge can
 be biased or wrong: inspect the saved explanations and passages. Invalid judge output
 fails the run. Correct refusals do not inflate answerable-case quality scores.
 Unavailable metric groups in selected-case runs are reported as `null`.
+The `abstained` flag describes whether the answer declined to respond, independently
+of whether the reference contains an answer. Correctness and completeness separately
+penalize refusing an answerable question.
 
 The initial local trial exposed both kinds of failure: a chunk beginning partway
 through a percentage led to an incorrect body-mass answer, and the judge credited
@@ -296,7 +306,11 @@ answer instead of regenerating it. Calibration runs again before work continues.
 The source paper, corpus, cases, model names, settings, and evaluator version must
 match; incompatible or malformed reports are rejected. Model names do not pin
 Ollama model weights: keep the installed models unchanged between attempts.
-Reports from the old schema (version 1) cannot be resumed; start a new run for them.
+Reports from the old schema (version 1), or older evaluations without recorded
+thinking settings, cannot be resumed; start a new run for them. Changing the judge
+prompt or thinking settings also requires a fresh evaluation. The 120-second
+request timeout is unchanged; disabling judge thinking is not a guarantee against
+timeouts on every machine.
 `--output PATH` chooses a filename; existing reports are never overwritten.
 
 ## Tests
