@@ -37,7 +37,7 @@ def snapshot(document: str) -> CorpusSnapshot:
         digest = sha256()
         for c in chunks:
             digest.update(json.dumps([
-                c.id, c.document, c.page, c.chunk_index, c.text,
+                c.id, c.document, c.page, c.chunk_index, c.text, c.section,
                 [float(value) for value in c.embedding],
             ], ensure_ascii=False).encode())
         return {"sha256": digest.hexdigest(),

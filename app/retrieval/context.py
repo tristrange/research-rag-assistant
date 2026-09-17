@@ -23,7 +23,7 @@ NEIGHBOR_RADIUS = 2
 _MIN_OVERLAP_CHARS = 8
 
 type ChunkKey = tuple[str, int, int]
-type PageKey = tuple[str, int]
+type PageKey = tuple[str, int, str]
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ def _key(chunk: Chunk) -> ChunkKey:
 def render_context(sources: list[ChunkData]) -> str:
     """Render exactly the evidence represented by ``sources`` for the prompt."""
     return "\n\n".join(
-        f"[{source['document']}, page {source['page']}]\n{source['text']}"
+        f"[{source['document']}, page {source['page']}, section {source.get('section', 'unknown')}]\n{source['text']}"
         for source in sources
     )
 
@@ -63,10 +63,10 @@ def _sources_for_chunks(chunks: dict[ChunkKey, _RankedChunk]) -> list[ChunkData]
     by_page: dict[PageKey, list[_RankedChunk]] = {}
     for ranked_chunk in chunks.values():
         chunk = ranked_chunk.chunk
-        by_page.setdefault((chunk.document, chunk.page), []).append(ranked_chunk)
+        by_page.setdefault((chunk.document, chunk.page, chunk.section or "unknown"), []).append(ranked_chunk)
 
     windows: list[tuple[int, ChunkData]] = []
-    for (document, page), page_chunks in by_page.items():
+    for (document, page, section), page_chunks in by_page.items():
         ordered = sorted(page_chunks, key=lambda item: item.chunk.chunk_index)
         current = ordered[0]
         start_index = current.chunk.chunk_index
@@ -82,6 +82,7 @@ def _sources_for_chunks(chunks: dict[ChunkKey, _RankedChunk]) -> list[ChunkData]
             else:
                 windows.append((priority, {
                     "document": document,
+                    "section": section,
                     "page": page,
                     "chunk_index": start_index,
                     "text": text,
@@ -93,6 +94,7 @@ def _sources_for_chunks(chunks: dict[ChunkKey, _RankedChunk]) -> list[ChunkData]
 
         windows.append((priority, {
             "document": document,
+            "section": section,
             "page": page,
             "chunk_index": start_index,
             "text": text,
@@ -142,7 +144,7 @@ def _load_neighbors(seeds: list[Chunk]) -> dict[ChunkKey, Chunk]:
     statement = (
         select(Chunk)
         .options(load_only(
-            Chunk.document, Chunk.page, Chunk.chunk_index, Chunk.text,
+            Chunk.document, Chunk.page, Chunk.chunk_index, Chunk.text, Chunk.section,
         ))
         .where(or_(*conditions))
     )
@@ -209,7 +211,16 @@ def expand_chunks(
     for priority, seed in included_seeds:
         for offset in _neighbor_offsets():
             neighbor = neighbors.get((seed.document, seed.page, seed.chunk_index + offset))
-            if neighbor is None:
+            if neighbor is None or (neighbor.section or "unknown") != (seed.section or "unknown"):
+                continue
+            # Do not jump over a section boundary to a similarly named section.
+            step = 1 if offset > 0 else -1
+            intermediate = [
+                neighbors.get((seed.document, seed.page, seed.chunk_index + delta))
+                or next((s for s in seeds if _key(s) == (seed.document, seed.page, seed.chunk_index + delta)), None)
+                for delta in range(step, offset, step)
+            ]
+            if any(c is None or (c.section or "unknown") != (seed.section or "unknown") for c in intermediate):
                 continue
             candidate = _with_chunk(selected, neighbor, priority)
             if _fits(candidate, max_chars):

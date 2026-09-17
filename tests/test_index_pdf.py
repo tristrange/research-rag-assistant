@@ -35,10 +35,22 @@ class IndexPdfTests(unittest.TestCase):
                 for chunk in db.scalars(select(Chunk))
             )
 
+    def sections(self) -> list[str]:
+        with self.sessions() as db:
+            return list(db.scalars(select(Chunk.section).order_by(Chunk.id)))
+
     def test_repeated_indexing_does_not_duplicate_chunks(self) -> None:
         self.assertEqual(index_pdf.index_pdf(), 1)
         self.assertEqual(index_pdf.index_pdf(), 1)
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+        self.assertEqual(self.sections(), ["unknown"])
+
+    def test_persists_recognized_section_metadata(self) -> None:
+        self.pages[0]["text"] = "3. RESULTS\nObserved result."
+
+        self.assertEqual(index_pdf.index_pdf(), 1)
+
+        self.assertEqual(self.sections(), ["results"])
 
     def test_replacement_removes_stale_chunks_and_preserves_other_documents(self) -> None:
         self.pages[0]["text"] = "x" * 900

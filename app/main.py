@@ -16,6 +16,7 @@ class Source(BaseModel):
     page: int
     chunk_index: int
     text: str
+    section: str = "unknown"
 
 
 class QueryResponse(BaseModel):

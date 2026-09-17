@@ -32,6 +32,7 @@ from scripts.evaluate_answers import (
     main,
     reserve_output,
     save_report,
+    settings_for,
     validate_index,
     validate_labels,
     validate_resume_consistency,
@@ -398,6 +399,16 @@ class AnswerRunnerTests(unittest.TestCase):
         report["results"] = [judged_answer(pending_answer(case))]
         validated = ReportModel.model_validate(report)
         self.assertEqual(validated.results[0].judge.correctness, 0)
+
+    def test_rendering_changes_invalidate_generator_prompt_fingerprint(self) -> None:
+        before = settings_for("reranked")
+        with patch("scripts.evaluate_answers.render_context", return_value="Changed headers"):
+            after = settings_for("reranked")
+        self.assertNotEqual(before["generator_prompt_sha256"], after["generator_prompt_sha256"])
+        saved = ReportModel.model_validate(self.base_report([ANSWER_CASES[0]]))
+        with patch("scripts.evaluate_answers.render_context", return_value="Changed headers"):
+            with self.assertRaisesRegex(ValueError, "settings"):
+                validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME)
 
     def test_resume_checks_all_reproducibility_fields(self) -> None:
         case = ANSWER_CASES[0]

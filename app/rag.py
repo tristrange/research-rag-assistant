@@ -1,4 +1,5 @@
 from app.llm.ollama import generate
+from app.prompts import answer_prompt
 from app.retrieval.context import expand_chunks, render_context
 from app.retrieval.rerank import rerank_chunks
 from app.retrieval.search import search_chunks
@@ -20,7 +21,7 @@ def answer_question(
     if expand_context:
         sources = expand_chunks(chunks)
     else:
-        # Preserve the existing retrieval baselines exactly.  The strict
+        # Preserve unexpanded retrieval selection. The strict
         # rendered budget applies to expanded windows, whose size can multiply
         # after neighbor lookup.
         sources = [
@@ -29,27 +30,14 @@ def answer_question(
                 "page": chunk.page,
                 "chunk_index": chunk.chunk_index,
                 "text": chunk.text,
+                "section": chunk.section or "unknown",
             }
             for chunk in chunks
         ]
 
     context = render_context(sources)
 
-    prompt = f"""
-You are a research assistant.
-
-Answer the question using only the provided context.
-
-If the answer cannot be found in the context, say that you do not have enough information.
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer:
-"""
+    prompt = answer_prompt(question, context)
 
     answer = generate(prompt)
 

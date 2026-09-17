@@ -26,14 +26,15 @@ from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_THINK, MODEL, generate_json
-from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS
+from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
+from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
 from scripts.answer_quality_cases import ANSWER_CASES, PAPER_SHA256
 from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "4"
+EVALUATOR_VERSION = "5"
 
 
 def _prompt_fingerprint() -> str:
@@ -75,6 +76,7 @@ class SourceModel(StrictModel):
     page: int = Field(ge=1)
     chunk_index: int = Field(ge=0)
     text: str = Field(min_length=1)
+    section: str = "unknown"
 
 
 class GeneratedAnswerModel(StrictModel):
@@ -118,6 +120,7 @@ class SettingsModel(StrictModel):
     strategy: Literal["vector", "reranked", "expanded"]
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1)
+    generator_prompt_sha256: str
     generator_temperature: str
     generator_think: str
     judge_temperature: float
@@ -227,7 +230,7 @@ class ReportModel(StrictModel):
 def indexed_sources() -> list[ChunkData]:
     with SessionLocal() as db:
         return [
-            ChunkData(document=c.document, page=c.page, chunk_index=c.chunk_index, text=c.text)
+            ChunkData(document=c.document, page=c.page, chunk_index=c.chunk_index, text=c.text, section=c.section)
             for c in db.scalars(select(Chunk).order_by(Chunk.id))
         ]
 
@@ -315,6 +318,9 @@ def settings_for(strategy: str) -> dict[str, object]:
     return {
         "strategy": strategy, "top_k": 3,
         "candidate_count": 3 if strategy == "vector" else 10,
+        "generator_prompt_sha256": sha256(answer_prompt("Question?", render_context([ChunkData(
+            document="paper.pdf", page=1, chunk_index=0, text="Evidence.", section="references",
+        )])).encode()).hexdigest(),
         "generator_temperature": "model default", "generator_think": "model default",
         "judge_temperature": 0.0, "judge_think": JUDGE_THINK,
         "neighbor_radius": NEIGHBOR_RADIUS if strategy == "expanded" else 0,

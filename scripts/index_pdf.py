@@ -31,6 +31,7 @@ def index_pdf(pdf_path: str = PDF_PATH) -> int:
             page=chunk["page"],
             chunk_index=chunk["chunk_index"],
             text=chunk["text"],
+            section=chunk.get("section", "unknown"),
             embedding=embed_text(chunk["text"]),
         )
         for chunk in chunks

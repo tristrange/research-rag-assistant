@@ -35,6 +35,15 @@ class SnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate"):
             snapshot("sample.pdf")
 
+    def test_section_changes_invalidate_snapshot(self) -> None:
+        self.add_chunk()
+        before = snapshot("sample.pdf")
+        with self.sessions.begin() as db:
+            stored = db.get(Chunk, 1)
+            assert stored is not None
+            stored.section = "references"
+        self.assertNotEqual(snapshot("sample.pdf"), before)
+
     def test_fingerprint_stable_and_includes_other_documents(self) -> None:
         self.add_chunk()
         before = snapshot("sample.pdf")
