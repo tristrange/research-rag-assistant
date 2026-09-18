@@ -1,3 +1,6 @@
+from typing import Literal
+
+from app.grounding import grounded_answer
 from app.llm.ollama import generate
 from app.prompts import answer_prompt
 from app.retrieval.context import expand_chunks, render_context
@@ -12,6 +15,7 @@ def answer_question(
     *,
     use_reranking: bool = True,
     expand_context: bool = False,
+    answer_mode: Literal["plain", "verified"] = "plain",
 ) -> AnswerResult:
     candidates = search_chunks(question, limit=10 if use_reranking else limit)
 
@@ -35,11 +39,11 @@ def answer_question(
             for chunk in chunks
         ]
 
-    context = render_context(sources)
-
-    prompt = answer_prompt(question, context)
-
-    answer = generate(prompt)
+    if answer_mode == "verified":
+        answer = grounded_answer(question, sources)
+    else:
+        context = render_context(sources)
+        answer = generate(answer_prompt(question, context))
 
     return {
         "answer": answer,

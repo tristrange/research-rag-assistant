@@ -113,6 +113,45 @@ Start the API:
 uv run uvicorn app.main:app --reload --reload-dir app
 ```
 
+## Verified answer mode (experimental)
+
+This is a draft experiment, not a reliability guarantee. In the 24-question trial,
+it refused 8 of 18 answerable questions and mislabelled four answers as cited work.
+Keep the plain default for normal use.
+
+Set `answer_mode` to `verified` to try claim-level grounding:
+
+```bash
+curl -X POST http://127.0.0.1:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What did the cited study report?","answer_mode":"verified"}'
+```
+
+The model drafts concise claims with source IDs and supporting quotes. Code rejects
+invalid IDs, nonmatching quotes, and current-study claims citing a references section.
+A second model call checks each claim's full support, attribution, and relevance.
+Only an entirely approved answer is rendered; document/page labels come from stored
+source metadata. Invalid or rejected output becomes a fixed insufficient-evidence
+response. Model connection errors still propagate as errors, not evidence refusals.
+
+The response shape remains `answer` and `sources`; sources are the retrieved bundle,
+not a list filtered to cited passages. Quote matches establish textual presence, not
+semantic support, and the same local model acts as drafter and verifier. This mode
+can reject valid answers or miss subtle unsupported claims. The default stays `plain`;
+neighbor expansion also remains opt-in through the evaluation CLI.
+
+```bash
+uv run python -m scripts.check_grounding --output evaluation-results/grounding-controls.json
+uv run python -m scripts.evaluate_answers --strategy expanded --answer-mode verified
+```
+
+Both verified model calls use temperature zero. Drafting disables thinking; the
+semantic verifier enables it. Plain mode retains the existing generator defaults. Evaluation records the answer mode, both
+model configurations, and the grounding prompt/schema contract fingerprint. Resume
+requires matching settings; older reports require a fresh run. See the
+[verified-claims evaluation](docs/verified-claims-evaluation.md) for observed results
+and limitations.
+
 ## Example
 
 ```bash

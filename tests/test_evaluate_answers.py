@@ -310,6 +310,7 @@ class AnswerRunnerTests(unittest.TestCase):
             output = Path(directory) / "expanded.json"
             stack.enter_context(patch("sys.argv", [
                 "evaluate_answers", "--case", case["id"], "--strategy", "expanded",
+                "--answer-mode", "verified",
                 "--output", str(output),
             ]))
             self.patch_preflight(stack)
@@ -323,9 +324,10 @@ class AnswerRunnerTests(unittest.TestCase):
             stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge))
             with redirect_stdout(io.StringIO()):
                 main()
-            answer.assert_called_once_with(case["question"], use_reranking=True, expand_context=True)
+            answer.assert_called_once_with(case["question"], use_reranking=True, expand_context=True, answer_mode="verified")
             report = load_report(output)
             self.assertEqual(report.settings.strategy, "expanded")
+            self.assertEqual(report.settings.answer_mode, "verified")
             self.assertEqual(report.settings.candidate_count, 10)
             self.assertEqual(report.settings.neighbor_radius, 2)
             self.assertEqual(report.settings.max_context_chars, 6000)
@@ -399,6 +401,17 @@ class AnswerRunnerTests(unittest.TestCase):
         report["results"] = [judged_answer(pending_answer(case))]
         validated = ReportModel.model_validate(report)
         self.assertEqual(validated.results[0].judge.correctness, 0)
+
+    def test_verified_mode_and_verifier_configuration_are_recorded(self) -> None:
+        settings = settings_for("expanded", "verified")
+        self.assertEqual(settings["answer_mode"], "verified")
+        self.assertEqual(settings["generator_temperature"], "0.0")
+        self.assertTrue(settings["verifier_think"])
+        self.assertIsNotNone(settings["verifier_model"])
+        self.assertNotEqual(settings["generator_prompt_sha256"], settings_for("expanded")["generator_prompt_sha256"])
+        saved = ReportModel.model_validate(self.base_report([ANSWER_CASES[0]]))
+        with self.assertRaisesRegex(ValueError, "settings"):
+            validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME, "verified")
 
     def test_rendering_changes_invalidate_generator_prompt_fingerprint(self) -> None:
         before = settings_for("reranked")

@@ -61,9 +61,11 @@ def generate(prompt: str) -> str:
     return chat(prompt)
 
 
-def generate_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+def generate_json(
+    prompt: str, schema: dict[str, object], *, think: bool = JUDGE_THINK,
+) -> dict[str, object]:
     """Generate JSON constrained by an Ollama schema and parse it at runtime."""
-    content = chat(prompt, response_format=schema, temperature=0.0, think=JUDGE_THINK)
+    content = chat(prompt, response_format=schema, temperature=0.0, think=think)
     parsed: object = json.loads(content)
     if not isinstance(parsed, dict):
         raise ValueError("Ollama returned JSON that was not an object")
