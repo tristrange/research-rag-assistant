@@ -24,8 +24,12 @@ from app.db.database import SessionLocal
 from app.db.models import Chunk
 from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
+from app.grounding import (
+    DRAFT_THINK, VERIFIER_THINK, GROUNDING_MODEL, GROUNDING_CONTEXT_TOKENS, GROUNDING_OUTPUT_TOKENS,
+    grounding_fingerprint,
+)
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
-from app.llm.ollama import JUDGE_THINK, MODEL, generate_json
+from app.llm.ollama import JUDGE_THINK, MODEL, Thinking, generate_json
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
 from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
@@ -34,7 +38,7 @@ from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "5"
+EVALUATOR_VERSION = "7"
 
 
 def _prompt_fingerprint() -> str:
@@ -120,6 +124,12 @@ class SettingsModel(StrictModel):
     strategy: Literal["vector", "reranked", "expanded"]
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1)
+    answer_mode: Literal["plain", "verified"]
+    verifier_model: str | None
+    verifier_temperature: float | None
+    verifier_think: Thinking | None
+    grounding_context_tokens: int | None = Field(default=None, ge=1)
+    grounding_output_tokens: int | None = Field(default=None, ge=1)
     generator_prompt_sha256: str
     generator_temperature: str
     generator_think: str
@@ -314,14 +324,21 @@ def cases_hash(cases: list[AnswerEvaluationCase]) -> str:
     return sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest()
 
 
-def settings_for(strategy: str) -> dict[str, object]:
+def settings_for(strategy: str, answer_mode: str = "plain") -> dict[str, object]:
     return {
         "strategy": strategy, "top_k": 3,
+        "answer_mode": answer_mode,
+        "verifier_model": GROUNDING_MODEL if answer_mode == "verified" else None,
+        "verifier_temperature": 0.0 if answer_mode == "verified" else None,
+        "verifier_think": VERIFIER_THINK if answer_mode == "verified" else None,
+        "grounding_context_tokens": GROUNDING_CONTEXT_TOKENS if answer_mode == "verified" else None,
+        "grounding_output_tokens": GROUNDING_OUTPUT_TOKENS if answer_mode == "verified" else None,
         "candidate_count": 3 if strategy == "vector" else 10,
-        "generator_prompt_sha256": sha256(answer_prompt("Question?", render_context([ChunkData(
+        "generator_prompt_sha256": grounding_fingerprint() if answer_mode == "verified" else sha256(answer_prompt("Question?", render_context([ChunkData(
             document="paper.pdf", page=1, chunk_index=0, text="Evidence.", section="references",
         )])).encode()).hexdigest(),
-        "generator_temperature": "model default", "generator_think": "model default",
+        "generator_temperature": "0.0" if answer_mode == "verified" else "model default",
+        "generator_think": str(DRAFT_THINK).lower() if answer_mode == "verified" else "model default",
         "judge_temperature": 0.0, "judge_think": JUDGE_THINK,
         "neighbor_radius": NEIGHBOR_RADIUS if strategy == "expanded" else 0,
         "max_context_chars": MAX_CONTEXT_CHARS if strategy == "expanded" else None,
@@ -334,16 +351,17 @@ def validate_resume_consistency(
     corpus: CorpusSnapshot,
     strategy: str,
     reranker_model: str | None,
+    answer_mode: str = "plain",
 ) -> None:
     expected: dict[str, tuple[object, object]] = {
         "corpus": (saved.corpus.model_dump(), corpus),
         "paper SHA-256": (saved.paper_sha256, PAPER_SHA256),
         "cases": (saved.cases_sha256, cases_hash(cases)),
-        "generator model": (saved.generator_model, MODEL),
+        "generator model": (saved.generator_model, GROUNDING_MODEL if answer_mode == "verified" else MODEL),
         "judge model": (saved.judge_model, MODEL),
         "embedding model": (saved.embedding_model, EMBEDDING_MODEL),
         "reranker model": (saved.reranker_model, reranker_model),
-        "settings": (saved.settings.model_dump(), settings_for(strategy)),
+        "settings": (saved.settings.model_dump(), settings_for(strategy, answer_mode)),
         "evaluator version": (saved.evaluator_version, EVALUATOR_VERSION),
         "evaluator prompt": (saved.evaluator_prompt_sha256, EVALUATOR_PROMPT_SHA256),
     }
@@ -362,14 +380,14 @@ def validate_resume_consistency(
 
 def _new_report(
     now: datetime, before: CorpusSnapshot, cases: list[AnswerEvaluationCase],
-    strategy: str, reranker_model: str | None,
+    strategy: str, reranker_model: str | None, answer_mode: str = "plain",
 ) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION, "status": "running", "started_at": now.isoformat(),
         "finished_at": None, "resumed_from": None, "error": None, "corpus": before,
         "paper_sha256": PAPER_SHA256, "cases_sha256": cases_hash(cases),
-        "generator_model": MODEL, "judge_model": MODEL, "embedding_model": EMBEDDING_MODEL,
-        "reranker_model": reranker_model, "settings": settings_for(strategy),
+        "generator_model": GROUNDING_MODEL if answer_mode == "verified" else MODEL, "judge_model": MODEL, "embedding_model": EMBEDDING_MODEL,
+        "reranker_model": reranker_model, "settings": settings_for(strategy, answer_mode),
         "evaluator_version": EVALUATOR_VERSION, "evaluator_prompt_sha256": EVALUATOR_PROMPT_SHA256,
         "calibration_version": CALIBRATION_VERSION, "calibration": None,
         "environment": {
@@ -380,13 +398,14 @@ def _new_report(
             "Assistant-authored reference labels on the same paper as the retrieval development set; "
             "not independently reviewed or suitable for a generalization claim. Evidence quotes are "
             "validated against the PDF; a hit requires the full normalized quote in a single returned chunk. "
-            "This may undercount alternate or split evidence. Semantic scores and abstention are judged "
-            "by the same model that generated the answer; inspect explanations and passages manually. "
+            "This may undercount alternate or split evidence. The exact application refusal is scored "
+            "deterministically; other responses use the recorded judge model. Inspect explanations "
+            "and passages manually; model judging is not independent human validation. "
             "Source support measures the returned passage bundle, not inline citation attribution. "
             "Correctness, completeness, and support averages cover answerable cases only. "
             "Calibration may warm the model; there is no dedicated timing warmup. "
             "Answer timings include any model loading, retrieval, and generation; judge "
-            "timings are separate. Generation is sampled once with its existing default settings."
+            "timings are separate. Generation runs once per case with the recorded answer-mode settings. Verified mode includes drafting, verification and at most one correction attempt in answer timings."
         ),
         "requested_case_ids": [case["id"] for case in cases],
         "metrics": None, "results": [], "pending": None,
@@ -404,6 +423,7 @@ def main() -> None:
     parser.add_argument("--case", dest="case_ids", action="append", choices=[c["id"] for c in ANSWER_CASES],
                         help="run just this case (repeat the flag to select more)")
     parser.add_argument("--strategy", choices=["vector", "reranked", "expanded"], default=None)
+    parser.add_argument("--answer-mode", choices=["plain", "verified"], default=None)
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
     output = args.output or Path("evaluation-results") / f"answers-{now.strftime('%Y%m%dT%H%M%S%fZ')}.json"
@@ -419,10 +439,14 @@ def main() -> None:
             parser.error("--case selections must exactly match the resumed report, in the same order")
         if args.strategy is not None and args.strategy != saved.settings.strategy:
             parser.error("--strategy must match the resumed report")
+        if args.answer_mode is not None and args.answer_mode != saved.settings.answer_mode:
+            parser.error("--answer-mode must match the resumed report")
+        answer_mode = saved.settings.answer_mode
         strategy = saved.settings.strategy
         requested_ids = saved.requested_case_ids
     else:
         strategy = args.strategy or "reranked"
+        answer_mode = args.answer_mode or "plain"
         selected_ids = set(args.case_ids) if args.case_ids else None
         requested_ids = [
             case["id"] for case in ANSWER_CASES
@@ -449,10 +473,10 @@ def main() -> None:
     reranker_model = None if strategy == "vector" else MODEL_NAME
     if saved is None:
         report = ReportModel.model_validate(
-            _new_report(now, before, cases, strategy, reranker_model)
+            _new_report(now, before, cases, strategy, reranker_model, answer_mode)
         ).model_dump()
     else:
-        validate_resume_consistency(saved, cases, before, strategy, reranker_model)
+        validate_resume_consistency(saved, cases, before, strategy, reranker_model, answer_mode)
         report = cast(dict[str, object], saved.model_dump())
         report = {
             **report,
@@ -479,7 +503,7 @@ def main() -> None:
             raise SystemExit(report["error"])
 
         answer = partial(answer_question, use_reranking=strategy != "vector",
-                         expand_context=strategy == "expanded")
+                         expand_context=strategy == "expanded", answer_mode=answer_mode)
         for index in range(len(cast(list[CaseEvaluation], report["results"])), len(cases)):
             case = cases[index]
             print(f"Evaluating {index + 1}/{len(cases)}: {case['id']}...", flush=True)

@@ -27,6 +27,28 @@ class OllamaTests(unittest.TestCase):
         self.assertIs(payload["think"], False)
 
     @patch("app.llm.ollama.httpx.post")
+    def test_explicit_reasoning_has_a_bounded_longer_timeout(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content": "{}"}}
+        generate_json("Question", {}, think=True, num_ctx=12288, num_predict=4096)
+        self.assertEqual(post.call_args.kwargs["timeout"], 300.0)
+        self.assertIs(post.call_args.kwargs["json"]["think"], True)
+        self.assertEqual(post.call_args.kwargs["json"]["options"],
+                         {"temperature": 0.0, "num_ctx": 12288, "num_predict": 4096})
+        generate_json("Question", {}, think=False)
+        self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
+
+    @patch("app.llm.ollama.httpx.post")
+    def test_model_and_reasoning_level_are_request_specific(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content": "{}"}}
+        generate_json("Question", {}, model="gpt-oss:20b", think="low")
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["model"], "gpt-oss:20b")
+        self.assertEqual(payload["think"], "low")
+        self.assertEqual(post.call_args.kwargs["timeout"], 300.0)
+        generate("Question")
+        self.assertEqual(post.call_args.kwargs["json"]["model"], "qwen3:8b")
+
+    @patch("app.llm.ollama.httpx.post")
     def test_generate_json_rejects_non_object(self, post: Mock) -> None:
         post.return_value.json.return_value = {"message": {"content": "[]"}}
         with self.assertRaisesRegex(ValueError, "not an object"):

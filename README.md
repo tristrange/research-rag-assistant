@@ -113,6 +113,52 @@ Start the API:
 uv run uvicorn app.main:app --reload --reload-dir app
 ```
 
+## Verified answer mode (experimental)
+
+This opt-in mode is experimental. In the latest 24-question development run it
+answered 17 of 18 answerable questions and correctly refused all six unanswerable
+questions. One answerable question still received a false refusal. These results
+come from one paper used during development; they are not a reliability guarantee.
+See the [evaluation report](docs/verified-claims-evaluation.md) for the full results
+and the retained failures from earlier versions. Plain remains the default.
+
+Set `answer_mode` to `verified` to try claim-level grounding:
+
+```bash
+curl -X POST http://127.0.0.1:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What did the cited study report?","answer_mode":"verified"}'
+```
+
+The model drafts concise claims and selects exact excerpts from a source-specific
+quote catalogue. Code rejects invalid IDs, quotes outside that catalogue, and current-study claims citing a references section.
+A second model call checks each claim's full support, attribution, and relevance.
+A rejected draft may be corrected once using validation feedback; the corrected
+draft must pass all the same checks. Only an entirely approved answer is rendered; document/page labels come from stored
+source metadata. Invalid or rejected output becomes a fixed insufficient-evidence
+response. Model connection errors still propagate as errors, not evidence refusals.
+
+The response shape remains `answer` and `sources`; sources are the retrieved bundle,
+not a list filtered to cited passages. Quote matches establish textual presence, not
+semantic support, and the same local model acts as drafter and verifier. This mode
+can reject valid answers or miss subtle unsupported claims. The default stays `plain`;
+neighbor expansion also remains opt-in through the evaluation CLI.
+
+```bash
+uv run python -m scripts.check_grounding --output evaluation-results/grounding-controls.json
+uv run python -m scripts.evaluate_answers --strategy expanded --answer-mode verified
+```
+
+Verified mode uses `gpt-oss:20b` with low reasoning for drafting, medium reasoning
+for verification, and temperature zero. Install it with `ollama pull gpt-oss:20b` before trying this
+mode. Plain answers and the evaluation judge continue to use `qwen3:8b`.
+Verified requests use a 12,288-token context window, a 4,096-token output limit
+(including reasoning), and a 300-second timeout per call. Evaluation records the answer mode, both
+model configurations, and the grounding prompt/schema contract fingerprint. Resume
+requires matching settings; older reports require a fresh run. See the
+[verified-claims evaluation](docs/verified-claims-evaluation.md) for observed results
+and limitations.
+
 ## Example
 
 ```bash
@@ -350,9 +396,14 @@ Ollama model weights: keep the installed models unchanged between attempts.
 Reports from the old schema (version 1), or older evaluations without recorded
 thinking settings or the generator prompt fingerprint, cannot be resumed; start
 a new run for them. Changing either prompt or thinking settings also requires a
-fresh evaluation. The 120-second
-request timeout is unchanged; disabling judge thinking is not a guarantee against
-timeouts on every machine.
+fresh evaluation. Requests without explicit reasoning retain the 120-second timeout;
+explicit reasoning uses 300 seconds. Disabling judge thinking is not a guarantee
+against timeouts on every machine.
+
+The exact application refusal is scored directly: it counts as abstention, with
+zero correctness/completeness on answerable cases and full credit on unanswerable
+cases. Other responses still use the evaluation judge. This prevents the judge
+from treating the fixed refusal as a successful factual answer.
 `--output PATH` chooses a filename; existing reports are never overwritten.
 
 ## Tests

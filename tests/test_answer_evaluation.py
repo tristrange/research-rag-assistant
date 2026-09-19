@@ -10,6 +10,7 @@ from app.answer_evaluation import (
     normalize,
     summarize,
 )
+from app.grounding import INSUFFICIENT_EVIDENCE
 from app.types import AnswerResult, ChunkData
 
 
@@ -77,6 +78,53 @@ class AnswerEvaluationTests(unittest.TestCase):
         self.assertTrue(evaluated["passed"])
         self.assertTrue(evaluated["abstained"])
         self.assertIsNone(evaluated["evidence_recall"])
+
+    def test_fixed_refusal_is_scored_without_judge_for_answerable_case(self) -> None:
+        semantic_judge = Mock(side_effect=AssertionError("judge must not be called"))
+        with patch("app.answer_evaluation.perf_counter", side_effect=[1.0, 1.2, 1.3, 1.35]):
+            evaluated = evaluate_case(
+                case(), lambda question: result(INSUFFICIENT_EVIDENCE), semantic_judge
+            )
+        semantic_judge.assert_not_called()
+        self.assertTrue(evaluated["abstained"])
+        self.assertEqual(
+            evaluated["judge"],
+            {
+                "correctness": 0,
+                "completeness": 0,
+                "citation_support": 2,
+                "explanation": "Recognized the application's fixed insufficient-evidence response.",
+            },
+        )
+        self.assertAlmostEqual(evaluated["judge_ms"], 50)
+        self.assertFalse(evaluated["passed"])
+
+    def test_fixed_refusal_is_scored_without_judge_for_unanswerable_case(self) -> None:
+        semantic_judge = Mock(side_effect=AssertionError("judge must not be called"))
+        evaluated = evaluate_case(
+            case(answerable=False),
+            lambda question: result(INSUFFICIENT_EVIDENCE),
+            semantic_judge,
+        )
+        semantic_judge.assert_not_called()
+        self.assertTrue(evaluated["abstained"])
+        self.assertEqual(evaluated["judge"]["correctness"], 2)
+        self.assertEqual(evaluated["judge"]["completeness"], 2)
+        self.assertEqual(evaluated["judge"]["citation_support"], 2)
+        self.assertTrue(evaluated["passed"])
+
+    def test_only_exact_fixed_refusal_skips_semantic_judge(self) -> None:
+        answers = [
+            f"{INSUFFICIENT_EVIDENCE} ",
+            f"{INSUFFICIENT_EVIDENCE} The response increased.",
+        ]
+        for answer_text in answers:
+            with self.subTest(answer=answer_text):
+                answer = Mock(return_value=result(answer_text))
+                semantic_judge = Mock(return_value=judge("", {}))
+                evaluated = evaluate_case(case(), answer, semantic_judge)
+                semantic_judge.assert_called_once()
+                self.assertFalse(evaluated["abstained"])
 
     def test_invalid_judge_response_is_rejected(self) -> None:
         with self.assertRaises(ValidationError):
