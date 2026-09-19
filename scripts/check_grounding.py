@@ -7,9 +7,8 @@ from pathlib import Path
 from time import perf_counter
 
 from app.grounding import (
-    GroundedDraft, VERIFIER_THINK, generate_verification_json, grounding_fingerprint, verify_draft,
+    GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, generate_verification_json, grounding_fingerprint, verify_draft,
 )
-from app.llm.ollama import MODEL
 from app.types import ChunkData
 
 
@@ -21,33 +20,48 @@ REFERENCE = ChunkData(document="synthetic.pdf", page=10, chunk_index=0,
 RESULT = ChunkData(document="synthetic.pdf", page=6, chunk_index=0,
                    section="results", text="In our experiments, mice lost 1.2 g after three days of food restriction.")
 
+POPULATION = ChunkData(document="synthetic.pdf", page=3, chunk_index=0,
+                       section="results", text="We studied male mice. Glucose uptake increased by 80%.")
+
 # Fixed drafts deliberately include cases a generator should never emit.
 # Expected answers are not sent to the verifier.
 FIXTURES = [
     ("supported_current_study", "How much mass did the mice lose?", RESULT,
      "The authors found a loss of 1.2 g after three days of food restriction.",
-     "current_study", RESULT["text"], True),
+     "this_document_authors", RESULT["text"], True),
+    ("current_study_mislabelled_as_cited", "How much mass did the mice lose?", RESULT,
+     "The authors found a loss of 1.2 g after three days of food restriction.",
+     "external_publication", RESULT["text"], False),
+    ("supported_requested_population", "How did glucose uptake change in male mice?", POPULATION,
+     "Glucose uptake increased by 80%.",
+     "this_document_authors", "Glucose uptake increased by 80%.", True),
+    ("unsupported_requested_population", "How did glucose uptake change in female mice?", POPULATION,
+     "Glucose uptake increased by 80%.",
+     "this_document_authors", "Glucose uptake increased by 80%.", False),
+    ("unsupported_requested_duration", "How much mass was lost after six weeks of food restriction?", RESULT,
+     "Mice lost 1.2 g after food restriction.",
+     "this_document_authors", RESULT["text"], False),
     ("wrong_number", "How much mass did the mice lose?", RESULT,
      "The authors found a loss of 12 g after three days of food restriction.",
-     "current_study", RESULT["text"], False),
+     "this_document_authors", RESULT["text"], False),
     ("supported_cited_work", "What did the cited Smith study report?", REFERENCE,
      "Smith et al. reported that treatment delayed weight loss in mice.",
-     "cited_work", "Treatment delayed weight loss in mice.", True),
+     "external_publication", "Treatment delayed weight loss in mice.", True),
     ("reference_as_current_study", "What did this paper find about AMPK?", REFERENCE,
      "The current paper found that AMPK activity is elevated in cachectic muscle.",
-     "current_study", "AMPK activity is elevated in cachectic muscle.", False),
+     "this_document_authors", "AMPK activity is elevated in cachectic muscle.", False),
     ("mislabelled_attribution", "What did this paper find about AMPK?", REFERENCE,
      "The current paper found that AMPK activity is elevated in cachectic muscle.",
-     "other", "AMPK activity is elevated in cachectic muscle.", False),
+     "non_study_context", "AMPK activity is elevated in cachectic muscle.", False),
     ("unsupported_embellishment", "What did the cited Smith study report?", REFERENCE,
      "Smith et al. found that treatment, a PPARgamma agonist, delayed weight loss in mice.",
-     "cited_work", "Treatment delayed weight loss in mice.", False),
+     "external_publication", "Treatment delayed weight loss in mice.", False),
     ("mixed_attribution", "What did the cited Smith study report?", REFERENCE,
      "Smith et al. found delayed weight loss; the current paper found elevated AMPK activity.",
-     "cited_work", "Treatment delayed weight loss in mice.", False),
+     "external_publication", "Treatment delayed weight loss in mice.", False),
     ("missing_comparison", "Which treatment was most effective in this paper's experiments?", REFERENCE,
      "Smith et al. reported that treatment delayed weight loss in mice.",
-     "cited_work", "Treatment delayed weight loss in mice.", False),
+     "external_publication", "Treatment delayed weight loss in mice.", False),
 ]
 
 
@@ -61,9 +75,9 @@ def main() -> None:
         pass
     report: dict[str, object] = {
         "started_at": datetime.now(timezone.utc).isoformat(), "status": "running",
-        "model": MODEL, "temperature": 0.0, "think": VERIFIER_THINK,
+        "model": GROUNDING_MODEL, "temperature": 0.0, "think": VERIFIER_THINK,
         "grounding_sha256": grounding_fingerprint(), "results": [],
-        "methodology": "Eight assistant-authored synthetic controls, one run each; not proof of verifier accuracy.",
+        "methodology": f"{len(FIXTURES)} assistant-authored synthetic controls, one run each; not proof of verifier accuracy.",
     }
     results: list[dict[str, object]] = []
     try:

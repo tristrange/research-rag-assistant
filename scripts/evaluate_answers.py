@@ -24,9 +24,12 @@ from app.db.database import SessionLocal
 from app.db.models import Chunk
 from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
-from app.grounding import VERIFIER_THINK, grounding_fingerprint
+from app.grounding import (
+    DRAFT_THINK, VERIFIER_THINK, GROUNDING_MODEL, GROUNDING_CONTEXT_TOKENS, GROUNDING_OUTPUT_TOKENS,
+    grounding_fingerprint,
+)
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
-from app.llm.ollama import JUDGE_THINK, MODEL, generate_json
+from app.llm.ollama import JUDGE_THINK, MODEL, Thinking, generate_json
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
 from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
@@ -35,7 +38,7 @@ from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "6"
+EVALUATOR_VERSION = "7"
 
 
 def _prompt_fingerprint() -> str:
@@ -124,7 +127,9 @@ class SettingsModel(StrictModel):
     answer_mode: Literal["plain", "verified"]
     verifier_model: str | None
     verifier_temperature: float | None
-    verifier_think: bool | None
+    verifier_think: Thinking | None
+    grounding_context_tokens: int | None = Field(default=None, ge=1)
+    grounding_output_tokens: int | None = Field(default=None, ge=1)
     generator_prompt_sha256: str
     generator_temperature: str
     generator_think: str
@@ -323,15 +328,17 @@ def settings_for(strategy: str, answer_mode: str = "plain") -> dict[str, object]
     return {
         "strategy": strategy, "top_k": 3,
         "answer_mode": answer_mode,
-        "verifier_model": MODEL if answer_mode == "verified" else None,
+        "verifier_model": GROUNDING_MODEL if answer_mode == "verified" else None,
         "verifier_temperature": 0.0 if answer_mode == "verified" else None,
         "verifier_think": VERIFIER_THINK if answer_mode == "verified" else None,
+        "grounding_context_tokens": GROUNDING_CONTEXT_TOKENS if answer_mode == "verified" else None,
+        "grounding_output_tokens": GROUNDING_OUTPUT_TOKENS if answer_mode == "verified" else None,
         "candidate_count": 3 if strategy == "vector" else 10,
         "generator_prompt_sha256": grounding_fingerprint() if answer_mode == "verified" else sha256(answer_prompt("Question?", render_context([ChunkData(
             document="paper.pdf", page=1, chunk_index=0, text="Evidence.", section="references",
         )])).encode()).hexdigest(),
         "generator_temperature": "0.0" if answer_mode == "verified" else "model default",
-        "generator_think": str(JUDGE_THINK).lower() if answer_mode == "verified" else "model default",
+        "generator_think": str(DRAFT_THINK).lower() if answer_mode == "verified" else "model default",
         "judge_temperature": 0.0, "judge_think": JUDGE_THINK,
         "neighbor_radius": NEIGHBOR_RADIUS if strategy == "expanded" else 0,
         "max_context_chars": MAX_CONTEXT_CHARS if strategy == "expanded" else None,
@@ -350,7 +357,7 @@ def validate_resume_consistency(
         "corpus": (saved.corpus.model_dump(), corpus),
         "paper SHA-256": (saved.paper_sha256, PAPER_SHA256),
         "cases": (saved.cases_sha256, cases_hash(cases)),
-        "generator model": (saved.generator_model, MODEL),
+        "generator model": (saved.generator_model, GROUNDING_MODEL if answer_mode == "verified" else MODEL),
         "judge model": (saved.judge_model, MODEL),
         "embedding model": (saved.embedding_model, EMBEDDING_MODEL),
         "reranker model": (saved.reranker_model, reranker_model),
@@ -379,7 +386,7 @@ def _new_report(
         "schema_version": SCHEMA_VERSION, "status": "running", "started_at": now.isoformat(),
         "finished_at": None, "resumed_from": None, "error": None, "corpus": before,
         "paper_sha256": PAPER_SHA256, "cases_sha256": cases_hash(cases),
-        "generator_model": MODEL, "judge_model": MODEL, "embedding_model": EMBEDDING_MODEL,
+        "generator_model": GROUNDING_MODEL if answer_mode == "verified" else MODEL, "judge_model": MODEL, "embedding_model": EMBEDDING_MODEL,
         "reranker_model": reranker_model, "settings": settings_for(strategy, answer_mode),
         "evaluator_version": EVALUATOR_VERSION, "evaluator_prompt_sha256": EVALUATOR_PROMPT_SHA256,
         "calibration_version": CALIBRATION_VERSION, "calibration": None,
@@ -391,13 +398,14 @@ def _new_report(
             "Assistant-authored reference labels on the same paper as the retrieval development set; "
             "not independently reviewed or suitable for a generalization claim. Evidence quotes are "
             "validated against the PDF; a hit requires the full normalized quote in a single returned chunk. "
-            "This may undercount alternate or split evidence. Semantic scores and abstention are judged "
-            "by the same model that generated the answer; inspect explanations and passages manually. "
+            "This may undercount alternate or split evidence. The exact application refusal is scored "
+            "deterministically; other responses use the recorded judge model. Inspect explanations "
+            "and passages manually; model judging is not independent human validation. "
             "Source support measures the returned passage bundle, not inline citation attribution. "
             "Correctness, completeness, and support averages cover answerable cases only. "
             "Calibration may warm the model; there is no dedicated timing warmup. "
             "Answer timings include any model loading, retrieval, and generation; judge "
-            "timings are separate. Generation runs once per case with the recorded answer-mode settings. Verified mode includes drafting and verification in answer timings."
+            "timings are separate. Generation runs once per case with the recorded answer-mode settings. Verified mode includes drafting, verification and at most one correction attempt in answer timings."
         ),
         "requested_case_ids": [case["id"] for case in cases],
         "metrics": None, "results": [], "pending": None,

@@ -20,7 +20,15 @@ from app.answer_evaluation import (
     GeneratedCaseAnswer,
     judge_case_answer,
 )
+from app.grounding import (
+    DRAFT_THINK,
+    GROUNDING_CONTEXT_TOKENS,
+    GROUNDING_MODEL,
+    GROUNDING_OUTPUT_TOKENS,
+    VERIFIER_THINK,
+)
 from app.judge_calibration import CALIBRATION_VERSION
+from app.llm.ollama import MODEL
 from app.retrieval.rerank import MODEL_NAME
 from app.types import ChunkData, PageData
 from scripts.answer_quality_cases import ANSWER_CASES
@@ -106,9 +114,12 @@ class AnswerRunnerTests(unittest.TestCase):
         ))
         return calibration_mock
 
-    def base_report(self, cases: list[AnswerEvaluationCase]) -> dict[str, object]:
+    def base_report(
+        self, cases: list[AnswerEvaluationCase], answer_mode: str = "plain"
+    ) -> dict[str, object]:
         return _new_report(
             datetime(2026, 1, 1, tzinfo=timezone.utc), CORPUS, cases, "reranked", MODEL_NAME,
+            answer_mode,
         )
 
     def test_labels_are_validated_against_pages_not_chunk_boundaries(self) -> None:
@@ -402,16 +413,86 @@ class AnswerRunnerTests(unittest.TestCase):
         validated = ReportModel.model_validate(report)
         self.assertEqual(validated.results[0].judge.correctness, 0)
 
-    def test_verified_mode_and_verifier_configuration_are_recorded(self) -> None:
+    def test_plain_and_verified_model_provenance_and_settings_are_recorded(self) -> None:
+        self.assertEqual(MODEL, "qwen3:8b")
+        self.assertEqual(GROUNDING_MODEL, "gpt-oss:20b")
+        self.assertEqual(DRAFT_THINK, "low")
+        self.assertEqual(VERIFIER_THINK, "medium")
+        self.assertEqual(GROUNDING_CONTEXT_TOKENS, 12288)
+        self.assertEqual(GROUNDING_OUTPUT_TOKENS, 4096)
+
         settings = settings_for("expanded", "verified")
         self.assertEqual(settings["answer_mode"], "verified")
         self.assertEqual(settings["generator_temperature"], "0.0")
-        self.assertTrue(settings["verifier_think"])
-        self.assertIsNotNone(settings["verifier_model"])
-        self.assertNotEqual(settings["generator_prompt_sha256"], settings_for("expanded")["generator_prompt_sha256"])
+        self.assertEqual(settings["generator_think"], str(DRAFT_THINK).lower())
+        self.assertEqual(settings["verifier_model"], GROUNDING_MODEL)
+        self.assertEqual(settings["verifier_think"], VERIFIER_THINK)
+        self.assertEqual(settings["grounding_context_tokens"], GROUNDING_CONTEXT_TOKENS)
+        self.assertEqual(settings["grounding_output_tokens"], GROUNDING_OUTPUT_TOKENS)
+        self.assertEqual(settings["verifier_temperature"], 0.0)
+        self.assertEqual(settings["judge_temperature"], 0.0)
+        self.assertEqual(settings["judge_think"], False)
+
+        verified = ReportModel.model_validate(
+            self.base_report([ANSWER_CASES[0]], answer_mode="verified")
+        )
+        self.assertEqual(verified.generator_model, GROUNDING_MODEL)
+        self.assertEqual(verified.judge_model, MODEL)
+        self.assertNotEqual(verified.generator_model, verified.judge_model)
+
+        plain_settings = settings_for("expanded")
+        self.assertEqual(plain_settings["generator_think"], "model default")
+        self.assertIsNone(plain_settings["verifier_model"])
+        self.assertIsNone(plain_settings["verifier_think"])
+        self.assertIsNone(plain_settings["grounding_context_tokens"])
+        self.assertIsNone(plain_settings["grounding_output_tokens"])
+        plain = ReportModel.model_validate(self.base_report([ANSWER_CASES[0]]))
+        self.assertEqual(plain.generator_model, MODEL)
+        self.assertEqual(plain.judge_model, MODEL)
+        self.assertNotEqual(
+            settings["generator_prompt_sha256"], plain_settings["generator_prompt_sha256"]
+        )
+
         saved = ReportModel.model_validate(self.base_report([ANSWER_CASES[0]]))
-        with self.assertRaisesRegex(ValueError, "settings"):
+        with self.assertRaisesRegex(ValueError, "generator model|settings"):
             validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME, "verified")
+
+    def test_verified_resume_rejects_model_thinking_and_budget_changes(self) -> None:
+        case = ANSWER_CASES[0]
+        saved = ReportModel.model_validate(self.base_report([case], answer_mode="verified"))
+        validate_resume_consistency(
+            saved, [case], CORPUS, "reranked", MODEL_NAME, "verified"
+        )
+
+        changes: list[tuple[str, str, object]] = [
+            ("generator model", "GROUNDING_MODEL", "different-grounding-model"),
+            ("settings", "DRAFT_THINK", "medium"),
+            ("settings", "VERIFIER_THINK", "high"),
+            ("settings", "GROUNDING_CONTEXT_TOKENS", GROUNDING_CONTEXT_TOKENS + 1),
+            ("settings", "GROUNDING_OUTPUT_TOKENS", GROUNDING_OUTPUT_TOKENS + 1),
+        ]
+        for expected, setting, changed in changes:
+            with self.subTest(setting=setting), patch(
+                f"scripts.evaluate_answers.{setting}", changed
+            ):
+                with self.assertRaisesRegex(ValueError, expected):
+                    validate_resume_consistency(
+                        saved, [case], CORPUS, "reranked", MODEL_NAME, "verified"
+                    )
+
+    def test_verified_resume_rejects_reports_without_grounding_budgets(self) -> None:
+        case = ANSWER_CASES[0]
+        raw = self.base_report([case], answer_mode="verified")
+        stored_settings = cast(dict[str, object], raw["settings"])
+        stored_settings.pop("grounding_context_tokens")
+        stored_settings.pop("grounding_output_tokens")
+        saved = ReportModel.model_validate(raw)
+        self.assertIsNone(saved.settings.grounding_context_tokens)
+        self.assertIsNone(saved.settings.grounding_output_tokens)
+        with self.assertRaisesRegex(ValueError, "settings"):
+            validate_resume_consistency(
+                saved, [case], CORPUS, "reranked", MODEL_NAME, "verified"
+            )
 
     def test_rendering_changes_invalidate_generator_prompt_fingerprint(self) -> None:
         before = settings_for("reranked")
