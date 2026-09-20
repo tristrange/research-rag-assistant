@@ -3,6 +3,8 @@ from typing import Literal, TypedDict, cast
 
 import httpx
 
+from app.config import GENERATOR_MODEL, JUDGE_MODEL as JUDGE_MODEL
+
 
 Thinking = bool | Literal["low", "medium", "high"]
 
@@ -25,7 +27,7 @@ class ChatRequest(TypedDict, total=False):
 
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "qwen3:8b"
+MODEL = GENERATOR_MODEL
 JUDGE_THINK = False
 
 
@@ -78,7 +80,7 @@ def generate_json(
 ) -> dict[str, object]:
     """Generate JSON constrained by an Ollama schema and parse it at runtime."""
     content = chat(prompt, response_format=schema, temperature=0.0, think=think,
-                   num_ctx=num_ctx, num_predict=num_predict, model=model)
+                   num_ctx=num_ctx, num_predict=num_predict, model=model if model is not None else JUDGE_MODEL)
     parsed: object = json.loads(content)
     if not isinstance(parsed, dict):
         raise ValueError("Ollama returned JSON that was not an object")

@@ -49,6 +49,17 @@ class OllamaTests(unittest.TestCase):
         self.assertEqual(post.call_args.kwargs["json"]["model"], "qwen3:8b")
 
     @patch("app.llm.ollama.httpx.post")
+    def test_distinct_model_roles_reach_ollama(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content": "{}"}}
+        with patch("app.llm.ollama.MODEL", "generator:test"), patch("app.llm.ollama.JUDGE_MODEL", "judge:test"):
+            generate("Question")
+            self.assertEqual(post.call_args.kwargs["json"]["model"], "generator:test")
+            generate_json("Judge", {})
+            self.assertEqual(post.call_args.kwargs["json"]["model"], "judge:test")
+            generate_json("Verify", {}, model="grounding:test")
+            self.assertEqual(post.call_args.kwargs["json"]["model"], "grounding:test")
+
+    @patch("app.llm.ollama.httpx.post")
     def test_generate_json_rejects_non_object(self, post: Mock) -> None:
         post.return_value.json.return_value = {"message": {"content": "[]"}}
         with self.assertRaisesRegex(ValueError, "not an object"):
