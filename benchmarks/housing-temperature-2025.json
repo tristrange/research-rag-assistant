@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "id": "housing-temperature-2025-v1",
+    "title": "Housing Temperature Impacts the Systemic and Tissue-Specific Molecular Responses to Cancer in Mice",
+    "authors": [
+      "Andrea Irazoki",
+      "Emma Frank",
+      "Tang Cam Phung Pham",
+      "Jessica L. Braun",
+      "Amy M. Ehrlich",
+      "Mark Haid",
+      "Fabien Riols",
+      "Camilla Hartmann Friis Hansen",
+      "Anne-Sofie Rydal Jørgensen",
+      "Nicoline Resen Andersen",
+      "Laura Hidalgo-Corbacho",
+      "Roberto Meneses-Valdes",
+      "Mona Sadek Ali",
+      "Steffen Henning Raun",
+      "Johanne Louise Modvig",
+      "Samantha Gallero",
+      "Steen Larsen",
+      "Zach Gerhart-Hines",
+      "Thomas Elbenhardt Jensen",
+      "Maria Rohm",
+      "Jonas T. Treebak",
+      "Val Andrew Fajardo",
+      "Lykke Sylow"
+    ],
+    "doi": "10.1002/jcsm.13781",
+    "source_url": "https://push-zb.helmholtz-munich.de/deliver.php?id=41354",
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "split": "holdout",
+    "document": "housing-temperature.pdf",
+    "paper_sha256": "3b4d5ef35f05fe0840096236a6758d312d1b7bc6dfc5f4c6ab3b79f0a140ce8e",
+    "notes": "Reserved evaluation questions authored from the published PDF on 2026-09-20; no answer-generation results inspected or used for tuning when created. Labels are assistant-authored, not independently reviewed. Related authors, topic and mouse model to the development paper limit independence. Excerpts retain PDF extraction characters; reference answers are paraphrases. © 2025 The Author(s), published by Wiley Periodicals LLC. See docs/benchmark-corpus.md for acquisition and evaluation protocol."
+  },
+  "cases": [
+    {
+      "id": "housing-temperatures",
+      "question": "What temperatures were mice randomly assigned to in the housing-temperature study?",
+      "answerable": true,
+      "reference_answer": "Standard temperature was 22°C ± 1°C and thermoneutrality was 30°C ± 1°C.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 2,
+          "quote": "Mice were randomly assigned to standard \ntemperature (22°C ± 1°C) or thermoneutrality (30°C ± 1°C)."
+        }
+      ]
+    },
+    {
+      "id": "housing-acclimation",
+      "question": "How long was the acclimation period before mice were housed in pairs or triplets?",
+      "answerable": true,
+      "reference_answer": "Three weeks.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 2,
+          "quote": "After \na 3-­week acclimation period, mice were housed in pairs or trip-\nlets."
+        }
+      ]
+    },
+    {
+      "id": "housing-grip-runs",
+      "question": "How many grip-strength runs did each mouse have, and when was grip strength assessed?",
+      "answerable": true,
+      "reference_answer": "Five runs per mouse, two days before dissection.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 2,
+          "quote": "Grip strength was assessed 2 days prior to the dissection. Mice \nwere placed on the grip meter (Bioseb) with their forelimbs on \nthe grid. Once on the apparatus, traction was applied via the tail. \nThe resistance the mouse applied to the grid was recorded, and \neach mouse had five runs."
+        }
+      ]
+    },
+    {
+      "id": "housing-gtt-times",
+      "question": "At what time points was blood glucose measured during the glucose tolerance test?",
+      "answerable": true,
+      "reference_answer": "At 0, 20, 40, 60 and 90 minutes.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 3,
+          "quote": "At time points 0, 20, 40, 60 and 90 min,"
+        }
+      ]
+    },
+    {
+      "id": "housing-lipid-qc",
+      "question": "How many lipid species remained after quality control?",
+      "answerable": true,
+      "reference_answer": "777 lipid species remained after quality control.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 3,
+          "quote": "After QC [13], 777 lipid spe-\ncies remained,"
+        }
+      ]
+    },
+    {
+      "id": "housing-imputation",
+      "question": "How were missing lipid values imputed, and what k was used?",
+      "answerable": true,
+      "reference_answer": "Using k-nearest-neighbour imputation with k = 10.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 3,
+          "quote": "Missing values were imputed using the k-­nearest-­neighbour ap-\nproach with k = 10."
+        }
+      ]
+    },
+    {
+      "id": "housing-fat-loss",
+      "question": "What percentage decrease in fat mass was reported in C26 mice compared with controls?",
+      "answerable": true,
+      "reference_answer": "A 35% decrease in fat mass.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 1,
+          "quote": "accounted by decreased fat mass (−35%, p < 0.0001 vs. Ctrls),"
+        }
+      ]
+    },
+    {
+      "id": "housing-bat-atp",
+      "question": "How did cancer affect brown adipose tissue ATP levels across housing temperatures?",
+      "answerable": true,
+      "reference_answer": "BAT ATP levels increased two-fold regardless of housing temperature.",
+      "evidence": [
+        {
+          "document": "housing-temperature.pdf",
+          "page": 2,
+          "quote": "Cancer increased BAT ATP levels regardless of temperature (2-­fold, p = 0.0046 vs. Ctrls)"
+        }
+      ]
+    },
+    {
+      "id": "housing-female-response",
+      "question": "How did thermoneutral housing affect glucose tolerance in female tumor-bearing mice in these experiments?",
+      "answerable": false,
+      "reference_answer": "These experiments used male mice and do not establish the response in female mice.",
+      "evidence": []
+    },
+    {
+      "id": "housing-human-survival",
+      "question": "How many months did thermoneutral housing extend survival in human cancer patients in this study?",
+      "answerable": false,
+      "reference_answer": "This mouse study does not report a human survival benefit in months.",
+      "evidence": []
+    }
+  ]
+}

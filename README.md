@@ -58,17 +58,15 @@ ollama pull qwen3:8b
 ollama pull nomic-embed-text
 ```
 
-Place a paper at:
-
-```text
-data/sample.pdf
-```
-
-Index it (running this again replaces the chunks for `sample.pdf`):
+Place your PDFs under `data/` and index each by path:
 
 ```bash
-uv run python -m scripts.index_pdf
+uv run python -m scripts.index_pdf data/my-paper.pdf
 ```
+
+Omitting the path retains the `data/sample.pdf` development example. Local PDFs
+are ignored by Git. The [corpus notes](docs/benchmark-corpus.md) record attribution,
+licenses, historical PDF copies and a reserved Emma Frank coauthored benchmark.
 
 Documents are currently identified by filename. Reindexing replaces only that
 filename's chunks, including removing stale chunks if the PDF becomes shorter or
@@ -112,6 +110,33 @@ Start the API:
 ```bash
 uv run uvicorn app.main:app --reload --reload-dir app
 ```
+
+## Local model settings
+
+Set these environment variables before starting the API or evaluation process:
+
+| Variable | Default | Role |
+|---|---|---|
+| `RAG_GENERATOR_MODEL` | `qwen3:8b` | Plain answer generation |
+| `RAG_GROUNDING_MODEL` | `gpt-oss:20b` | Verified drafting and verification |
+| `RAG_JUDGE_MODEL` | `qwen3:8b` | Evaluation and judge calibration |
+| `RAG_DRAFT_THINK` | `low` | Verified draft reasoning |
+| `RAG_VERIFIER_THINK` | `medium` | Verified reasoning |
+| `RAG_DATABASE_URL` | `postgresql+psycopg://rag:rag@localhost:5432/rag` | Index connection |
+
+For example, use an already-installed GPT-OSS model for plain answers:
+
+```bash
+RAG_GENERATOR_MODEL=gpt-oss:20b uv run uvicorn app.main:app --reload --reload-dir app
+```
+
+Verified mode uses `RAG_GROUNDING_MODEL` independently of the plain generator.
+Reasoning values accept `true`, `false`, `low`, `medium`, or `high`; choose values
+supported by the selected model. These settings do not change the embedding model
+or require reindexing. Models must already be installed in Ollama; there is no
+automatic download or fallback. Blank settings fail at startup. Restart the process
+after changing settings. Model comparisons should keep the judge fixed and inspect
+actual evidence, not rely only on aggregate model grades.
 
 ## Verified answer mode (experimental)
 
@@ -259,6 +284,21 @@ Next steps include reviewing the reference labels and judge scores, testing more
 improving multi-document support, and adding a small frontend.
 
 ## Answer-quality evaluation
+
+The default below is the historical sample-paper development benchmark. For a
+separate paper, supply a versioned JSON manifest and its local PDF:
+
+```bash
+uv run python -m scripts.evaluate_answers \
+  --benchmark benchmarks/housing-temperature-2025.json \
+  --pdf data/housing-temperature.pdf --validate-only
+```
+
+See [corpus acquisition and evaluation protocol](docs/benchmark-corpus.md) for the
+license, download, isolated database setup and reserved-set rules. `--validate-only`
+checks the PDF and labels without calling models or accessing the database. Remove
+that flag to run an evaluation against an index containing only the selected paper.
+
 
 See the [17 September local evaluation](docs/evaluation-2026-09-17.md) for a completed
 20-question run, its configuration, and a manual review of the observed failures.

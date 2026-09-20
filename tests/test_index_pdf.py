@@ -1,3 +1,7 @@
+from contextlib import redirect_stderr, redirect_stdout
+import io
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
@@ -95,6 +99,27 @@ class IndexPdfTests(unittest.TestCase):
         self.pages = []
         self.assertEqual(index_pdf.index_pdf(), 0)
         self.assertEqual(self.contents(), [])
+
+
+class IndexCliTests(unittest.TestCase):
+    def test_arbitrary_pdf_path_reaches_indexer(self) -> None:
+        with TemporaryDirectory() as directory:
+            paper = Path(directory) / "another paper.pdf"
+            paper.write_bytes(b"fixture")
+            with patch("sys.argv", ["index_pdf", str(paper)]), patch.object(index_pdf, "index_pdf", return_value=7) as indexer, redirect_stdout(io.StringIO()) as output:
+                index_pdf.main()
+            indexer.assert_called_once_with(str(paper))
+            self.assertIn("7 chunks from another paper.pdf", output.getvalue())
+
+    def test_bad_input_never_calls_indexer(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            text = root / "paper.txt"
+            text.write_text("not a PDF")
+            for path in [root / "missing.pdf", root, text]:
+                with self.subTest(path=path), patch("sys.argv", ["index_pdf", str(path)]), patch.object(index_pdf, "index_pdf") as indexer, redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    index_pdf.main()
+                indexer.assert_not_called()
 
 
 if __name__ == "__main__":

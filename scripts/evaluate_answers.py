@@ -29,7 +29,7 @@ from app.grounding import (
     grounding_fingerprint,
 )
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
-from app.llm.ollama import JUDGE_THINK, MODEL, Thinking, generate_json
+from app.llm.ollama import JUDGE_THINK, JUDGE_MODEL, MODEL, Thinking, generate_json
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
 from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
@@ -38,7 +38,7 @@ from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "7"
+EVALUATOR_VERSION = "8"
 
 
 def _prompt_fingerprint() -> str:
@@ -73,6 +73,50 @@ class CaseModel(StrictModel):
     answerable: bool
     reference_answer: str = Field(min_length=1)
     evidence: list[EvidenceModel]
+
+
+class BenchmarkMetadata(StrictModel):
+    id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    authors: list[str] = Field(min_length=1)
+    doi: str = Field(min_length=1)
+    source_url: str = Field(min_length=1)
+    license: str = Field(min_length=1)
+    license_url: str = Field(min_length=1)
+    split: Literal["development", "holdout"]
+    document: str = Field(min_length=1)
+    paper_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    notes: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_document(self) -> "BenchmarkMetadata":
+        if Path(self.document).name != self.document or "\\" in self.document:
+            raise ValueError("benchmark document must be a filename, not a path")
+        if Path(self.document).suffix.lower() != ".pdf":
+            raise ValueError("benchmark document must name a PDF")
+        return self
+
+
+class BenchmarkManifest(StrictModel):
+    schema_version: Literal[1]
+    metadata: BenchmarkMetadata
+    cases: list[CaseModel] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_cases(self) -> "BenchmarkManifest":
+        ids = [case.id for case in self.cases]
+        if len(ids) != len(set(ids)):
+            raise ValueError("benchmark case IDs must be unique")
+        for case in self.cases:
+            if case.answerable != bool(case.evidence):
+                raise ValueError("only answerable cases must have evidence labels")
+            if any(label.document != self.metadata.document for label in case.evidence):
+                raise ValueError("evidence must refer to the benchmark document")
+        return self
+
+
+def load_benchmark(path: Path) -> BenchmarkManifest:
+    return BenchmarkManifest.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 class SourceModel(StrictModel):
@@ -194,6 +238,7 @@ class ReportModel(StrictModel):
     error: str | None = None
     corpus: CorpusModel
     paper_sha256: str
+    benchmark: BenchmarkMetadata | None = None
     cases_sha256: str
     generator_model: str
     judge_model: str
@@ -352,13 +397,15 @@ def validate_resume_consistency(
     strategy: str,
     reranker_model: str | None,
     answer_mode: str = "plain",
+    *, paper_sha256: str | None = None, benchmark: BenchmarkMetadata | None = None,
 ) -> None:
     expected: dict[str, tuple[object, object]] = {
         "corpus": (saved.corpus.model_dump(), corpus),
-        "paper SHA-256": (saved.paper_sha256, PAPER_SHA256),
+        "paper SHA-256": (saved.paper_sha256, paper_sha256 or PAPER_SHA256),
+        "benchmark": (saved.benchmark, benchmark),
         "cases": (saved.cases_sha256, cases_hash(cases)),
         "generator model": (saved.generator_model, GROUNDING_MODEL if answer_mode == "verified" else MODEL),
-        "judge model": (saved.judge_model, MODEL),
+        "judge model": (saved.judge_model, JUDGE_MODEL),
         "embedding model": (saved.embedding_model, EMBEDDING_MODEL),
         "reranker model": (saved.reranker_model, reranker_model),
         "settings": (saved.settings.model_dump(), settings_for(strategy, answer_mode)),
@@ -381,12 +428,14 @@ def validate_resume_consistency(
 def _new_report(
     now: datetime, before: CorpusSnapshot, cases: list[AnswerEvaluationCase],
     strategy: str, reranker_model: str | None, answer_mode: str = "plain",
+    *, paper_sha256: str | None = None, benchmark: BenchmarkMetadata | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION, "status": "running", "started_at": now.isoformat(),
         "finished_at": None, "resumed_from": None, "error": None, "corpus": before,
-        "paper_sha256": PAPER_SHA256, "cases_sha256": cases_hash(cases),
-        "generator_model": GROUNDING_MODEL if answer_mode == "verified" else MODEL, "judge_model": MODEL, "embedding_model": EMBEDDING_MODEL,
+        "paper_sha256": paper_sha256 or PAPER_SHA256, "cases_sha256": cases_hash(cases),
+        "benchmark": benchmark.model_dump() if benchmark else None,
+        "generator_model": GROUNDING_MODEL if answer_mode == "verified" else MODEL, "judge_model": JUDGE_MODEL, "embedding_model": EMBEDDING_MODEL,
         "reranker_model": reranker_model, "settings": settings_for(strategy, answer_mode),
         "evaluator_version": EVALUATOR_VERSION, "evaluator_prompt_sha256": EVALUATOR_PROMPT_SHA256,
         "calibration_version": CALIBRATION_VERSION, "calibration": None,
@@ -395,8 +444,10 @@ def _new_report(
             "pydantic": version("pydantic"), "sentence_transformers": version("sentence-transformers"),
         },
         "methodology": (
-            "Assistant-authored reference labels on the same paper as the retrieval development set; "
-            "not independently reviewed or suitable for a generalization claim. Evidence quotes are "
+            "Assistant-authored reference labels; the built-in sample is a development set. "
+            "External benchmark split and provenance are recorded in benchmark metadata. "
+            "A holdout label alone does not establish independence; do not tune on its results. "
+            "Labels are not independently reviewed. Evidence quotes are "
             "validated against the PDF; a hit requires the full normalized quote in a single returned chunk. "
             "This may undercount alternate or split evidence. The exact application refusal is scored "
             "deterministically; other responses use the recorded judge model. Inspect explanations "
@@ -420,11 +471,40 @@ def main() -> None:
                         help="new JSON report path; defaults to evaluation-results/answers-TIMESTAMP.json")
     parser.add_argument("--resume", type=Path,
                         help="resume a schema-v2 report into a new output without changing the original")
-    parser.add_argument("--case", dest="case_ids", action="append", choices=[c["id"] for c in ANSWER_CASES],
+    parser.add_argument("--benchmark", type=Path, help="JSON benchmark manifest; omit for the legacy sample development set")
+    parser.add_argument("--pdf", type=Path, help="local PDF; required with --benchmark, otherwise defaults to data/sample.pdf")
+    parser.add_argument("--validate-only", action="store_true", help="check PDF fingerprint and labels without database or model calls")
+    parser.add_argument("--case", dest="case_ids", action="append",
                         help="run just this case (repeat the flag to select more)")
     parser.add_argument("--strategy", choices=["vector", "reranked", "expanded"], default=None)
     parser.add_argument("--answer-mode", choices=["plain", "verified"], default=None)
     args = parser.parse_args()
+    benchmark: BenchmarkMetadata | None = None
+    available_cases = ANSWER_CASES
+    paper_hash = PAPER_SHA256
+    document = "sample.pdf"
+    if args.benchmark is not None:
+        if args.pdf is None:
+            parser.error("--pdf is required with --benchmark")
+        try:
+            manifest = load_benchmark(args.benchmark)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
+        benchmark = manifest.metadata
+        available_cases = [cast(AnswerEvaluationCase, case.model_dump()) for case in manifest.cases]
+        paper_hash = benchmark.paper_sha256
+        document = benchmark.document
+    paper = args.pdf or Path("data/sample.pdf")
+    if paper.name != document:
+        parser.error(f"PDF filename must match benchmark document {document!r}")
+    if args.case_ids is not None:
+        if len(args.case_ids) != len(set(args.case_ids)):
+            parser.error("--case selections must not contain duplicates")
+        unknown = set(args.case_ids) - {c["id"] for c in available_cases}
+        if unknown:
+            parser.error("Unknown benchmark case IDs: " + ", ".join(sorted(unknown)))
+    if args.validate_only and args.resume:
+        parser.error("--validate-only cannot be combined with --resume")
     now = datetime.now(timezone.utc)
     output = args.output or Path("evaluation-results") / f"answers-{now.strftime('%Y%m%dT%H%M%S%fZ')}.json"
     if output.exists():
@@ -449,21 +529,23 @@ def main() -> None:
         answer_mode = args.answer_mode or "plain"
         selected_ids = set(args.case_ids) if args.case_ids else None
         requested_ids = [
-            case["id"] for case in ANSWER_CASES
+            case["id"] for case in available_cases
             if selected_ids is None or case["id"] in selected_ids
         ]
     requested_set = set(requested_ids)
-    cases = [case for case in ANSWER_CASES if case["id"] in requested_set]
+    cases = [case for case in available_cases if case["id"] in requested_set]
     if [case["id"] for case in cases] != requested_ids:
         parser.error("Requested cases no longer match the benchmark cases or their order")
 
-    paper = Path("data/sample.pdf")
-    if sha256(paper.read_bytes()).hexdigest() != PAPER_SHA256:
-        raise ValueError("data/sample.pdf does not match the paper these reference labels describe")
+    if sha256(paper.read_bytes()).hexdigest() != paper_hash:
+        raise ValueError("PDF does not match the paper fingerprint in the benchmark")
     pages = extract_pages(str(paper))
     validate_labels(cases, pages)
-    before = snapshot("sample.pdf")
-    if set(before["chunks_by_document"]) != {"sample.pdf"}:
+    if args.validate_only:
+        print(f"Validated {len(cases)} cases against {paper}; no database or model calls made.")
+        return
+    before = snapshot(document)
+    if set(before["chunks_by_document"]) != {document}:
         raise ValueError("These answerability labels require an index containing only the evaluation paper")
     validate_index(indexed_sources(), pages)
 
@@ -473,10 +555,12 @@ def main() -> None:
     reranker_model = None if strategy == "vector" else MODEL_NAME
     if saved is None:
         report = ReportModel.model_validate(
-            _new_report(now, before, cases, strategy, reranker_model, answer_mode)
+            _new_report(now, before, cases, strategy, reranker_model, answer_mode,
+                        paper_sha256=paper_hash, benchmark=benchmark)
         ).model_dump()
     else:
-        validate_resume_consistency(saved, cases, before, strategy, reranker_model, answer_mode)
+        validate_resume_consistency(saved, cases, before, strategy, reranker_model, answer_mode,
+                                    paper_sha256=paper_hash, benchmark=benchmark)
         report = cast(dict[str, object], saved.model_dump())
         report = {
             **report,
@@ -517,7 +601,7 @@ def main() -> None:
             report = {**report, "results": results, "pending": None}
             save_report(output, report)
             print_result(result)
-        if snapshot("sample.pdf") != before:
+        if snapshot(document) != before:
             raise RuntimeError("The index changed during evaluation; results are invalid")
         results = cast(list[CaseEvaluation], report["results"])
         report = {**report, "metrics": summarize(results), "status": "complete"}

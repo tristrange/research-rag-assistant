@@ -10,7 +10,11 @@ from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
-from app.llm.ollama import Thinking, generate_json
+from app.config import (
+    GROUNDING_MODEL as GROUNDING_MODEL,
+    DRAFT_THINK as DRAFT_THINK, VERIFIER_THINK as VERIFIER_THINK,
+)
+from app.llm.ollama import generate_json
 from app.types import ChunkData
 
 
@@ -18,9 +22,6 @@ INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
 GROUNDING_CONTRACT_VERSION = "claim-grounding-v12"
-GROUNDING_MODEL = "gpt-oss:20b"
-DRAFT_THINK: Thinking = "low"
-VERIFIER_THINK: Thinking = "medium"
 GROUNDING_CONTEXT_TOKENS = 12288
 GROUNDING_OUTPUT_TOKENS = 4096
 MAX_CLAIMS = 3

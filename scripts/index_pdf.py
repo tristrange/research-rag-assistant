@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 from sqlalchemy import delete
@@ -45,7 +46,15 @@ def index_pdf(pdf_path: str = PDF_PATH) -> int:
 
 
 def main() -> None:
-    print(f"Indexed {index_pdf()} chunks")
+    parser = argparse.ArgumentParser(
+        description="Index a PDF, atomically replacing chunks with the same filename. Use distinct filenames for distinct papers."
+    )
+    parser.add_argument("pdf", type=Path, nargs="?", default=Path(PDF_PATH),
+                        help="PDF path (default: data/sample.pdf)")
+    args = parser.parse_args()
+    if not args.pdf.is_file() or args.pdf.suffix.lower() != ".pdf":
+        parser.error("PDF must be an existing regular file with a .pdf extension")
+    print(f"Indexed {index_pdf(str(args.pdf))} chunks from {args.pdf.name}")
 
 
 if __name__ == "__main__":
