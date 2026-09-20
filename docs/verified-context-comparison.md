@@ -4,7 +4,7 @@
 
 Application baseline: `e218abe` (PR #15 merged). Compare the expanded strategy
 with three and six seed passages using all existing questions on both papers:
-23 sample questions (18 answerable, including cited-literature questions, and five
+24 sample questions (18 answerable, including cited-literature questions, and six
 unanswerable) and ten housing questions (eight answerable, two unanswerable).
 These are inspected development sets, not independent holdouts.
 
@@ -41,9 +41,9 @@ Even a clean result is provisional: independent labels and a fresh paper remain
 necessary for general quality claims. The normal API is not changed by this PR.
 
 The initial protocol prose counted 20 sample cases, but the unchanged runner
-contains 23 (18 answerable and five unanswerable). This count was corrected during
+contains 24 (18 answerable and six unanswerable). This count was corrected during
 the first calibration, before any generated answers were inspected. All existing
-cases remain included; the four arms therefore contain 66 answers in total.
+cases remain included; the four arms therefore contain 68 answers in total.
 
 ## Reproduction
 
