@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import Mock, patch
 
@@ -5,9 +6,11 @@ from pydantic import ValidationError
 
 from app.answer_evaluation import (
     AnswerEvaluationCase,
+    EXACT_REFUSALS,
     evaluate_case,
     evidence_found,
     normalize,
+    judge_prompt,
     summarize,
 )
 from app.grounding import INSUFFICIENT_EVIDENCE
@@ -34,6 +37,8 @@ def result(answer: str = "The response increased.") -> AnswerResult:
 
 
 def judge(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+    if schema.get("title") == "AbstentionDecision":
+        return {"abstained": False, "explanation": "Substantive answer."}
     return {"correctness": 2, "completeness": 2, "citation_support": 2,
             "abstained": False,
             "explanation": "The answer matches the reference and evidence."}
@@ -121,9 +126,9 @@ class AnswerEvaluationTests(unittest.TestCase):
         for answer_text in answers:
             with self.subTest(answer=answer_text):
                 answer = Mock(return_value=result(answer_text))
-                semantic_judge = Mock(return_value=judge("", {}))
+                semantic_judge = Mock(side_effect=judge)
                 evaluated = evaluate_case(case(), answer, semantic_judge)
-                semantic_judge.assert_called_once()
+                self.assertEqual(semantic_judge.call_count, 2)
                 self.assertFalse(evaluated["abstained"])
 
     def test_invalid_judge_response_is_rejected(self) -> None:
@@ -165,6 +170,8 @@ class AnswerEvaluationTests(unittest.TestCase):
         for field, value in [("correctness", True), ("completeness", "2"), ("abstained", "false")]:
             with self.subTest(field=field):
                 def bad_judge(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+                    if schema.get("title") == "AbstentionDecision":
+                        return judge(prompt, schema)
                     return {**judge(prompt, schema), field: value}
                 with self.assertRaises(ValidationError):
                     evaluate_case(case(), lambda question: result(), bad_judge)
@@ -175,12 +182,91 @@ class AnswerEvaluationTests(unittest.TestCase):
 
     def test_correct_refusals_do_not_inflate_answerable_quality_scores(self) -> None:
         wrong_answer = evaluate_case(case(), lambda question: result("The response decreased."),
-                                    lambda prompt, schema: {**judge(prompt, schema), "correctness": 0})
+                                    lambda prompt, schema: judge(prompt, schema) if schema.get("title") == "AbstentionDecision" else {**judge(prompt, schema), "correctness": 0})
         refusal = evaluate_case(case(answerable=False),
                                 lambda question: result("I cannot determine that."), abstention_judge)
         metrics = summarize([wrong_answer, refusal])
         self.assertEqual(metrics["correctness"], 0)
         self.assertEqual(metrics["unanswerable_abstention_rate"], 1)
+
+
+class AbstentionSeparationTests(unittest.TestCase):
+    def test_exact_fact_free_refusals_are_deterministic_but_prefixes_are_not(self) -> None:
+        for answer in EXACT_REFUSALS:
+            for answerable in [True, False]:
+                with self.subTest(answer=answer, answerable=answerable):
+                    unused_judge = Mock(side_effect=AssertionError("no model call"))
+                    evaluated = evaluate_case(case(answerable=answerable), lambda question: result(answer), unused_judge)
+                    self.assertTrue(evaluated["abstained"])
+                    self.assertEqual(evaluated["judge"]["correctness"], 0 if answerable else 2)
+                    unused_judge.assert_not_called()
+            graded = Mock(side_effect=judge)
+            evaluated = evaluate_case(case(), lambda question: result(answer + " But I guess it increased by 30%."), graded)
+            self.assertFalse(evaluated["abstained"])
+            self.assertEqual(graded.call_count, 2)
+
+    def test_classifier_cannot_see_reference_sources_or_answerability(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def classify_then_grade(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            if schema.get("title") == "AbstentionDecision":
+                payload = json.loads(prompt.split("Abstention data (JSON):\n")[1])
+                calls.append(payload)
+                return {"abstained": True, "explanation": "Declines the requested outcome."}
+            return {"correctness": 2, "completeness": 2, "citation_support": 1,
+                    "abstained": False, "explanation": "Incorrectly credited refusal."}
+
+        answer = "The excerpt lacks outcomes, so I cannot answer."
+        evaluated = evaluate_case(case(), lambda question: result(answer), classify_then_grade)
+        self.assertEqual(calls, [{"question": "What happened?", "answer": answer}])
+        self.assertTrue(evaluated["abstained"])
+        self.assertEqual(evaluated["judge"]["correctness"], 0)
+        self.assertEqual(evaluated["judge"]["completeness"], 0)
+        self.assertEqual(evaluated["judge"]["citation_support"], 1)
+        self.assertFalse(evaluated["passed"])
+
+    def test_classifier_schema_and_second_call_transport_failures_propagate(self) -> None:
+        with self.assertRaises(ValidationError):
+            evaluate_case(case(), lambda question: result(), lambda prompt, schema: {
+                "abstained": "false", "explanation": "Wrong type."
+            })
+        failing_judge = Mock(side_effect=[
+            {"abstained": False, "explanation": "Substantive answer."},
+            TimeoutError("grading unavailable"),
+        ])
+        with self.assertRaisesRegex(TimeoutError, "grading unavailable"):
+            evaluate_case(case(), lambda question: result(), failing_judge)
+        self.assertEqual(failing_judge.call_count, 2)
+
+    def test_expected_evidence_is_not_exposed_as_grading_source(self) -> None:
+        prompt = judge_prompt(case(), result())
+        payload = json.loads(prompt.split("Evaluation data (JSON):\n")[1])
+        self.assertNotIn("evidence", payload["case"])
+        self.assertEqual(payload["case"]["reference_answer"], case()["reference_answer"])
+        self.assertEqual(payload["sources"], result()["sources"])
+
+    def test_partial_or_guessed_answer_is_not_overridden_by_grader(self) -> None:
+        def classify_then_grade(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            if schema.get("title") == "AbstentionDecision":
+                return {"abstained": False, "explanation": "Offers a guess."}
+            return {"correctness": 1, "completeness": 1, "citation_support": 0,
+                    "abstained": True, "explanation": "Contains refusal words."}
+
+        evaluated = evaluate_case(case(), lambda question: result("I do not know, but perhaps 30%."), classify_then_grade)
+        self.assertFalse(evaluated["abstained"])
+        self.assertEqual(evaluated["judge"]["correctness"], 1)
+
+    def test_unanswerable_refusal_does_not_hide_unsupported_explanation(self) -> None:
+        def classify_then_grade(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+            if schema.get("title") == "AbstentionDecision":
+                return {"abstained": True, "explanation": "Declines requested answer."}
+            return {"correctness": 0, "completeness": 2, "citation_support": 0,
+                    "abstained": False, "explanation": "Invented study description."}
+
+        evaluated = evaluate_case(case(answerable=False), lambda question: result("I cannot answer because this was a dog study."), classify_then_grade)
+        self.assertTrue(evaluated["abstained"])
+        self.assertEqual(evaluated["judge"]["correctness"], 0)
+        self.assertFalse(evaluated["passed"])
 
 
 if __name__ == "__main__":

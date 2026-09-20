@@ -17,8 +17,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from sqlalchemy import select
 
 from app.answer_evaluation import (
-    AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer, JudgeScores,
-    evidence_found, generate_case_answer, judge_case_answer, judge_prompt, summarize,
+    AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer, JudgeScores, EXACT_REFUSALS,
+    evidence_found, generate_case_answer, judge_case_answer, judge_prompt, abstention_prompt, summarize,
 )
 from app.db.database import SessionLocal
 from app.db.models import Chunk
@@ -38,7 +38,7 @@ from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
 SCHEMA_VERSION = 2
-EVALUATOR_VERSION = "8"
+EVALUATOR_VERSION = "9"
 
 
 def _prompt_fingerprint() -> str:
@@ -51,7 +51,7 @@ def _prompt_fingerprint() -> str:
         answer="Answer.",
         sources=[ChunkData(document="paper.pdf", page=1, chunk_index=0, text="Evidence.")],
     )
-    return sha256(judge_prompt(case, result).encode()).hexdigest()
+    return sha256((abstention_prompt(case["question"], result["answer"]) + "\n" + judge_prompt(case, result) + "\n" + json.dumps(sorted(EXACT_REFUSALS))).encode()).hexdigest()
 
 
 EVALUATOR_PROMPT_SHA256 = _prompt_fingerprint()
@@ -449,8 +449,10 @@ def _new_report(
             "A holdout label alone does not establish independence; do not tune on its results. "
             "Labels are not independently reviewed. Evidence quotes are "
             "validated against the PDF; a hit requires the full normalized quote in a single returned chunk. "
-            "This may undercount alternate or split evidence. The exact application refusal is scored "
-            "deterministically; other responses use the recorded judge model. Inspect explanations "
+            "This may undercount alternate or split evidence. Exact fact-free refusal sentences are scored "
+            "deterministically; other responses use separate reference-blind abstention and factual "
+            "grading calls to the recorded judge model. Answerable refusals receive zero correctness "
+            "and completeness in code. Judge timing includes both calls. Inspect explanations "
             "and passages manually; model judging is not independent human validation. "
             "Source support measures the returned passage bundle, not inline citation attribution. "
             "Correctness, completeness, and support averages cover answerable cases only. "

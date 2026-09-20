@@ -44,7 +44,7 @@ _HEADING_SECTIONS = {
     "declaration of generative ai and ai-assisted technologies in the writing process": "generative_ai_statement",
 }
 
-_NUMBERED_HEADING = re.compile(r"^\d+(?:\.\d+)*[.)]?\s+")
+_NUMBERED_HEADING = re.compile(r"^\d+(?:\.\d+)*[.)]?(?:\s*\|\s*|\s+)")
 
 
 def heading_section(line: str) -> str | None:
