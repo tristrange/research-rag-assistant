@@ -31,7 +31,7 @@ The PDF was removed from the current tracked tree but exists in older Git commit
 The ignore rules do not erase history. This PR does not rewrite shared Git history
 or claim historical copies have been purged.
 
-## Reserved evaluation paper
+## Evaluation paper (first comparison completed)
 
 Irazoki, A., Frank, E., Pham, T. C. P., et al. (2025).
 *Housing Temperature Impacts the Systemic and Tissue-Specific Molecular Responses
@@ -51,9 +51,11 @@ The complete author list, including Emma Frank, is retained in
 - Ten assistant-authored questions: eight answerable and two unanswerable.
   Excerpts retain extraction characters; reference answers are paraphrases.
   Neither the authors nor publisher endorse this benchmark.
-- Reserved on 2026-09-20. Evidence labels have been checked against PDF pages;
-  no answer generation or prompt tuning has been performed on this set in this PR.
-  Labels still need independent subject-matter review.
+- Reserved on 2026-09-20 and then used in the
+  [first three-model comparison](housing-model-comparison.md). The original manifest
+  is preserved as the pre-run record; its `holdout` label describes the initial
+  split, not a guarantee that the set remains untouched. Treat subsequent use as
+  development evaluation. Labels still need independent subject-matter review.
 
 This broadens coverage beyond the original paper, but shares authors, scientific
 field and mouse model. It is not a broad-domain generalization benchmark. We also
@@ -98,7 +100,7 @@ uv run python -m scripts.init_db
 uv run python -m scripts.index_pdf data/housing-temperature.pdf
 ```
 
-When ready to spend the reserved evaluation set, freeze the configuration and run:
+For a follow-up verified-mode development evaluation, freeze the configuration and run:
 
 ```bash
 RAG_GROUNDING_MODEL=gpt-oss:20b RAG_DRAFT_THINK=low RAG_VERIFIER_THINK=medium \

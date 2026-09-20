@@ -66,7 +66,7 @@ uv run python -m scripts.index_pdf data/my-paper.pdf
 
 Omitting the path retains the `data/sample.pdf` development example. Local PDFs
 are ignored by Git. The [corpus notes](docs/benchmark-corpus.md) record attribution,
-licenses, historical PDF copies and a reserved Emma Frank coauthored benchmark.
+licenses, historical PDF copies and an Emma Frank coauthored benchmark.
 
 Documents are currently identified by filename. Reindexing replaces only that
 filename's chunks, including removing stale chunks if the PDF becomes shorter or
@@ -285,6 +285,12 @@ improving multi-document support, and adding a small frontend.
 
 ## Answer-quality evaluation
 
+The [first comparison on the second paper](docs/housing-model-comparison.md)
+compares Qwen3 8B, GPT-OSS 20B and Qwen3 Coder 30B with identical retrieved evidence.
+GPT-OSS refused where both Qwen models gave unsupported answers, but grader and
+section-metadata defects limit the automated scores. No default was changed.
+
+
 The default below is the historical sample-paper development benchmark. For a
 separate paper, supply a versioned JSON manifest and its local PDF:
 
@@ -295,7 +301,7 @@ uv run python -m scripts.evaluate_answers \
 ```
 
 See [corpus acquisition and evaluation protocol](docs/benchmark-corpus.md) for the
-license, download, isolated database setup and reserved-set rules. `--validate-only`
+license, download, isolated database setup and evaluation-set lifecycle. `--validate-only`
 checks the PDF and labels without calling models or accessing the database. Remove
 that flag to run an evaluation against an index containing only the selected paper.
 
