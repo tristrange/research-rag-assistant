@@ -4,7 +4,7 @@
 
 Application baseline: `e218abe` (PR #15 merged). Compare the expanded strategy
 with three and six seed passages using all existing questions on both papers:
-20 sample questions (18 answerable, including cited-literature questions, and two
+23 sample questions (18 answerable, including cited-literature questions, and five
 unanswerable) and ten housing questions (eight answerable, two unanswerable).
 These are inspected development sets, not independent holdouts.
 
@@ -39,6 +39,11 @@ questions, and offers useful answer coverage at acceptable measured latency.
 Any regression or incomplete arm blocks a rollout recommendation from this trial.
 Even a clean result is provisional: independent labels and a fresh paper remain
 necessary for general quality claims. The normal API is not changed by this PR.
+
+The initial protocol prose counted 20 sample cases, but the unchanged runner
+contains 23 (18 answerable and five unanswerable). This count was corrected during
+the first calibration, before any generated answers were inspected. All existing
+cases remain included; the four arms therefore contain 66 answers in total.
 
 ## Reproduction
 
