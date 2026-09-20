@@ -6,6 +6,18 @@ from app.rag import answer_question
 
 
 class RagTests(unittest.TestCase):
+    def test_verified_mode_uses_selected_sources_without_free_text_regeneration(self) -> None:
+        source = Chunk(document="paper.pdf", page=10, chunk_index=1,
+                       text="A cited study.", section="references")
+        with patch("app.rag.search_chunks", return_value=[source]), \
+                patch("app.rag.rerank_chunks", return_value=[source]), \
+                patch("app.rag.grounded_answer", return_value="Checked answer") as grounded, \
+                patch("app.rag.generate") as generate:
+            result = answer_question("Question", answer_mode="verified")
+        grounded.assert_called_once_with("Question", result["sources"])
+        generate.assert_not_called()
+        self.assertEqual(result["answer"], "Checked answer")
+
     def test_reference_sources_are_labelled_and_retained(self) -> None:
         reference = Chunk(document="paper.pdf", page=10, chunk_index=1,
                           text="A cited intervention study.", section="references")

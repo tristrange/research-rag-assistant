@@ -1,7 +1,10 @@
 import json
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 import httpx
+
+
+Thinking = bool | Literal["low", "medium", "high"]
 
 
 class ChatMessage(TypedDict):
@@ -17,8 +20,8 @@ class ChatRequest(TypedDict, total=False):
     messages: list[dict[str, str]]
     stream: bool
     format: dict[str, object]
-    options: dict[str, float]
-    think: bool
+    options: dict[str, float | int]
+    think: Thinking
 
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
@@ -31,10 +34,13 @@ def chat(
     *,
     response_format: dict[str, object] | None = None,
     temperature: float | None = None,
-    think: bool | None = None,
+    think: Thinking | None = None,
+    model: str | None = None,
+    num_ctx: int | None = None,
+    num_predict: int | None = None,
 ) -> str:
     payload = ChatRequest(
-        model=MODEL,
+        model=model or MODEL,
         messages=[{"role": "user", "content": prompt}],
         stream=False,
     )
@@ -42,13 +48,17 @@ def chat(
         payload["format"] = response_format
     if temperature is not None:
         payload["options"] = {"temperature": temperature}
+    if num_ctx is not None:
+        payload.setdefault("options", {})["num_ctx"] = num_ctx
+    if num_predict is not None:
+        payload.setdefault("options", {})["num_predict"] = num_predict
     if think is not None:
         payload["think"] = think
 
     response = httpx.post(
         OLLAMA_URL,
         json=payload,
-        timeout=120.0,
+        timeout=300.0 if think is True or isinstance(think, str) else 120.0,
     )
 
     response.raise_for_status()
@@ -61,9 +71,14 @@ def generate(prompt: str) -> str:
     return chat(prompt)
 
 
-def generate_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
+def generate_json(
+    prompt: str, schema: dict[str, object], *, think: Thinking = JUDGE_THINK,
+    model: str | None = None,
+    num_ctx: int | None = None, num_predict: int | None = None,
+) -> dict[str, object]:
     """Generate JSON constrained by an Ollama schema and parse it at runtime."""
-    content = chat(prompt, response_format=schema, temperature=0.0, think=JUDGE_THINK)
+    content = chat(prompt, response_format=schema, temperature=0.0, think=think,
+                   num_ctx=num_ctx, num_predict=num_predict, model=model)
     parsed: object = json.loads(content)
     if not isinstance(parsed, dict):
         raise ValueError("Ollama returned JSON that was not an object")

@@ -9,6 +9,7 @@ from typing import Annotated, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
+from app.grounding import INSUFFICIENT_EVIDENCE
 from app.types import AnswerResult, ChunkData
 
 
@@ -164,12 +165,22 @@ def generate_case_answer(case: AnswerEvaluationCase, answer: Answer) -> Generate
 def judge_case_answer(generated: GeneratedCaseAnswer, judge: Judge) -> CaseEvaluation:
     result = AnswerResult(answer=generated["answer"], sources=generated["sources"])
     judging_started = perf_counter()
-    scores = JudgeScores.model_validate(
-        judge(judge_prompt(generated["case"], result), JudgeScores.model_json_schema())
-    )
+    case = generated["case"]
+    if generated["answer"] == INSUFFICIENT_EVIDENCE:
+        appropriate_refusal_score = 0 if case["answerable"] else 2
+        scores = JudgeScores(
+            correctness=appropriate_refusal_score,
+            completeness=appropriate_refusal_score,
+            citation_support=2,
+            abstained=True,
+            explanation="Recognized the application's fixed insufficient-evidence response.",
+        )
+    else:
+        scores = JudgeScores.model_validate(
+            judge(judge_prompt(case, result), JudgeScores.model_json_schema())
+        )
     judged = perf_counter()
     abstained = scores.abstained
-    case = generated["case"]
     evidence_recall = generated["evidence_recall"]
     correct_behavior = not abstained if case["answerable"] else abstained
     passed = (
