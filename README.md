@@ -354,7 +354,7 @@ To evaluate reranked passages with neighboring context:
 uv run python -m scripts.evaluate_answers --strategy expanded
 ```
 
-`expanded` starts from the same top-10 → top-3 reranked passages, then adds the
+`expanded` keeps six of the top ten reranked passages by default, then adds the
 two preceding and two following chunks on each passage's document and page.
 Overlapping windows are merged, repeated text at chunk boundaries is removed,
 and the rendered context (including source labels) is capped at 6,000 characters.
@@ -363,8 +363,20 @@ Returned sources contain exactly the passages provided to the model. For a merge
 window, `chunk_index` identifies its first included chunk; document and page remain
 unchanged. Neighboring text is context, not independently ranked evidence.
 
-The strategy, neighbor radius, context budget, and generator prompt fingerprint are recorded in reports and
-checked on resume. Older reports without these settings require a fresh run.
+Use `--top-k 3` to reproduce the previous expanded cutoff, or choose another cutoff
+from 1 to 10. The effective cutoff, strategy, neighbor radius, context budget and
+generator prompt fingerprint are recorded in reports. Resume preserves the saved
+cutoff; an explicitly different `--top-k` is rejected. Older reports without the
+required settings need a fresh run.
+
+The [evidence-coverage comparison](docs/retrieval-evidence-coverage.md) traces a
+reranking miss and compares three versus six seeds across both development papers.
+The retrieval-only runner reproduces this check without generating answers:
+
+```bash
+uv run python -m scripts.compare_evidence_coverage \
+  --output evaluation-results/coverage-sample.json
+```
 
 The default `reranked` strategy uses the assistant's existing top-10 → top-3 pipeline.
 The `vector` strategy retrieves the top 3 directly. Both use the same prompt and

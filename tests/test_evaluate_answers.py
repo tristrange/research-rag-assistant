@@ -337,14 +337,49 @@ class AnswerRunnerTests(unittest.TestCase):
             stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge))
             with redirect_stdout(io.StringIO()):
                 main()
-            answer.assert_called_once_with(case["question"], use_reranking=True, expand_context=True, answer_mode="verified")
+            answer.assert_called_once_with(case["question"], limit=6, use_reranking=True, expand_context=True, answer_mode="verified")
             report = load_report(output)
             self.assertEqual(report.settings.strategy, "expanded")
             self.assertEqual(report.settings.answer_mode, "verified")
             self.assertEqual(report.settings.candidate_count, 10)
+            self.assertEqual(report.settings.top_k, 6)
             self.assertEqual(report.settings.neighbor_radius, 2)
             self.assertEqual(report.settings.max_context_chars, 6000)
             self.assertEqual(report.reranker_model, MODEL_NAME)
+
+    def test_explicit_cutoff_is_recorded_and_resume_requires_same_setting(self) -> None:
+        raw = _new_report(datetime.now(timezone.utc), CORPUS, [ANSWER_CASES[0]],
+                          "expanded", MODEL_NAME, top_k=3)
+        saved = ReportModel.model_validate(raw)
+        self.assertEqual(saved.settings.top_k, 3)
+        validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS,
+                                    "expanded", MODEL_NAME, top_k=3)
+        with self.assertRaisesRegex(ValueError, "settings"):
+            validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS,
+                                        "expanded", MODEL_NAME, top_k=6)
+
+    def test_resume_preserves_recorded_cutoff_instead_of_new_default(self) -> None:
+        case = ANSWER_CASES[0]
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            source = Path(directory) / "source.json"
+            output = Path(directory) / "resumed.json"
+            save_report(source, _new_report(datetime.now(timezone.utc), CORPUS, [case],
+                                           "expanded", MODEL_NAME, top_k=3,
+                                           paper_sha256=sha256(b"paper").hexdigest()))
+            stack.enter_context(patch("sys.argv", [
+                "evaluate_answers", "--resume", str(source), "--output", str(output),
+            ]))
+            self.patch_preflight(stack)
+            answer = stack.enter_context(patch("app.rag.answer_question", return_value={
+                "answer": "Unknown", "sources": [],
+            }))
+            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer",
+                                      side_effect=lambda generated, ignored: judged_answer(generated)))
+            with redirect_stdout(io.StringIO()):
+                main()
+            answer.assert_called_once_with(case["question"], limit=3, use_reranking=True,
+                                           expand_context=True, answer_mode="plain")
+            self.assertEqual(load_report(output).settings.top_k, 3)
 
     def test_schema_v1_resume_is_rejected_before_services(self) -> None:
         with TemporaryDirectory() as directory, ExitStack() as stack:
