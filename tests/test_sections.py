@@ -115,5 +115,31 @@ class SectionRecognitionTests(unittest.TestCase):
         )
 
 
+class PublisherHeadingRegressionTests(unittest.TestCase):
+    def test_numbered_pipe_headings_with_pdf_spacing(self) -> None:
+        for heading, section in [
+            ("2 | Materials and Methods", "methods"),
+            ("3\u202f\u202f|\u202f\u202fResults", "results"),
+            ("2|Methods", "methods"),
+            ("4.1 | Discussion:", "discussion"),
+        ]:
+            with self.subTest(heading=heading):
+                self.assertEqual(heading_section(heading), section)
+        for heading in ["Results | discussion", "| Methods", "2 || Methods",
+                        "2 | Methods were applied", "2|Results from the study", "2Methods"]:
+            with self.subTest(heading=heading):
+                self.assertIsNone(heading_section(heading))
+
+    def test_pipe_transition_preserves_text_and_carries_across_pages(self) -> None:
+        text = "ABSTRACT\nSummary.\n2\u202f|\u202fMaterials and Methods\nProcedure."
+        chunks = chunk_pages([page(text), page("Continued procedure.\n3 | Results\nFinding.", number=2)], chunk_size=1000, overlap=0)
+        self.assertEqual([c["section"] for c in chunks], ["abstract", "methods", "methods", "results"])
+        self.assertEqual("".join(c["text"] for c in chunks if c["page"] == 1), text)
+
+    def test_pipe_headings_cannot_end_references_except_explicit_appendix(self) -> None:
+        chunks = chunk_pages([page("5 | References\nCitation.\n2 | Methods\nTitle text.\n6 | Appendix\nExtra.")], chunk_size=1000, overlap=0)
+        self.assertEqual([c["section"] for c in chunks], ["references", "appendix"])
+
+
 if __name__ == "__main__":
     unittest.main()

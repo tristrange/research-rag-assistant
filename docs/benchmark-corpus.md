@@ -113,7 +113,7 @@ RAG_GROUNDING_MODEL=gpt-oss:20b RAG_DRAFT_THINK=low RAG_VERIFIER_THINK=medium \
 The CLI reads model settings at process startup. Use a new output path for every
 run. To resume, supply the same `--benchmark`, `--pdf`, model environment and
 `--resume` report; PDF hash, benchmark metadata, selected cases, model roles,
-reasoning, prompts and corpus must match. Evaluator version 8 rejects resumes from
+reasoning, prompts and corpus must match. Evaluator version 9 rejects resumes from
 older versions but can still load old reports for inspection and replay.
 
 For a controlled comparison of **plain answer models**, use the same questions,

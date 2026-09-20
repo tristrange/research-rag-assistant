@@ -68,6 +68,12 @@ Omitting the path retains the `data/sample.pdf` development example. Local PDFs
 are ignored by Git. The [corpus notes](docs/benchmark-corpus.md) record attribution,
 licenses, historical PDF copies and an Emma Frank coauthored benchmark.
 
+Section recognition supports standalone numbered publisher headings such as
+`2 | Materials and Methods`, including PDF whitespace. Reindex affected PDFs to
+replace previously stored section labels; no schema migration is needed. The
+[evaluator and section regression report](docs/section-refusal-regressions.md)
+records validation against the housing-temperature paper.
+
 Documents are currently identified by filename. Reindexing replaces only that
 filename's chunks, including removing stale chunks if the PDF becomes shorter or
 has no extractable text. Extraction, embedding, or database failures preserve the
@@ -386,38 +392,46 @@ in one returned chunk; it can miss split or alternative supporting passages. Ind
 text must belong to the PDF; duplicate chunk identities and a changed index are rejected.
 The evaluator never reindexes the paper.
 
-Semantic scores and abstention classification use schema-constrained JSON from
-**the same Qwen model that generated the answer**, at temperature 0 and with
-`think: false`. Answer generation retains the model's default thinking behavior.
-Ollama supports this switch for Qwen3; see its
-[thinking documentation](https://docs.ollama.com/capabilities/thinking).
-This judge can
-be biased or wrong: inspect the saved explanations and passages. Invalid judge output
-fails the run. Correct refusals do not inflate answerable-case quality scores.
-Unavailable metric groups in selected-case runs are reported as `null`.
-The `abstained` flag describes whether the answer declined to respond, independently
-of whether the reference contains an answer. Correctness and completeness separately
-penalize refusing an answerable question.
+Evaluation uses `RAG_JUDGE_MODEL` (default `qwen3:8b`) with temperature zero and
+thinking disabled. For noncanonical answers, it makes two schema-constrained calls:
+
+1. Classify refusal behavior using only the question and answer. Reference answers,
+   answerability labels and retrieved passages are absent from this call. Partial
+   answers and refusals followed by guesses are not counted as abstentions.
+2. Grade factual quality using the reference and returned passages. Expected
+   evidence quotes are omitted, so they cannot be mistaken for retrieved evidence.
+
+The first decision owns the final `abstained` flag. Code assigns zero correctness
+and completeness when an answerable question was refused, even if the grading
+call awards full credit. Source support remains independently graded, including
+any factual explanation attached to a refusal. Unanswerable refusals do not
+receive automatic full credit if they contain unsupported explanatory claims.
+Both calls can still be wrong; inspect their explanations and passages. Invalid
+output fails the run. Judge timing includes both calls. Unavailable metric groups
+in selected-case runs are reported as `null`.
 
 The initial local trial exposed both kinds of failure: a chunk beginning partway
 through a percentage led to an incorrect body-mass answer, and the judge credited
 another answer with a numerical detail present only in the reference. These examples
 are why both the exact-evidence diagnostic and manual review are needed.
 
-Before generating benchmark answers, the judge grades six synthetic examples with
-known expectations: a correct answer, a missing number, a contradiction, an
-answerable refusal, an unanswerable refusal, and an unsupported claim. The report
-records its scores and which checks passed. A failed check stops the run with
+Before generating benchmark answers, calibration version 2 exercises thirteen
+synthetic controls through the same two-stage evaluator. They cover correct and
+partial answers, contradictions, missing evidence, short and explanatory refusals,
+refusals followed by guesses, and negative findings that must count as answers.
+The report records the scores and checks. A failed check stops the run with
 `calibration_failed` and no aggregate metrics. Transport or invalid-output errors
 produce a `failed` report. Passing this small calibration does **not** establish
 judge accuracy or remove the need for human review.
 
-A fresh full run makes 46 model calls (six calibration calls plus 40 benchmark
-calls) and can take several minutes. Calibration may warm the local model; there
-is no dedicated timing warmup. Answer timing includes retrieval, generation, and
-any model loading; judge timing is separate. Generation uses its existing
-model-default sampling, so results can vary.
-Use the retrieval comparison for warmed latency measurements.
+Each noncanonical calibration control uses two model calls; the exact fact-free
+refusal controls are scored directly. Each plain benchmark case normally adds one
+generation call and two evaluation calls; exact fact-free refusals skip the two
+evaluation calls. Verified generation may use additional calls. Calibration may
+warm the local model; there is no dedicated timing warmup. Answer timing includes
+retrieval, generation and model loading; judge timing is separate. Model-default
+sampling can vary between runs. Use the retrieval comparison for warmed latency
+measurements.
 
 Reports in the Git-ignored `evaluation-results/` directory include questions, answers,
 sources, judge explanations, timings, paper/corpus/case fingerprints, model names,
@@ -446,10 +460,12 @@ fresh evaluation. Requests without explicit reasoning retain the 120-second time
 explicit reasoning uses 300 seconds. Disabling judge thinking is not a guarantee
 against timeouts on every machine.
 
-The exact application refusal is scored directly: it counts as abstention, with
+The canonical application refusal and a small explicit set of fact-free refusal
+sentences are scored directly: each counts as abstention, with
 zero correctness/completeness on answerable cases and full credit on unanswerable
-cases. Other responses still use the evaluation judge. This prevents the judge
-from treating the fixed refusal as a successful factual answer.
+cases. Other responses use the two-stage evaluator described above. Evaluator
+version 9 and the combined prompt/exact-refusal fingerprint prevent resuming reports under older
+grading rules; historical reports remain readable and are not rewritten.
 `--output PATH` chooses a filename; existing reports are never overwritten.
 
 ## Tests

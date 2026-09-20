@@ -83,6 +83,8 @@ def pending_answer(case: AnswerEvaluationCase) -> GeneratedCaseAnswer:
 
 def judged_answer(generated: GeneratedCaseAnswer) -> CaseEvaluation:
     return judge_case_answer(generated, lambda prompt, schema: {
+        "abstained": False, "explanation": "Substantive answer."
+    } if schema.get("title") == "AbstentionDecision" else {
         "correctness": 0,
         "completeness": 0,
         "citation_support": 0,
