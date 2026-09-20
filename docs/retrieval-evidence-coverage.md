@@ -83,7 +83,8 @@ reranker: `BAAI/bge-reranker-base`, installed locally. No model downloads or ind
 changes occurred. The housing and sample corpus fingerprints remain
 `9cb8565471218f33f9c55f5b7c9297a6ae79173b9b48ec7cc0306e3bd99e3f66` and
 `3b617920e02426f2c0ad0bca835c6ae1627b43b0009511f8e77d67a64f815ce7`.
-The runner fingerprint is
+The runner fingerprint for these measured runs (before the review added an
+explicit empty-case preflight check) is
 `2b89eef62663ccda16a0b168c3972d0e733e894bc37250a73389ed8841e541c9`.
 
 Raw reports remain under ignored `evaluation-results/`, including the preliminary
@@ -95,9 +96,11 @@ The completed repeated reports have these SHA-256 hashes:
 | `coverage-housing-repeated.json` | `a53234c0a9f4bb928a0b314d3eac60f0925f1e20519b4c0cb42c8ef77d39de35` |
 | `coverage-sample-repeated.json` | `a11797c0a32777eb15cf297c40be64e8a12d203f304d0c2af1049ce00feed513` |
 
-Automated validation: 162 tests pass; strict type checking passes for 57 Python
+Automated validation after review: 164 tests pass; strict type checking passes for 58 Python
 files. Tests cover expanded defaults, explicit cutoffs, invalid limits, provenance,
-and preserving a recorded three-seed cutoff on resume.
+preserving a recorded three-seed cutoff on resume, preserving source cutoffs in
+grounding replays, and rejecting unanswerable-only benchmarks before extraction,
+services or output reservation.
 
 ## Verified generation spot checks
 

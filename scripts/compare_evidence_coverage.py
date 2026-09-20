@@ -84,6 +84,8 @@ def main() -> None:
     if args.output.exists():
         parser.error("Output exists; choose a new path")
     cases = [case for case in cases if case["answerable"]]
+    if not cases:
+        parser.error("Coverage comparison requires at least one answerable case")
     pages = extract_pages(str(args.pdf))
     validate_labels(cases, pages)
     before = snapshot(document)

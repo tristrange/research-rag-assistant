@@ -34,6 +34,7 @@ def saved_report() -> Mock:
         "chunks_by_document": {"paper.pdf": 1},
     }
     saved.settings.strategy = "reranked"
+    saved.settings.top_k = 3
     completed = Mock()
     completed.case.id = CASE["id"]
     completed.case.question = CASE["question"]
@@ -120,6 +121,26 @@ class ReplayGroundingTests(unittest.TestCase):
             self.assertEqual(item["trace"], trace_entries)
             self.assertEqual(item["answer"], "The response increased. (paper.pdf, page 2)")
             self.assertGreaterEqual(item["elapsed_ms"], 0)
+
+    def test_replay_preserves_nondefault_source_cutoffs(self) -> None:
+        for strategy, top_k, candidates in [("expanded", 3, 10), ("vector", 5, 5), ("reranked", 7, 10)]:
+            with self.subTest(strategy=strategy), TemporaryDirectory() as directory:
+                saved = saved_report()
+                saved.settings.strategy = strategy
+                saved.settings.top_k = top_k
+                output = Path(directory) / "replay.json"
+                with (
+                    patch("sys.argv", ["replay_grounding", "saved.json", "--output", str(output)]),
+                    patch("scripts.replay_grounding.load_report", return_value=saved),
+                    patch("scripts.replay_grounding.grounded_answer", return_value="Answer") as grounded,
+                    redirect_stdout(io.StringIO()),
+                ):
+                    main()
+                report = json.loads(output.read_text())
+                self.assertEqual(report["settings"]["top_k"], top_k)
+                self.assertEqual(report["settings"]["candidate_count"], candidates)
+                self.assertEqual(report["settings"]["answer_mode"], "verified")
+                self.assertEqual(grounded.call_args.args[1], [SOURCE])
 
     def test_interrupted_run_retains_partial_trace_and_failed_status(self) -> None:
         trace_entry: dict[str, object] = {
