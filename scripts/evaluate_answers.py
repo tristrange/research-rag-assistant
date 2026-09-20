@@ -30,6 +30,7 @@ from app.grounding import (
 )
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_THINK, JUDGE_MODEL, MODEL, Thinking, generate_json
+from app.retrieval import CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
 from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
@@ -369,16 +370,17 @@ def cases_hash(cases: list[AnswerEvaluationCase]) -> str:
     return sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest()
 
 
-def settings_for(strategy: str, answer_mode: str = "plain") -> dict[str, object]:
+def settings_for(strategy: str, answer_mode: str = "plain", top_k: int | None = None) -> dict[str, object]:
+    top_k = default_top_k(strategy == "expanded") if top_k is None else top_k
     return {
-        "strategy": strategy, "top_k": 3,
+        "strategy": strategy, "top_k": top_k,
         "answer_mode": answer_mode,
         "verifier_model": GROUNDING_MODEL if answer_mode == "verified" else None,
         "verifier_temperature": 0.0 if answer_mode == "verified" else None,
         "verifier_think": VERIFIER_THINK if answer_mode == "verified" else None,
         "grounding_context_tokens": GROUNDING_CONTEXT_TOKENS if answer_mode == "verified" else None,
         "grounding_output_tokens": GROUNDING_OUTPUT_TOKENS if answer_mode == "verified" else None,
-        "candidate_count": 3 if strategy == "vector" else 10,
+        "candidate_count": top_k if strategy == "vector" else max(CANDIDATE_COUNT, top_k),
         "generator_prompt_sha256": grounding_fingerprint() if answer_mode == "verified" else sha256(answer_prompt("Question?", render_context([ChunkData(
             document="paper.pdf", page=1, chunk_index=0, text="Evidence.", section="references",
         )])).encode()).hexdigest(),
@@ -398,6 +400,7 @@ def validate_resume_consistency(
     reranker_model: str | None,
     answer_mode: str = "plain",
     *, paper_sha256: str | None = None, benchmark: BenchmarkMetadata | None = None,
+    top_k: int | None = None,
 ) -> None:
     expected: dict[str, tuple[object, object]] = {
         "corpus": (saved.corpus.model_dump(), corpus),
@@ -408,7 +411,7 @@ def validate_resume_consistency(
         "judge model": (saved.judge_model, JUDGE_MODEL),
         "embedding model": (saved.embedding_model, EMBEDDING_MODEL),
         "reranker model": (saved.reranker_model, reranker_model),
-        "settings": (saved.settings.model_dump(), settings_for(strategy, answer_mode)),
+        "settings": (saved.settings.model_dump(), settings_for(strategy, answer_mode, top_k)),
         "evaluator version": (saved.evaluator_version, EVALUATOR_VERSION),
         "evaluator prompt": (saved.evaluator_prompt_sha256, EVALUATOR_PROMPT_SHA256),
     }
@@ -429,6 +432,7 @@ def _new_report(
     now: datetime, before: CorpusSnapshot, cases: list[AnswerEvaluationCase],
     strategy: str, reranker_model: str | None, answer_mode: str = "plain",
     *, paper_sha256: str | None = None, benchmark: BenchmarkMetadata | None = None,
+    top_k: int | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION, "status": "running", "started_at": now.isoformat(),
@@ -436,7 +440,7 @@ def _new_report(
         "paper_sha256": paper_sha256 or PAPER_SHA256, "cases_sha256": cases_hash(cases),
         "benchmark": benchmark.model_dump() if benchmark else None,
         "generator_model": GROUNDING_MODEL if answer_mode == "verified" else MODEL, "judge_model": JUDGE_MODEL, "embedding_model": EMBEDDING_MODEL,
-        "reranker_model": reranker_model, "settings": settings_for(strategy, answer_mode),
+        "reranker_model": reranker_model, "settings": settings_for(strategy, answer_mode, top_k),
         "evaluator_version": EVALUATOR_VERSION, "evaluator_prompt_sha256": EVALUATOR_PROMPT_SHA256,
         "calibration_version": CALIBRATION_VERSION, "calibration": None,
         "environment": {
@@ -480,6 +484,8 @@ def main() -> None:
                         help="run just this case (repeat the flag to select more)")
     parser.add_argument("--strategy", choices=["vector", "reranked", "expanded"], default=None)
     parser.add_argument("--answer-mode", choices=["plain", "verified"], default=None)
+    parser.add_argument("--top-k", type=int, choices=range(1, 11),
+                        help="seed passages to retain (default: 6 expanded, 3 otherwise)")
     args = parser.parse_args()
     benchmark: BenchmarkMetadata | None = None
     available_cases = ANSWER_CASES
@@ -523,11 +529,15 @@ def main() -> None:
             parser.error("--strategy must match the resumed report")
         if args.answer_mode is not None and args.answer_mode != saved.settings.answer_mode:
             parser.error("--answer-mode must match the resumed report")
+        if args.top_k is not None and args.top_k != saved.settings.top_k:
+            parser.error("--top-k must match the resumed report")
+        top_k = saved.settings.top_k
         answer_mode = saved.settings.answer_mode
         strategy = saved.settings.strategy
         requested_ids = saved.requested_case_ids
     else:
         strategy = args.strategy or "reranked"
+        top_k = args.top_k if args.top_k is not None else default_top_k(strategy == "expanded")
         answer_mode = args.answer_mode or "plain"
         selected_ids = set(args.case_ids) if args.case_ids else None
         requested_ids = [
@@ -558,11 +568,11 @@ def main() -> None:
     if saved is None:
         report = ReportModel.model_validate(
             _new_report(now, before, cases, strategy, reranker_model, answer_mode,
-                        paper_sha256=paper_hash, benchmark=benchmark)
+                        paper_sha256=paper_hash, benchmark=benchmark, top_k=top_k)
         ).model_dump()
     else:
         validate_resume_consistency(saved, cases, before, strategy, reranker_model, answer_mode,
-                                    paper_sha256=paper_hash, benchmark=benchmark)
+                                    paper_sha256=paper_hash, benchmark=benchmark, top_k=top_k)
         report = cast(dict[str, object], saved.model_dump())
         report = {
             **report,
@@ -588,7 +598,7 @@ def main() -> None:
             }
             raise SystemExit(report["error"])
 
-        answer = partial(answer_question, use_reranking=strategy != "vector",
+        answer = partial(answer_question, limit=top_k, use_reranking=strategy != "vector",
                          expand_context=strategy == "expanded", answer_mode=answer_mode)
         for index in range(len(cast(list[CaseEvaluation], report["results"])), len(cases)):
             case = cases[index]

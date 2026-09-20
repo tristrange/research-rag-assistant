@@ -3,6 +3,7 @@ from typing import Literal
 from app.grounding import grounded_answer
 from app.llm.ollama import generate
 from app.prompts import answer_prompt
+from app.retrieval import CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, render_context
 from app.retrieval.rerank import rerank_chunks
 from app.retrieval.search import search_chunks
@@ -11,13 +12,16 @@ from app.types import AnswerResult, ChunkData
 
 def answer_question(
     question: str,
-    limit: int = 3,
+    limit: int | None = None,
     *,
     use_reranking: bool = True,
     expand_context: bool = False,
     answer_mode: Literal["plain", "verified"] = "plain",
 ) -> AnswerResult:
-    candidates = search_chunks(question, limit=10 if use_reranking else limit)
+    limit = default_top_k(expand_context) if limit is None else limit
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    candidates = search_chunks(question, limit=max(CANDIDATE_COUNT, limit) if use_reranking else limit)
 
     chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
 

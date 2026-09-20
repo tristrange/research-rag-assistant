@@ -26,7 +26,7 @@ def main() -> None:
     report: dict[str, object] = {
         "status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
         "source_report": str(args.report), "corpus": saved.corpus.model_dump(),
-        "settings": settings_for(saved.settings.strategy, "verified"), "results": results,
+        "settings": settings_for(saved.settings.strategy, "verified", saved.settings.top_k), "results": results,
         "methodology": "Fixed saved sources; new grounding only, no retrieval or evaluation judge. Inspect traces manually.",
     }
     save_report(args.output, report)

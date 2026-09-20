@@ -45,6 +45,27 @@ class RagTests(unittest.TestCase):
             self.assertNotIn("Distractor", prompt)
             self.assertEqual(result["sources"][0]["page"], 2)
 
+    def test_expanded_default_keeps_six_seeds_and_explicit_limit_is_respected(self) -> None:
+        candidates = [Chunk(document="paper.pdf", page=1, chunk_index=i, text=f"Evidence {i}")
+                      for i in range(10)]
+        for requested, expected in [(None, 6), (3, 3)]:
+            with self.subTest(limit=requested), \
+                    patch("app.rag.search_chunks", return_value=candidates) as search, \
+                    patch("app.rag.rerank_chunks", side_effect=lambda q, cs, limit: cs[:limit]) as rerank, \
+                    patch("app.rag.expand_chunks", return_value=[]) as expand, \
+                    patch("app.rag.generate", return_value="Answer"):
+                answer_question("Question", limit=requested, expand_context=True)
+            search.assert_called_once_with("Question", limit=10)
+            rerank.assert_called_once_with("Question", candidates, limit=expected)
+            expand.assert_called_once_with(candidates[:expected])
+
+    def test_invalid_limit_fails_before_services(self) -> None:
+        with patch("app.rag.search_chunks") as search:
+            for limit in [0, -1]:
+                with self.assertRaises(ValueError):
+                    answer_question("Question", limit=limit)
+            search.assert_not_called()
+
     def test_vector_mode_uses_same_generation_path_without_reranking(self) -> None:
         with patch("app.rag.search_chunks", return_value=[]) as search, \
                 patch("app.rag.rerank_chunks") as rerank, \
