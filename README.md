@@ -371,7 +371,10 @@ required settings need a fresh run.
 
 The [evidence-coverage comparison](docs/retrieval-evidence-coverage.md) traces a
 reranking miss and compares three versus six seeds across both development papers.
-The retrieval-only runner reproduces this check without generating answers:
+The subsequent [verified-answer comparison](docs/verified-context-comparison.md)
+completed 68 answers: wider context recovered some answers but introduced a
+cited-study refusal and higher latency, so expansion remains opt-in.
+The retrieval-only runner reproduces the coverage check without generating answers:
 
 ```bash
 uv run python -m scripts.compare_evidence_coverage \
