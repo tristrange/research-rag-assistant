@@ -146,14 +146,22 @@ cases remain included; the four arms therefore contain 68 answers in total.
 
 Use a new output filename for every run. The sample arms use the normal `rag`
 database; housing arms use `rag_housing_eval` and the housing manifest/PDF.
+Both commands explicitly set every application environment setting, so existing
+`RAG_*` overrides in the terminal cannot change the protocol. The plain generator
+is pinned for completeness; verified answers use `RAG_GROUNDING_MODEL`.
 
 ```bash
+RAG_DATABASE_URL='postgresql+psycopg://rag:rag@localhost:5432/rag' \
+RAG_GENERATOR_MODEL=qwen3:8b RAG_GROUNDING_MODEL=gpt-oss:20b \
+RAG_JUDGE_MODEL=qwen3:8b RAG_DRAFT_THINK=low RAG_VERIFIER_THINK=medium \
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 uv run python -m scripts.evaluate_answers \
   --strategy expanded --answer-mode verified --top-k 3 \
   --output evaluation-results/verified-context-sample-k3-first.json
 
 RAG_DATABASE_URL='postgresql+psycopg://rag:rag@localhost:5432/rag_housing_eval' \
+RAG_GENERATOR_MODEL=qwen3:8b RAG_GROUNDING_MODEL=gpt-oss:20b \
+RAG_JUDGE_MODEL=qwen3:8b RAG_DRAFT_THINK=low RAG_VERIFIER_THINK=medium \
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 uv run python -m scripts.evaluate_answers \
   --benchmark benchmarks/housing-temperature-2025.json \
