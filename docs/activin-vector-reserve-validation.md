@@ -80,3 +80,65 @@ uv run python -m scripts.evaluate_answers \
   --strategy vector_reserve --top-k 3 --answer-mode verified \
   --output evaluation-results/activin-vector-reserve-verified-first.json
 ```
+
+## First-run findings
+
+The protocol and manifest were committed as `fd1c8fe` before this paper was
+indexed or queried. The isolated index contained 233 chunks of only this PDF,
+with corpus SHA-256
+`6421012d6fd57a87131d03ed8625bdb9fc737eacfe7faa65e5b4fc34d993a3be`.
+Both judge calibrations passed. The baseline ran first from 01:51:40 to
+02:01:03 UTC on 2026-09-23; vector reserve followed from 02:01:16 to 02:16:59
+UTC. Both reports are complete, use the same PDF, cases, corpus, models,
+prompts, thinking settings, and judge configuration, and contain one generation
+per case with no retries or intervening changes.
+
+| First-run outcome | Reranked top 3 | Vector reserve |
+| --- | ---: | ---: |
+| Answerable cases answered | 8/8 | 7/8 |
+| Unanswerable cases refused | 2/2 | 2/2 |
+| Exact-quote evidence hits | 7/8 | 8/8 |
+| Recorded pass rate | 9/10 | 9/10 |
+| Mean rendered source characters | 1,412 | 1,882 |
+| Mean answer time | 40.7 s | 74.8 s |
+
+The baseline answered `activin-long-regimen` correctly from the page-1 abstract
+and cited page 1. Its frozen evidence label instead quotes the page-2 methods,
+which the baseline did not return. Vector reserve added page-2 chunk 13 and
+therefore passed the exact-quote gate, but produced the same answer with a page-1
+citation. This is a gain in labelled-source coverage, not an observed gain in
+answer quality for that case.
+
+For `activin-liver-tg-duration`, the baseline returned the 2.8-fold short-term
+result on page 3 and 2.6-fold long-term result on page 7, answered both, and
+cited both pages. Vector reserve retained those three baseline chunks and added
+page-7 chunk 3, then returned the fixed insufficient-evidence refusal. Both
+labelled quotes were present in both arms. The added chunk also contains other
+diet-induced-obesity comparisons, but one run cannot show whether those details
+caused the refusal or whether generation/verification varied. The saved answer
+report does not contain the original draft and verifier trace, so it cannot
+identify the refusal stage.
+
+The other six answerable cases received correct, source-supported answers with
+citations to returned pages in both arms on manual inspection. Both unanswerable
+controls refused; the survival question has a cited survival study in the
+references, which neither arm misattributed to this paper. The judge's aggregate
+citation-support score is 1.0 in both arms, but its scoring also gives full
+support to fact-free refusals. The source-size increase was about 33%. The
+observed answer-time increase is from single sequential runs, not a controlled
+steady-state latency measure.
+
+The ignored raw baseline report is
+`evaluation-results/activin-reranked-verified-first.json` (SHA-256
+`83a77077544db45a4f9aabbccb0c8f6b5bab326ad4777ddb60d39700f053ec58`).
+The vector-reserve report is
+`evaluation-results/activin-vector-reserve-verified-first.json` (SHA-256
+`38103c21922c900dc195a707cbfa8d7f39928222bd422576962d5a64f43bcecf`).
+The PDF and reports remain Git-ignored.
+
+This first unseen-paper comparison is mixed and does not justify changing the
+normal API default. It is a small, assistant-labelled set in a related research
+area, and the paper is now development data. A separate fixed-source diagnostic
+could inspect whether the cross-page refusal reproduces and which stage produces
+it; any replay would be a new generation trial, not a reconstruction of this
+first run.

@@ -84,7 +84,7 @@ lists Emma Frank and identifies the version of record as CC BY 4.0.
   See the [frozen unexpanded verified-answer protocol](unexpanded-verified-third-paper.md).
   Labels have not been reviewed independently; this limits any quality claim.
 
-## Fourth paper reserved for a first vector-reserve comparison
+## Fourth paper: first vector-reserve comparison completed
 
 Carlsson, M., Frank, E., et al. (2025). *Activin receptor type IIA/IIB
 blockade increases muscle mass and strength, but compromises glycemic control
@@ -99,8 +99,11 @@ lists Emma Frank and CC BY; the published PDF also carries a CC BY 4.0 notice.
 - Ten frozen assistant-authored questions, eight answerable and two
   unanswerable, in [`benchmarks/activin-receptor-2025.json`](../benchmarks/activin-receptor-2025.json).
   See the [prespecified first comparison](activin-vector-reserve-validation.md).
-  Labels have not been reviewed independently. The paper is unseen by the
-  retrieval tuning to date but shares authors and a biomedical domain.
+  The first run is complete and mixed: vector reserve recovered the one missing
+  exact label, but refused a cross-page question that the baseline answered.
+  This paper is now development data. Labels have not been reviewed
+  independently, and it shares authors and a biomedical domain with the earlier
+  papers.
 
 ## Download and validate without running models
 
