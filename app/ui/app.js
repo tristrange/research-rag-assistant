@@ -21,14 +21,15 @@ function updateSubmitState() {
 
 function renderAnswer(answer) {
   const nodes = [];
-  const bold = /\*\*([^\n]+?)\*\*/g;
+  const emphasis = /(\*\*|\*)([^*\n]+?)\1/g;
   let position = 0;
 
-  for (const match of answer.matchAll(bold)) {
+  for (const match of answer.matchAll(emphasis)) {
+    if (match[2].trim() !== match[2]) continue;
     nodes.push(document.createTextNode(answer.slice(position, match.index)));
-    const strong = document.createElement("strong");
-    strong.textContent = match[1];
-    nodes.push(strong);
+    const element = document.createElement(match[1] === "**" ? "strong" : "em");
+    element.textContent = match[2];
+    nodes.push(element);
     position = match.index + match[0].length;
   }
   nodes.push(document.createTextNode(answer.slice(position)));
