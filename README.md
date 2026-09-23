@@ -138,6 +138,13 @@ Start the API:
 uv run uvicorn app.main:app --reload --reload-dir app
 ```
 
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the browser interface.
+It lists the indexed PDFs, lets you search one paper or the whole library, and
+offers plain and experimental verified answers. The passages below an answer are
+the retrieved context; they are not necessarily passages the answer cited. The
+page uses the same `/documents` and `/query` endpoints as the command-line
+examples below, and needs no separate frontend install or build step.
+
 ## Local model settings
 
 Set these environment variables before starting the API or evaluation process:
@@ -312,8 +319,9 @@ Latency is specific to this local run. The assistant's retrieval defaults are un
 ## Status
 
 Still in development. Initial passage-level and answer-quality evaluation is available.
-Next steps include reviewing the reference labels and judge scores, testing more papers,
-improving multi-document support, and adding a small frontend.
+The browser interface supports one-paper or library-wide questions. Next steps
+include reviewing reference labels and judge scores, improving document identity,
+and making answer citations clearer.
 
 ## Answer-quality evaluation
 
