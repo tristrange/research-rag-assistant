@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "id": "activin-receptor-2025-v1",
+    "title": "Activin receptor type IIA/IIB blockade increases muscle mass and strength, but compromises glycemic control in mice",
+    "authors": [
+      "Michala Carlsson",
+      "Emma Frank",
+      "Joan M. Màrmol",
+      "Mona Sadek Ali",
+      "Steffen H. Raun",
+      "Edmund Battey",
+      "Nicoline Resen Andersen",
+      "Andrea Irazoki",
+      "Camilla Lund",
+      "Carlos Henríquez-Olguin",
+      "Martina Kubec Højfeldt",
+      "Pauline Blomquist",
+      "Frederik Duch Bromer",
+      "Gabriele Mocciaro",
+      "Andreas Lodberg",
+      "Christian Brix Folsted Andersen",
+      "Marco Eijken",
+      "Andreas Mæchel Fritzen",
+      "Jonas Roland Knudsen",
+      "Erik A. Richter",
+      "Lykke Sylow"
+    ],
+    "doi": "10.1016/j.molmet.2025.102261",
+    "source_url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC12556210.1/PMC12556210.1.pdf",
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "split": "holdout",
+    "document": "activin-receptor-2025.pdf",
+    "paper_sha256": "b60d1a5d4612320f50863460f11d763b524a20d45420ff8c8a0f62d97478f254",
+    "notes": "Published Molecular Metabolism 102 (2025) 102261 PDF from official NLM PMC Open Data. University of Copenhagen record and PDF confirm Emma Frank and CC BY 4.0. Ten assistant-authored cases frozen before any retrieval or answer runs on this paper; eight answerable and two unanswerable. Evidence quotes are exact PyMuPDF extraction. Labels are not independently reviewed. First comparison only is an unseen-paper test; later use is development data."
+  },
+  "cases": [
+    {
+      "id": "activin-long-regimen",
+      "question": "What dose, frequency, and duration did the long-term αActRIIA/IIB antibody regimen use in mice?",
+      "answerable": true,
+      "reference_answer": "10 mg/kg body weight twice per week for 21 days.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 2,
+          "quote": "long-term (10 mg kg − 1 bw), two times pr week for 21 days with the \nαActRIIA/IIB."
+        }
+      ]
+    },
+    {
+      "id": "activin-gtt-dose",
+      "question": "What glucose dose and administration route did the mouse glucose tolerance test use?",
+      "answerable": true,
+      "reference_answer": "2 g/kg body weight of D-mono-glucose, administered intraperitoneally.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 2,
+          "quote": "D-mono-glucose (2g kg − 1 \nbw) was administered i.p."
+        }
+      ]
+    },
+    {
+      "id": "activin-human-myotubes",
+      "question": "How much did ActRIIA/IIB blockade raise glucose uptake in primary human myotubes at baseline and with insulin stimulation?",
+      "answerable": true,
+      "reference_answer": "It raised uptake by 65% at baseline and 75% during insulin stimulation.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 3,
+          "quote": "ActRIIA/IIB \nblockade elevated glucose uptake 65% at baseline and 75% during \ninsulin stimulation (Figure 1F)."
+        }
+      ]
+    },
+    {
+      "id": "activin-liver-tg-duration",
+      "question": "How did liver triacylglycerol change after short-term treatment versus long-term treatment in chow-fed mice?",
+      "answerable": true,
+      "reference_answer": "It rose 2.8-fold after short-term treatment and 2.6-fold after long-term treatment in chow-fed mice, relative to the respective PBS controls.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 3,
+          "quote": "liver triacylglycerol was increased by 2.8-fold in short-term \nαActRIIA/IIB-treated mice compared to control PBS-treated mice"
+        },
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 7,
+          "quote": "we observed a \n2.6-fold increase in liver triacylglycerol in the chow-fed αActRIIA/ \nIIB-treated mice compared to chow-fed PBS-treated mice"
+        }
+      ]
+    },
+    {
+      "id": "activin-lean-mass",
+      "question": "How much did lean mass increase in lean and diet-induced obese mice after long-term αActRIIA/IIB treatment?",
+      "answerable": true,
+      "reference_answer": "Lean mass increased by 8% in lean mice and 13% in diet-induced obese mice.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 5,
+          "quote": "Lean and \nDIO mice treated with αActRIIA/IIB displayed increased lean mass \nby 8% and 13%, respectively (Figure 2E)."
+        }
+      ]
+    },
+    {
+      "id": "activin-engineered-force",
+      "question": "What did activin A do to force development in engineered human muscle tissue, and what happened when αActRIIA/IIB was added?",
+      "answerable": true,
+      "reference_answer": "Activin A lowered force development by 11%; αActRIIA/IIB blocked that decrease.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 5,
+          "quote": "The \npresence of activin A lowered force development by 11% in engi-\nneered muscle tissues, which was blocked by αActRIIA/IIB"
+        }
+      ]
+    },
+    {
+      "id": "activin-heart-glycogen",
+      "question": "By how much did cardiac glycogen content increase in αActRIIA/IIB-treated diet-induced obese mice?",
+      "answerable": true,
+      "reference_answer": "Cardiac glycogen content increased 2.3-fold.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 5,
+          "quote": "increase in heart weight corroborates an increase in cardiac \nglycogen content by 2.3-fold in αActRIIA/IIB-treated DIO mice"
+        }
+      ]
+    },
+    {
+      "id": "activin-hepatic-output",
+      "question": "What cause did the authors suggest for treatment-related glycemic disruption in mice, rather than muscle or adipose insulin resistance?",
+      "answerable": true,
+      "reference_answer": "They suggested increased hepatic glucose output.",
+      "evidence": [
+        {
+          "document": "activin-receptor-2025.pdf",
+          "page": 9,
+          "quote": "Together, these results indicate that while αActRIIA/IIB enhances \nmuscle mass and function, αActRIIA/IIB also induces severe glycemic \ndisruptions in mice, likely due to increased hepatic glucose output \nrather than muscle or adipose insulin resistance."
+        }
+      ]
+    },
+    {
+      "id": "activin-female-gtt",
+      "question": "How did αActRIIA/IIB treatment affect glucose tolerance in female mice in these experiments?",
+      "answerable": false,
+      "reference_answer": "The animal experiments used male mice; the paper does not establish a glucose-tolerance response in female mice.",
+      "evidence": []
+    },
+    {
+      "id": "activin-obese-survival",
+      "question": "By how many months did αActRIIA/IIB treatment extend survival in diet-induced obese mice?",
+      "answerable": false,
+      "reference_answer": "The paper does not report a survival endpoint or months of survival benefit.",
+      "evidence": []
+    }
+  ]
+}
