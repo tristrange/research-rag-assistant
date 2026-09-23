@@ -79,6 +79,27 @@ filename's chunks, including removing stale chunks if the PDF becomes shorter or
 has no extractable text. Extraction, embedding, or database failures preserve the
 previous index. Use distinct filenames for distinct papers.
 
+List the indexed filenames before choosing a paper:
+
+```bash
+curl http://127.0.0.1:8000/documents | jq
+```
+
+Pass one of those exact filenames as `document` to restrict retrieval and
+citations to that paper:
+
+```bash
+curl -X POST http://127.0.0.1:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What were the main findings?","document":"my-paper.pdf"}' \
+  | jq
+```
+
+Omitting `document` keeps corpus-wide retrieval. An unknown filename yields an
+insufficient-evidence answer with no sources; an empty or path-like filename is
+rejected. Document identity is still the basename, so two PDFs with the same
+filename cannot be indexed separately, even if they live in different folders.
+
 Chunking prefers sentence boundaries and falls back to whitespace for long
 sentences. It keeps the original page text and metadata, with a hard character
 limit; exceptionally long tokens may still be split. Overlap is adjusted to
