@@ -107,7 +107,8 @@ curl -X POST http://127.0.0.1:8000/query \
 ```
 
 This mode retrieves passages from each paper independently, preferring its
-conclusion, then abstract, discussion, and results sections. It runs a separate
+conclusion, then abstract, discussion, and results sections, with a document-wide
+fallback when those section labels are unavailable. It runs a separate
 answer call per paper and can take several minutes, especially in verified mode.
 Each answer is labelled with its paper. It is still based on selected passages,
 not a complete reading of every PDF. An insufficient-evidence answer means the

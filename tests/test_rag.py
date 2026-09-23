@@ -201,6 +201,19 @@ class RagTests(unittest.TestCase):
         ])
         self.assertEqual(result["answer"], "Reduced outcome")
 
+    def test_paper_overview_falls_back_to_document_when_sections_are_unknown(self) -> None:
+        unknown = Chunk(document="paper.pdf", page=2, chunk_index=1,
+                        text="The intervention reduced the outcome.", section="unknown")
+        with patch("app.rag.search_chunks", side_effect=[[], [], [], [], [unknown]]) as search, \
+                patch("app.rag.rerank_chunks", return_value=[unknown]), \
+                patch("app.rag.generate", return_value="Reduced outcome"):
+            result = answer_question("Main findings?", document="paper.pdf", overview=True)
+        self.assertEqual(search.call_args_list[-1], call(
+            "Main findings?", limit=10, document="paper.pdf",
+        ))
+        self.assertEqual(result["sources"][0]["section"], "unknown")
+        self.assertEqual(result["answer"], "Reduced outcome")
+
     def test_every_paper_is_answered_independently_and_labelled(self) -> None:
         def scoped_answer(question: str, *, document: str, answer_mode: str,
                           overview: bool) -> dict[str, object]:

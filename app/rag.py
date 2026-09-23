@@ -48,6 +48,10 @@ def answer_question(
             )
             if candidates:
                 break
+        if not candidates:
+            candidates = search_chunks(
+                question, limit=candidate_limit, document=document,
+            )
     else:
         candidates = search_chunks(question, limit=candidate_limit, document=document)
     if not candidates:
