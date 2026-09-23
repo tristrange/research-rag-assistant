@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from app.db.models import Chunk
+from app.grounding import INSUFFICIENT_EVIDENCE
 from app.rag import answer_question
 from app.retrieval.rerank import with_vector_reserve
 
@@ -39,7 +40,7 @@ class RagTests(unittest.TestCase):
                 patch("app.rag.rerank_chunks", return_value=[selected]) as rerank, \
                 patch("app.rag.generate", return_value="Answer") as generate:
             result = answer_question("Question")
-            search.assert_called_once_with("Question", limit=10)
+            search.assert_called_once_with("Question", limit=10, document=None)
             rerank.assert_called_once_with("Question", [rejected, selected], limit=3)
             prompt = generate.call_args.args[0]
             self.assertIn("Evidence", prompt)
@@ -56,7 +57,7 @@ class RagTests(unittest.TestCase):
                     patch("app.rag.expand_chunks", return_value=[]) as expand, \
                     patch("app.rag.generate", return_value="Answer"):
                 answer_question("Question", limit=requested, expand_context=True)
-            search.assert_called_once_with("Question", limit=10)
+            search.assert_called_once_with("Question", limit=10, document=None)
             rerank.assert_called_once_with("Question", candidates, limit=expected)
             expand.assert_called_once_with(candidates[:expected])
 
@@ -78,7 +79,7 @@ class RagTests(unittest.TestCase):
                 patch("app.rag.grounded_answer", return_value="Checked") as grounded:
             result = answer_question("Question", answer_mode="verified", reserve_vector_candidate=True)
 
-        search.assert_called_once_with("Question", limit=10)
+        search.assert_called_once_with("Question", limit=10, document=None)
         rerank.assert_called_once_with("Question", candidates, limit=3)
         self.assertEqual([source["chunk_index"] for source in result["sources"]], [2, 0, 4, 1])
         grounded.assert_called_once_with("Question", result["sources"])
@@ -99,16 +100,43 @@ class RagTests(unittest.TestCase):
             with_vector_reserve([only_chunk], [only_chunk])
 
     def test_vector_mode_uses_same_generation_path_without_reranking(self) -> None:
-        with patch("app.rag.search_chunks", return_value=[]) as search, \
+        selected = Chunk(document="paper.pdf", page=1, chunk_index=0, text="Evidence")
+        with patch("app.rag.search_chunks", return_value=[selected]) as search, \
                 patch("app.rag.rerank_chunks") as rerank, \
                 patch("app.rag.expand_chunks") as expand, \
                 patch("app.rag.generate", return_value="Not enough information") as generate:
             result = answer_question("Question", use_reranking=False)
-            search.assert_called_once_with("Question", limit=3)
+            search.assert_called_once_with("Question", limit=3, document=None)
             rerank.assert_not_called()
             expand.assert_not_called()
             generate.assert_called_once()
             self.assertEqual(result["answer"], "Not enough information")
+
+    def test_selected_document_filters_candidates_for_both_retrieval_modes(self) -> None:
+        selected = Chunk(document="paper.pdf", page=1, chunk_index=0, text="Evidence")
+        for use_reranking, candidate_limit in [(True, 10), (False, 3)]:
+            with self.subTest(use_reranking=use_reranking), \
+                    patch("app.rag.search_chunks", return_value=[selected]) as search, \
+                    patch("app.rag.rerank_chunks", return_value=[selected]), \
+                    patch("app.rag.generate", return_value="Answer"):
+                result = answer_question(
+                    "Question", document="paper.pdf", use_reranking=use_reranking,
+                )
+            search.assert_called_once_with("Question", limit=candidate_limit, document="paper.pdf")
+            self.assertEqual([source["document"] for source in result["sources"]], ["paper.pdf"])
+
+    def test_no_matching_document_returns_empty_evidence_without_generation(self) -> None:
+        with patch("app.rag.search_chunks", return_value=[]) as search, \
+                patch("app.rag.rerank_chunks") as rerank, \
+                patch("app.rag.generate") as generate, \
+                patch("app.rag.grounded_answer") as grounded:
+            result = answer_question("Question", document="missing.pdf")
+        search.assert_called_once_with("Question", limit=10, document="missing.pdf")
+        rerank.assert_not_called()
+        generate.assert_not_called()
+        grounded.assert_not_called()
+        self.assertEqual(result["sources"], [])
+        self.assertEqual(result["answer"], INSUFFICIENT_EVIDENCE)
 
     def test_expanded_sources_are_the_exact_evidence_sent_to_generator(self) -> None:
         selected = Chunk(document="paper.pdf", page=2, chunk_index=1, text="Seed")

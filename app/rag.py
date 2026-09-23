@@ -1,6 +1,6 @@
 from typing import Literal
 
-from app.grounding import grounded_answer
+from app.grounding import INSUFFICIENT_EVIDENCE, grounded_answer
 from app.llm.ollama import generate
 from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, default_top_k
@@ -18,6 +18,7 @@ def answer_question(
     expand_context: bool = False,
     reserve_vector_candidate: bool = False,
     answer_mode: Literal["plain", "verified"] = "plain",
+    document: str | None = None,
 ) -> AnswerResult:
     limit = default_top_k(expand_context) if limit is None else limit
     if limit < 1:
@@ -26,7 +27,16 @@ def answer_question(
         raise ValueError("vector reserve requires unexpanded reranking")
     if reserve_vector_candidate and limit >= CANDIDATE_COUNT:
         raise ValueError(f"vector reserve requires limit below {CANDIDATE_COUNT}")
-    candidates = search_chunks(question, limit=max(CANDIDATE_COUNT, limit) if use_reranking else limit)
+    candidates = search_chunks(
+        question,
+        limit=max(CANDIDATE_COUNT, limit) if use_reranking else limit,
+        document=document,
+    )
+    if not candidates:
+        return {
+            "answer": INSUFFICIENT_EVIDENCE,
+            "sources": [],
+        }
 
     chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
     if reserve_vector_candidate:
