@@ -23,6 +23,11 @@ RESULT = ChunkData(document="synthetic.pdf", page=6, chunk_index=0,
 POPULATION = ChunkData(document="synthetic.pdf", page=3, chunk_index=0,
                        section="results", text="We studied male mice. Glucose uptake increased by 80%.")
 
+NEGATIVE_RESULT = ChunkData(document="synthetic.pdf", page=4, chunk_index=0,
+                            section="results", text="In our experiment, treatment left the measured response unchanged compared with controls.")
+MISSING_RESULT = ChunkData(document="synthetic.pdf", page=4, chunk_index=0,
+                           section="methods", text="In our experiment, we measured the response after treatment.")
+
 # Fixed drafts deliberately include cases a generator should never emit.
 # Expected answers are not sent to the verifier.
 FIXTURES = [
@@ -47,6 +52,18 @@ FIXTURES = [
     ("supported_cited_work", "What did the cited Smith study report?", REFERENCE,
      "Smith et al. reported that treatment delayed weight loss in mice.",
      "external_publication", "Treatment delayed weight loss in mice.", True),
+    ("title_without_unasked_dimensions", "What effect does the cited Smith publication title describe?", REFERENCE,
+     "The cited title reports that treatment delayed weight loss in mice.",
+     "external_publication", "Treatment delayed weight loss in mice.", True),
+    ("title_with_requested_missing_dose", "At what dose did treatment delay weight loss in the cited Smith study?", REFERENCE,
+     "The cited title reports that treatment delayed weight loss in mice.",
+     "external_publication", "Treatment delayed weight loss in mice.", False),
+    ("supported_negative_answer", "Did treatment lower the measured response compared with controls?", NEGATIVE_RESULT,
+     "Treatment did not lower the measured response compared with controls.",
+     "this_document_authors", NEGATIVE_RESULT["text"], True),
+    ("unsupported_negative_answer", "Did treatment lower the measured response compared with controls?", MISSING_RESULT,
+     "Treatment did not lower the measured response compared with controls.",
+     "this_document_authors", MISSING_RESULT["text"], False),
     ("reference_as_current_study", "What did this paper find about AMPK?", REFERENCE,
      "The current paper found that AMPK activity is elevated in cachectic muscle.",
      "this_document_authors", "AMPK activity is elevated in cachectic muscle.", False),
