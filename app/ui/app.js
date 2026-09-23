@@ -19,6 +19,22 @@ function updateSubmitState() {
   askButton.disabled = !hasDocuments || isSubmitting || !questionInput.value.trim();
 }
 
+function renderAnswer(answer) {
+  const nodes = [];
+  const bold = /\*\*([^\n]+?)\*\*/g;
+  let position = 0;
+
+  for (const match of answer.matchAll(bold)) {
+    nodes.push(document.createTextNode(answer.slice(position, match.index)));
+    const strong = document.createElement("strong");
+    strong.textContent = match[1];
+    nodes.push(strong);
+    position = match.index + match[0].length;
+  }
+  nodes.push(document.createTextNode(answer.slice(position)));
+  answerText.replaceChildren(...nodes);
+}
+
 async function loadDocuments() {
   try {
     const response = await fetch("/documents");
@@ -92,7 +108,7 @@ async function submitQuestion(event) {
       throw new Error("invalid answer response");
     }
 
-    answerText.textContent = result.answer;
+    renderAnswer(result.answer);
     answerPanel.hidden = false;
     showSources(result.sources);
     requestStatus.textContent = "Answer ready.";
