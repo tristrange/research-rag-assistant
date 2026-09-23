@@ -94,7 +94,7 @@ saved trials. The code records its prompt/schema fingerprint in each report.
 | Report pair | Three-seed SHA-256 | Six-seed SHA-256 | Grounding fingerprint |
 | --- | --- | --- | --- |
 | `refusal-diagnostic-*-baseline.json` | `6cb81ed6f1dddf3d172cda95ad0cf335d1490581781fec1d0361d55c830be72f` | `15bf3c6d867fc1418bc3baa6d47f03516b60ba7fdeab6b5ba7f38c8fc3c1111d` | `3ccdde2ef9279ebf736686e88cf5146c4c7dec6d78fda19b42954aca9959eac7` |
-| `refusal-diagnostic-*-candidate.json` | `1021760c7e35ccad627e2804c53640352372964966e4b802306c742e` | `f8a1d8c016271393af4c06bb93de0cf7cf021ccefbe8e6d98a8bf6580733976b` | `a41c00656cd99cd4b776ae4ce5042606f0b08683b875501f479da7ba88111373` |
+| `refusal-diagnostic-*-candidate.json` | `1021760c7e35ccad627e2804c53640352372964966e4b5803b74b802306c742e` | `f8a1d8c016271393af4c06bb93de0cf7cf021ccefbe8e6d98a8bf6580733976b` | `a41c00656cd99cd4b776ae4ce5042606f0b08683b875501f479da7ba88111373` |
 | `refusal-diagnostic-*-revised.json` | `da18ddffb4018c51a0e92ce507a92e4d5920298f45de1cad12ab9475a7466e2a` | `427647323c18e138524718991630abf6bd4bacc3aa725a4f8a78ea73e0af3a3c` | `9808eeca3e7f1cbc8c2bef56b01d11869eb20f67ff97e49c11376a57ff494646` |
 
 `refusal-verifier-revised-controls.json` passed all 16 checks and has SHA-256
