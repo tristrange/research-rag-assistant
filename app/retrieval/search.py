@@ -16,11 +16,17 @@ def list_documents() -> list[str]:
 
 
 def search_chunks(query: str, limit: int = 5, *, document: str | None = None) -> list[Chunk]:
-    query_embedding = embed_text(query)
-
     db = SessionLocal()
 
     try:
+        if document is not None:
+            indexed = db.scalar(
+                select(Chunk.id).where(Chunk.document == document).limit(1)
+            )
+            if indexed is None:
+                return []
+
+        query_embedding = embed_text(query)
         statement = select(Chunk)
         if document is not None:
             statement = statement.where(Chunk.document == document)
