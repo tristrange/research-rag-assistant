@@ -136,6 +136,24 @@ The vector-reserve report is
 `38103c21922c900dc195a707cbfa8d7f39928222bd422576962d5a64f43bcecf`).
 The PDF and reports remain Git-ignored.
 
+After review, the local model inventory was checked on 2026-09-23. Both arms
+used the same installed model tags; Ollama reported these full digests, and the
+reranker cache contained this sole Hugging Face snapshot:
+
+| Role | Model | Local revision |
+| --- | --- | --- |
+| Verified draft and verifier | `gpt-oss:20b` | `17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7` |
+| Judge | `qwen3:8b` | `500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41` |
+| Embeddings | `nomic-embed-text:latest` | `0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f` |
+| Cross-encoder reranker | `BAAI/bge-reranker-base` | Hugging Face snapshot `2cfc18c9415c912f9d8155881c133215df768a70` |
+
+Ollama's installed-model modification times precede both runs. These revisions
+were recovered from the local inventory after the trial, not checkpointed in
+the raw reports at generation time, so they are the best available provenance
+rather than a cryptographic proof of the weights used for each call. Future
+evaluations should capture model digests and the reranker snapshot in the report
+before generation.
+
 This first unseen-paper comparison is mixed and does not justify changing the
 normal API default. It is a small, assistant-labelled set in a related research
 area, and the paper is now development data. A separate fixed-source diagnostic
