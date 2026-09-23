@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "id": "mitochondrial-dynamics-2023-v1",
+    "title": "Disruption of mitochondrial dynamics triggers muscle inflammation through interorganellar contacts and mitochondrial DNA mislocation",
+    "authors": [
+      "Andrea Irazoki",
+      "Isabel Gordaliza-Alaguero",
+      "Emma Frank",
+      "Nikolaos Nikiforos Giakoumakis",
+      "Jordi Seco",
+      "Manuel Palacín",
+      "Anna Gumà",
+      "Lykke Sylow",
+      "David Sebastián",
+      "Antonio Zorzano"
+    ],
+    "doi": "10.1038/s41467-022-35732-1",
+    "source_url": "https://www.nature.com/articles/s41467-022-35732-1.pdf",
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "split": "holdout",
+    "document": "mitochondrial-dynamics-2023.pdf",
+    "paper_sha256": "d9b9673dfe072f2327a5f3902807eb1168039a90a2cdb27c637cc017b21bc8a0",
+    "notes": "Version of record published in Nature Communications 14, 108 (2023); publisher page confirms Emma Frank and CC BY 4.0. Reserved before model generation on 2026-09-23. Ten assistant-authored questions (eight answerable, two unanswerable); evidence quotes are exact PyMuPDF extraction from the local PDF. Labels have not had independent subject-matter review. Treat this set as development data after the first run."
+  },
+  "cases": [
+    {
+      "id": "fragmented-inflammation",
+      "question": "What inflammatory pathways were reported in Mfn1KD and Mfn2KD myoblasts with fragmented mitochondria?",
+      "answerable": true,
+      "reference_answer": "NFκB target genes increased; IFN-induced genes were generally unchanged, except Ifnb in Mfn2KD myoblasts.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 2,
+          "quote": "Mfn1KD and Mfn2KD myoblasts, with fragmented mito-\nchondrial networks, presented upregulation of NFκB target genes and\nunaltered expression of IFN-induced genes, except for Ifnb in Mfn2KD\nmyoblasts (Fig. 1a)."
+        }
+      ]
+    },
+    {
+      "id": "ddc-mtdna-depletion",
+      "question": "After how long did ddC treatment deplete mtDNA in stable knockdown myoblasts?",
+      "answerable": true,
+      "reference_answer": "After 72 hours of ddC treatment, all stable knockdown myoblasts showed marked mtDNA depletion.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 3,
+          "quote": "after 72 h of ddC treatment, all stable KD myoblasts pre-\nsented a remarkable depletion of mtDNA (Supplementary Fig. 3a, b)."
+        }
+      ]
+    },
+    {
+      "id": "cytosolic-mtdna",
+      "question": "How did cytosolic mtDNA differ between Mfn1/Mfn2-deficient and Fis1/Drp1-deficient myoblasts?",
+      "answerable": true,
+      "reference_answer": "Mfn1- and Mfn2-deficient myoblasts did not have increased cytosolic mtDNA, whereas Fis1- and Drp1-deficient myoblasts did.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 4,
+          "quote": "Subcellular fractionation (Fig. 1g) and subsequent quanti-\nﬁcation of mtDNA abundance in cytosolic fractions showed that Mfn1-\nor Mfn2-deﬁcient myoblasts do not show an increased presence of\nmtDNA sequences in the cytosol (Fig. 1h). This observation is con-\nsistent with the absence of activation of the type I IFN response in cells\nwith fragmented mitochondrial networks. In contrast, Fis1- or Drp1-\ndeﬁcient myoblasts showed an enhanced abundance of mtDNA in the\ncytosolic fraction (Fig. 1i)"
+        }
+      ]
+    },
+    {
+      "id": "tlr9-inhibitor",
+      "question": "Which treatment normalized NFκB target-gene mRNA in Mfn1KD and Mfn2KD myoblasts, and which did not?",
+      "answerable": true,
+      "reference_answer": "The TLR9 antagonist ODN2088 normalized it; the cGAS inhibitor Ru.521 did not.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 4,
+          "quote": "antagonist of TLR9, namely ODN208829, or the\nspeciﬁc inhibitor of cGAS30, Ru.521. In the case of Mfn1KD and Mfn2KD\nmyoblasts, ODN2088 treatment, and not Ru.521, normalized the\nmRNA levels of NFκB target genes (Fig. 3a, b), and Ifnb in Mfn2KD\nmyoblasts (Supplementary Fig. 5b)."
+        }
+      ]
+    },
+    {
+      "id": "rab5c-downregulation",
+      "question": "What happened to mtDNA–TLR9 co-distribution and NFκB target-gene expression when Rab5C was reduced in Mfn1KD myoblasts?",
+      "answerable": true,
+      "reference_answer": "mtDNA–TLR9 co-distribution decreased and NFκB target-gene expression normalized.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 8,
+          "quote": "reduced levels of\neither Rab5C or Mfn2 in Mfn1KD myoblasts reduced the co-distribution\nbetween mtDNA and TLR9 (Fig. 5f, g), or between mtDNA and the early\nendosomal marker EEA1 (Fig. 5g, Supplementary Fig. 8f) which resulted\nin normalized NFκB target gene expression (Fig. 5h)."
+        }
+      ]
+    },
+    {
+      "id": "food-intake-negative",
+      "question": "Did skeletal-muscle Mfn1 depletion alter food intake in male or female mice after two months?",
+      "answerable": true,
+      "reference_answer": "No. Food intake was unchanged in both male and female mice after two months of induced Mfn1 depletion.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 10,
+          "quote": "Body weight, food intake, and fat and lean\nmass were not altered in male or female (Supplementary Fig. 9c–e)\nmice after 2 months of inducing Mfn1 depletion."
+        }
+      ]
+    },
+    {
+      "id": "muscle-csa-sexes",
+      "question": "How much did gastrocnemius muscle cross-sectional area decrease in male and female SkM-Mfn1KO mice?",
+      "answerable": true,
+      "reference_answer": "It decreased by about 50% in males and 30% in females compared with LoxP littermates.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 10,
+          "quote": "Quantiﬁcation of the CSA showed a\nremarkable 50% and 30% decrease in SkM-Mfn1KO males and females,\nrespectively (Fig. 6e), compared to their LoxP littermates."
+        }
+      ]
+    },
+    {
+      "id": "salicylate-regimen",
+      "question": "What sodium salicylate dose, route, and duration did the mouse experiments use?",
+      "answerable": true,
+      "reference_answer": "200 mg/kg by intraperitoneal injection daily for 28 days.",
+      "evidence": [
+        {
+          "document": "mitochondrial-dynamics-2023.pdf",
+          "page": 14,
+          "quote": "Sodium salicylate treatment was administered daily for\n28 days by intraperitoneal injection at a 200 mg/kg dose."
+        }
+      ]
+    },
+    {
+      "id": "human-salicylate-endurance",
+      "question": "How much did sodium salicylate improve treadmill endurance in human patients in this study?",
+      "answerable": false,
+      "reference_answer": "The paper reports mouse experiments, not a human salicylate trial or a human treadmill-endurance effect.",
+      "evidence": []
+    },
+    {
+      "id": "rab5c-inhibitor-mouse-dose",
+      "question": "What dose of a Rab5C inhibitor did the researchers administer to SkM-Mfn1KO mice?",
+      "answerable": false,
+      "reference_answer": "The paper does not report administering a Rab5C inhibitor to the knockout mice; it examined Rab5C downregulation in myoblasts.",
+      "evidence": []
+    }
+  ]
+}

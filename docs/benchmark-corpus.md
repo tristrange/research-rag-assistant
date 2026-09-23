@@ -67,6 +67,23 @@ confirmed. Additional papers should include the same Emma Frank in their author
 list and have an explicitly checked license; preprint/published versions of one
 study should not be placed on opposite sides of a development/evaluation split.
 
+## Third paper reserved for unexpanded verified-answer evaluation
+
+Irazoki, A., Gordaliza-Alaguero, I., Frank, E., et al. (2023).
+*Disruption of mitochondrial dynamics triggers muscle inflammation through
+interorganellar contacts and mitochondrial DNA mislocation*. Nature
+Communications 14, 108. [DOI](https://doi.org/10.1038/s41467-022-35732-1).
+The [publisher article](https://www.nature.com/articles/s41467-022-35732-1)
+lists Emma Frank and identifies the version of record as CC BY 4.0.
+
+- [Publisher PDF](https://www.nature.com/articles/s41467-022-35732-1.pdf), stored
+  locally as ignored `data/mitochondrial-dynamics-2023.pdf`.
+- PDF SHA-256: `d9b9673dfe072f2327a5f3902807eb1168039a90a2cdb27c637cc017b21bc8a0`.
+- Ten assistant-authored questions, eight answerable and two unanswerable, in
+  [`benchmarks/mitochondrial-dynamics-2023.json`](../benchmarks/mitochondrial-dynamics-2023.json).
+  See the [frozen unexpanded verified-answer protocol](unexpanded-verified-third-paper.md).
+  Labels have not been reviewed independently; this limits any quality claim.
+
 ## Download and validate without running models
 
 From the repository root:
