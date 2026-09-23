@@ -1,9 +1,9 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from app.db.models import Chunk
 from app.grounding import INSUFFICIENT_EVIDENCE
-from app.rag import answer_question
+from app.rag import OVERVIEW_SECTION_PRIORITY, answer_each_document, answer_question
 from app.retrieval.rerank import with_vector_reserve
 
 
@@ -174,6 +174,51 @@ class RagTests(unittest.TestCase):
             "text": "Evidence",
             "section": "unknown",
         }])
+
+    def test_paper_overview_uses_summary_sections_and_finding_instructions(self) -> None:
+        summary = Chunk(document="paper.pdf", page=4, chunk_index=2,
+                        text="The intervention reduced the outcome.", section="conclusion")
+        with patch("app.rag.search_chunks", return_value=[summary]) as search, \
+                patch("app.rag.rerank_chunks", return_value=[summary]), \
+                patch("app.rag.generate", return_value="Reduced outcome") as generate:
+            result = answer_question("Main findings?", document="paper.pdf", overview=True)
+        search.assert_called_once_with(
+            "Main findings?", limit=10, document="paper.pdf", sections=("conclusion",),
+        )
+        self.assertEqual(result["sources"][0]["document"], "paper.pdf")
+        self.assertIn("A list of measurements, methods", generate.call_args.args[0])
+
+    def test_paper_overview_falls_back_to_results_when_summary_sections_absent(self) -> None:
+        result_chunk = Chunk(document="paper.pdf", page=3, chunk_index=1,
+                             text="The intervention reduced the outcome.", section="results")
+        with patch("app.rag.search_chunks", side_effect=[[], [], [], [result_chunk]]) as search, \
+                patch("app.rag.rerank_chunks", return_value=[result_chunk]), \
+                patch("app.rag.generate", return_value="Reduced outcome"):
+            result = answer_question("Main findings?", document="paper.pdf", overview=True)
+        self.assertEqual(search.call_args_list, [
+            call("Main findings?", limit=10, document="paper.pdf", sections=sections)
+            for sections in OVERVIEW_SECTION_PRIORITY
+        ])
+        self.assertEqual(result["answer"], "Reduced outcome")
+
+    def test_every_paper_is_answered_independently_and_labelled(self) -> None:
+        def scoped_answer(question: str, *, document: str, answer_mode: str,
+                          overview: bool) -> dict[str, object]:
+            return {"answer": f"Finding for {document}", "sources": [{
+                "document": document, "page": 1, "chunk_index": 0,
+                "text": f"Evidence for {document}",
+            }]}
+
+        with patch("app.rag.list_documents", return_value=["a.pdf", "b.pdf"]), \
+                patch("app.rag.answer_question", side_effect=scoped_answer) as answer:
+            result = answer_each_document("Main findings?", answer_mode="verified")
+        self.assertEqual(answer.call_args_list, [
+            call("Main findings?", document="a.pdf", answer_mode="verified", overview=True),
+            call("Main findings?", document="b.pdf", answer_mode="verified", overview=True),
+        ])
+        self.assertIn("a.pdf:\nFinding for a.pdf", result["answer"])
+        self.assertIn("b.pdf:\nFinding for b.pdf", result["answer"])
+        self.assertEqual([source["document"] for source in result["sources"]], ["a.pdf", "b.pdf"])
 
 
 if __name__ == "__main__":

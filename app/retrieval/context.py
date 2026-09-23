@@ -106,6 +106,14 @@ def _sources_for_chunks(chunks: dict[ChunkKey, _RankedChunk]) -> list[ChunkData]
     return [source for _, source in windows]
 
 
+def merge_selected_chunks(chunks: list[Chunk]) -> list[ChunkData]:
+    """Join adjacent selected chunks without adding unselected neighbors."""
+    selected: dict[ChunkKey, _RankedChunk] = {}
+    for priority, chunk in enumerate(chunks):
+        selected.setdefault(_key(chunk), _RankedChunk(chunk=chunk, priority=priority))
+    return _sources_for_chunks(selected)
+
+
 def _neighbor_offsets() -> list[int]:
     """Return closer neighbors before farther ones for budget fallback."""
     return [

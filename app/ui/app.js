@@ -91,7 +91,10 @@ async function submitQuestion(event) {
   sourcesPanel.hidden = true;
   sourceList.replaceChildren();
   requestStatus.classList.remove("is-idle");
-  requestStatus.textContent = "Searching and preparing an answer. Verified mode may take several minutes…";
+  const eachPaper = documentSelect.value === "__each__";
+  requestStatus.textContent = eachPaper
+    ? "Searching each indexed paper separately. This can take several minutes…"
+    : "Searching and preparing an answer. Verified mode may take several minutes…";
 
   try {
     const response = await fetch("/query", {
@@ -100,7 +103,8 @@ async function submitQuestion(event) {
       body: JSON.stringify({
         question,
         answer_mode: modeSelect.value,
-        document: documentSelect.value || null,
+        scope: eachPaper ? "each" : "relevant",
+        document: eachPaper ? null : documentSelect.value || null,
       }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

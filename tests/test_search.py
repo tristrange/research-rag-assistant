@@ -61,6 +61,20 @@ class SearchTests(unittest.TestCase):
         statement = db.scalars.call_args.args[0]
         self.assertIsNone(statement.whereclause)
 
+    def test_section_filter_limits_ranked_candidates(self) -> None:
+        db = MagicMock()
+        db.scalar.return_value = 1
+        db.scalars.return_value = []
+        with patch("app.retrieval.search.SessionLocal", return_value=db), \
+                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):
+            search_chunks("Findings", document="a.pdf", sections=("abstract", "discussion"))
+        compiled = db.scalars.call_args.args[0].compile()
+        sql = str(compiled)
+        self.assertIn("chunks.document =", sql)
+        self.assertIn("chunks.section IN", sql)
+        self.assertLess(sql.index("chunks.section IN"), sql.index("ORDER BY"))
+        self.assertEqual(compiled.params["section_1"], ["abstract", "discussion"])
+
 
 if __name__ == "__main__":
     unittest.main()

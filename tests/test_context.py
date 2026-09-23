@@ -6,6 +6,7 @@ from app.retrieval.context import (
     MAX_CONTEXT_CHARS,
     _merge_adjacent_text,
     expand_chunks,
+    merge_selected_chunks,
     render_context,
 )
 from app.types import ChunkData
@@ -22,6 +23,20 @@ def chunk(
 
 
 class ContextExpansionTests(unittest.TestCase):
+    def test_merges_only_adjacent_selected_summary_chunks_without_database_lookup(self) -> None:
+        first = chunk(4, "First finding. Shared sentence.")
+        first.section = "conclusion"
+        second = chunk(5, "Shared sentence. Second finding.")
+        second.section = "conclusion"
+        separate = chunk(8, "Other finding.")
+        separate.section = "conclusion"
+        with patch("app.retrieval.context.SessionLocal") as session:
+            sources = merge_selected_chunks([second, separate, first])
+        session.assert_not_called()
+        self.assertEqual([source["chunk_index"] for source in sources], [4, 8])
+        self.assertEqual(sources[0]["text"], "First finding. Shared sentence. Second finding.")
+        self.assertEqual(sources[1]["text"], "Other finding.")
+
     def _expand_with_rows(
         self,
         seeds: list[Chunk],

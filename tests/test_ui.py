@@ -17,7 +17,8 @@ class BrowserUiTests(unittest.TestCase):
             '<label for="answer-mode">',
             'id="request-error" class="request-error" role="alert"',
             'id="source-list"',
-            'src="/static/app.js?v=3"',
+            'src="/static/app.js?v=4"',
+            'Each indexed paper',
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, response.text)
@@ -25,7 +26,7 @@ class BrowserUiTests(unittest.TestCase):
 
     def test_browser_assets_and_api_docs_are_served(self) -> None:
         client = TestClient(app)
-        script = client.get("/static/app.js?v=3")
+        script = client.get("/static/app.js?v=4")
         stylesheet = client.get("/static/styles.css?v=2")
         docs = client.get("/docs")
         self.assertEqual(script.status_code, 200)
