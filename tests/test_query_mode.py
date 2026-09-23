@@ -41,3 +41,20 @@ class QueryModeTests(unittest.TestCase):
                     "question": "Question?", "document": document,
                 })
                 self.assertEqual(response.status_code, 422)
+
+    def test_each_paper_scope_uses_separate_answer_path(self) -> None:
+        with patch("app.main.answer_each_document", return_value={
+            "answer": "Answers by paper", "sources": [],
+        }) as each, patch("app.main.answer_question") as relevant:
+            response = TestClient(app).post("/query", json={
+                "question": "What were the findings?", "scope": "each",
+            })
+        self.assertEqual(response.status_code, 200)
+        each.assert_called_once_with("What were the findings?", answer_mode="plain")
+        relevant.assert_not_called()
+
+    def test_each_paper_scope_rejects_a_selected_document(self) -> None:
+        response = TestClient(app).post("/query", json={
+            "question": "Question?", "scope": "each", "document": "paper.pdf",
+        })
+        self.assertEqual(response.status_code, 422)

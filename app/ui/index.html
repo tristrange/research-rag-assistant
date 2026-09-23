@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
     <link rel="stylesheet" href="/static/styles.css?v=2">
-    <script src="/static/app.js?v=3" defer></script>
+    <script src="/static/app.js?v=4" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -31,9 +31,11 @@
           <form id="query-form">
             <label for="document">Search scope</label>
             <select id="document" name="document" disabled>
-              <option value="">All indexed papers</option>
+              <option value="">Across papers (top matches)</option>
+              <option value="__each__">Each indexed paper</option>
             </select>
             <p id="library-status" class="field-note" role="status" aria-live="polite">Loading indexed papers…</p>
+            <p class="field-note">Across papers uses the most relevant passages. Every indexed paper runs a separate query for each paper and can take longer.</p>
 
             <label for="question">Question</label>
             <textarea id="question" name="question" rows="5" placeholder="What were the main findings?" required></textarea>

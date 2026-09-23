@@ -95,9 +95,28 @@ curl -X POST http://127.0.0.1:8000/query \
   | jq
 ```
 
-Omitting `document` keeps corpus-wide retrieval. An unknown filename yields an
-insufficient-evidence answer with no sources; an empty or path-like filename is
-rejected. Document identity is still the basename, so two PDFs with the same
+Omitting `document` keeps corpus-wide retrieval of the top matching passages;
+it does not guarantee coverage of every indexed paper. For a separate answer
+for **each** indexed paper, use `scope: "each"` without `document`:
+
+```bash
+curl -X POST http://127.0.0.1:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What were the main findings?","scope":"each"}' \
+  | jq
+```
+
+This mode retrieves passages from each paper independently, preferring its
+conclusion, then abstract, discussion, and results sections, with a document-wide
+fallback when those section labels are unavailable. It runs a separate
+answer call per paper and can take several minutes, especially in verified mode.
+Each answer is labelled with its paper. It is still based on selected passages,
+not a complete reading of every PDF. An insufficient-evidence answer means the
+retrieved passages did not establish the requested finding, not that the paper
+has none.
+
+An unknown filename yields an insufficient-evidence answer with no sources; an
+empty or path-like filename is rejected. Document identity is still the basename, so two PDFs with the same
 filename cannot be indexed separately, even if they live in different folders.
 
 Chunking prefers sentence boundaries and falls back to whitespace for long
@@ -139,8 +158,9 @@ uv run uvicorn app.main:app --reload --reload-dir app
 ```
 
 Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the browser interface.
-It lists the indexed PDFs, lets you search one paper or the whole library, and
-offers plain and experimental verified answers. The passages below an answer are
+It lists the indexed PDFs, lets you search one paper, top matches across the
+library, or every paper separately. It offers plain and experimental verified
+answers. The passages below an answer are
 the retrieved context; they are not necessarily passages the answer cited. The
 page uses the same `/documents` and `/query` endpoints as the command-line
 examples below, and needs no separate frontend install or build step.

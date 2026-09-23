@@ -15,7 +15,13 @@ def list_documents() -> list[str]:
         db.close()
 
 
-def search_chunks(query: str, limit: int = 5, *, document: str | None = None) -> list[Chunk]:
+def search_chunks(
+    query: str,
+    limit: int = 5,
+    *,
+    document: str | None = None,
+    sections: tuple[str, ...] | None = None,
+) -> list[Chunk]:
     db = SessionLocal()
 
     try:
@@ -30,6 +36,8 @@ def search_chunks(query: str, limit: int = 5, *, document: str | None = None) ->
         statement = select(Chunk)
         if document is not None:
             statement = statement.where(Chunk.document == document)
+        if sections is not None:
+            statement = statement.where(Chunk.section.in_(sections))
         statement = statement.order_by(
             Chunk.embedding.cosine_distance(query_embedding), Chunk.id,
         ).limit(limit)
