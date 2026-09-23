@@ -379,6 +379,11 @@ reranking miss and compares three versus six seeds across both development paper
 The subsequent [verified-answer comparison](docs/verified-context-comparison.md)
 completed 68 answers: wider context recovered some answers but introduced a
 cited-study refusal and higher latency, so expansion remains opt-in.
+The [third-paper unexpanded verified evaluation](docs/unexpanded-verified-third-paper.md)
+used a separate CC BY paper and the normal three-passage retrieval path. It
+answered seven of eight answerable questions and refused both unanswerable ones;
+one false refusal came from missing complementary retrieved evidence. The small,
+assistant-labelled set is provisional and does not change the API defaults.
 The retrieval-only runner reproduces the coverage check without generating answers:
 
 ```bash
