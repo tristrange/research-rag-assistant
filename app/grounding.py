@@ -75,7 +75,9 @@ class QuestionRequirement(StrictModel):
         min_length=1, max_length=200,
         description="An actual requested finding or qualifier needed to identify the question target; omit unasked dimensions.",
     )
-    supported: bool
+    supported: bool = Field(
+        description="Whether cited evidence establishes an answer to this requirement; a supported no or unchanged result can satisfy a yes/no question.",
+    )
     reason: str = Field(min_length=1, max_length=300)
 
 
@@ -170,8 +172,14 @@ an unsupported requirement merely because a sex, dose or study design was not as
 for. A question about the effect described by a cited title does not additionally
 require an unrequested dose or experimental design. This does not excuse missing
 qualifiers that the question DOES request, or unsupported details added by a claim.
-For each requirement, supported=true requires the cited passages to establish it for
-the REQUESTED target. Do not drop a question qualifier just because the claim omits
+For yes/no questions, the requirement is to determine WHETHER the proposition holds,
+not to prove that it holds. A supported negative answer, no change, or no effect can
+fully satisfy the question. For example, evidence that a treatment left an outcome
+unchanged supports answering "no" to "Did the treatment reduce the outcome?".
+Do not mark that requirement unsupported merely because the answer is negative.
+Absence of outcome evidence is different: it cannot establish a negative result.
+For each requirement, supported=true requires the cited passages to establish an
+answer for the REQUESTED target. Do not drop a question qualifier just because the claim omits
 it. Results in male or unspecified mice do not establish results in female mice;
 short-term measurements do not establish long-term effects. A fact about a different
 population, study or time period does not answer the requested question. Every

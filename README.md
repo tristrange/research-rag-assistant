@@ -164,6 +164,9 @@ curl -X POST http://127.0.0.1:8000/query \
 The model drafts concise claims and selects exact excerpts from a source-specific
 quote catalogue. Code rejects invalid IDs, quotes outside that catalogue, and current-study claims citing a references section.
 A second model call checks each claim's full support, attribution, and relevance.
+It checks the question's actual requirements rather than demanding unasked study
+attributes. A supported negative answer can satisfy a yes/no question; missing
+outcome evidence cannot establish a negative result.
 A rejected draft may be corrected once using validation feedback; the corrected
 draft must pass all the same checks. Only an entirely approved answer is rendered; document/page labels come from stored
 source metadata. Invalid or rejected output becomes a fixed insufficient-evidence
@@ -173,7 +176,9 @@ The response shape remains `answer` and `sources`; sources are the retrieved bun
 not a list filtered to cited passages. Quote matches establish textual presence, not
 semantic support, and the same local model acts as drafter and verifier. This mode
 can reject valid answers or miss subtle unsupported claims. The default stays `plain`;
-neighbor expansion also remains opt-in through the evaluation CLI.
+neighbor expansion also remains opt-in through the evaluation CLI. The
+[refusal diagnostics](docs/grounding-refusal-diagnostics.md) distinguish initial
+draft refusals from verifier errors and record the targeted checks.
 
 ```bash
 uv run python -m scripts.check_grounding --output evaluation-results/grounding-controls.json
