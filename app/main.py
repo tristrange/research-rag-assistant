@@ -1,6 +1,9 @@
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
 from app.rag import answer_question
@@ -8,6 +11,8 @@ from app.retrieval.search import list_documents
 
 
 app = FastAPI()
+UI_DIR = Path(__file__).resolve().parent / "ui"
+app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
 
 class QueryRequest(BaseModel):
@@ -34,6 +39,11 @@ class Source(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     sources: list[Source]
+
+
+@app.get("/", response_class=FileResponse)
+def home() -> FileResponse:
+    return FileResponse(UI_DIR / "index.html")
 
 
 @app.get("/documents", response_model=list[str])

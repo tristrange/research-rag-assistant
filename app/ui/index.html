@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Research RAG Assistant</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <span>Research RAG <small>LOCAL ASSISTANT</small></span>
+      </div>
+      <a href="/docs">API docs <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main class="page-shell">
+      <div class="intro">
+        <p class="eyebrow">YOUR RESEARCH LIBRARY</p>
+        <h1>Ask your papers.</h1>
+        <p class="intro-copy">Explore answers alongside passages retrieved from your indexed PDFs. Choose a paper to keep retrieval focused, or search the whole library.</p>
+      </div>
+
+      <div class="workspace">
+        <section class="panel query-panel" aria-labelledby="question-heading">
+          <div class="panel-heading">
+            <span class="step">01</span>
+            <h2 id="question-heading">Your question</h2>
+          </div>
+          <form id="query-form">
+            <label for="document">Search scope</label>
+            <select id="document" name="document" disabled>
+              <option value="">All indexed papers</option>
+            </select>
+            <p id="library-status" class="field-note" role="status" aria-live="polite">Loading indexed papers…</p>
+
+            <label for="question">Question</label>
+            <textarea id="question" name="question" rows="5" placeholder="What were the main findings?" required></textarea>
+
+            <label for="answer-mode">Answer mode</label>
+            <select id="answer-mode" name="answer-mode">
+              <option value="plain">Plain answer</option>
+              <option value="verified">Verified answer (experimental)</option>
+            </select>
+            <p class="field-note">Verified mode checks claim support but can take several minutes and may refuse an answer even when evidence exists.</p>
+
+            <button id="ask-button" type="submit" disabled>Ask question <span aria-hidden="true">→</span></button>
+          </form>
+        </section>
+
+        <section class="panel result-panel" aria-labelledby="result-heading">
+          <div class="panel-heading">
+            <span class="step">02</span>
+            <h2 id="result-heading">Response</h2>
+          </div>
+          <p id="request-status" class="request-status" role="status" aria-live="polite">Choose a scope and ask a question to see the answer here.</p>
+          <p id="request-error" class="request-error" role="alert" hidden></p>
+
+          <section id="answer-panel" class="answer-panel" aria-labelledby="answer-heading" hidden>
+            <h3 id="answer-heading">Answer</h3>
+            <p id="answer-text"></p>
+          </section>
+
+          <section id="sources-panel" class="sources-panel" aria-labelledby="sources-heading" hidden>
+            <div class="sources-heading">
+              <h3 id="sources-heading">Retrieved passages</h3>
+              <span id="source-count"></span>
+            </div>
+            <p class="field-note">These passages were provided to the answer model. They are not necessarily all cited in its answer.</p>
+            <div id="source-list"></div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
