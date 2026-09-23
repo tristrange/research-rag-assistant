@@ -90,6 +90,7 @@ async function submitQuestion(event) {
   answerPanel.hidden = true;
   sourcesPanel.hidden = true;
   sourceList.replaceChildren();
+  requestStatus.classList.remove("is-idle");
   requestStatus.textContent = "Searching and preparing an answer. Verified mode may take several minutes…";
 
   try {

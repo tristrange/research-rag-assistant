@@ -17,15 +17,16 @@ class BrowserUiTests(unittest.TestCase):
             '<label for="answer-mode">',
             'id="request-error" class="request-error" role="alert"',
             'id="source-list"',
-            'src="/static/app.js"',
+            'src="/static/app.js?v=2"',
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, response.text)
+        self.assertNotIn('class="step"', response.text)
 
     def test_browser_assets_and_api_docs_are_served(self) -> None:
         client = TestClient(app)
-        script = client.get("/static/app.js")
-        stylesheet = client.get("/static/styles.css")
+        script = client.get("/static/app.js?v=2")
+        stylesheet = client.get("/static/styles.css?v=2")
         docs = client.get("/docs")
         self.assertEqual(script.status_code, 200)
         self.assertIn("javascript", script.headers["content-type"])
