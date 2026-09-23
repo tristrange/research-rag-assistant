@@ -5,7 +5,7 @@ from app.llm.ollama import generate
 from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, render_context
-from app.retrieval.rerank import rerank_chunks
+from app.retrieval.rerank import rerank_chunks, with_vector_reserve
 from app.retrieval.search import search_chunks
 from app.types import AnswerResult, ChunkData
 
@@ -16,14 +16,19 @@ def answer_question(
     *,
     use_reranking: bool = True,
     expand_context: bool = False,
+    reserve_vector_candidate: bool = False,
     answer_mode: Literal["plain", "verified"] = "plain",
 ) -> AnswerResult:
     limit = default_top_k(expand_context) if limit is None else limit
     if limit < 1:
         raise ValueError("limit must be positive")
+    if reserve_vector_candidate and (not use_reranking or expand_context):
+        raise ValueError("vector reserve requires unexpanded reranking")
     candidates = search_chunks(question, limit=max(CANDIDATE_COUNT, limit) if use_reranking else limit)
 
     chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
+    if reserve_vector_candidate:
+        chunks = with_vector_reserve(chunks, candidates)
 
     sources: list[ChunkData]
     if expand_context:

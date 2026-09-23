@@ -38,3 +38,12 @@ def rerank_chunks(
         chunk
         for chunk, _ in ranked[:limit]
     ]
+
+
+def with_vector_reserve(reranked: list[Chunk], vector_ranked: list[Chunk]) -> list[Chunk]:
+    """Append the highest vector-ranked chunk absent from the reranked selection."""
+    selected = {(chunk.document, chunk.page, chunk.chunk_index) for chunk in reranked}
+    for chunk in vector_ranked:
+        if (chunk.document, chunk.page, chunk.chunk_index) not in selected:
+            return [*reranked, chunk]
+    return reranked
