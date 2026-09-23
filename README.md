@@ -361,7 +361,8 @@ uv run python -m scripts.evaluate_answers --strategy expanded
 
 To test the opt-in vector-reserve strategy, use `--strategy vector_reserve`.
 It keeps three reranked chunks and appends the highest vector-ranked candidate
-not already selected. Its [development evaluation](docs/vector-reserve-evaluation.md)
+not already selected; `--top-k` must be below ten. Its
+[development evaluation](docs/vector-reserve-evaluation.md)
 does not change the normal API retrieval default.
 
 `expanded` keeps six of the top ten reranked passages by default, then adds the

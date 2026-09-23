@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from app.db.models import Chunk
 from app.rag import answer_question
+from app.retrieval.rerank import with_vector_reserve
 
 
 class RagTests(unittest.TestCase):
@@ -88,7 +89,14 @@ class RagTests(unittest.TestCase):
                 answer_question("Question", reserve_vector_candidate=True, use_reranking=False)
             with self.assertRaisesRegex(ValueError, "unexpanded reranking"):
                 answer_question("Question", reserve_vector_candidate=True, expand_context=True)
+            with self.assertRaisesRegex(ValueError, "limit below 10"):
+                answer_question("Question", limit=10, reserve_vector_candidate=True)
             search.assert_not_called()
+
+    def test_vector_reserve_fails_when_corpus_has_no_extra_candidate(self) -> None:
+        only_chunk = Chunk(document="paper.pdf", page=1, chunk_index=0, text="Evidence")
+        with self.assertRaisesRegex(ValueError, "unselected vector candidate"):
+            with_vector_reserve([only_chunk], [only_chunk])
 
     def test_vector_mode_uses_same_generation_path_without_reranking(self) -> None:
         with patch("app.rag.search_chunks", return_value=[]) as search, \

@@ -24,6 +24,8 @@ def answer_question(
         raise ValueError("limit must be positive")
     if reserve_vector_candidate and (not use_reranking or expand_context):
         raise ValueError("vector reserve requires unexpanded reranking")
+    if reserve_vector_candidate and limit >= CANDIDATE_COUNT:
+        raise ValueError(f"vector reserve requires limit below {CANDIDATE_COUNT}")
     candidates = search_chunks(question, limit=max(CANDIDATE_COUNT, limit) if use_reranking else limit)
 
     chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates

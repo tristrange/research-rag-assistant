@@ -46,4 +46,4 @@ def with_vector_reserve(reranked: list[Chunk], vector_ranked: list[Chunk]) -> li
     for chunk in vector_ranked:
         if (chunk.document, chunk.page, chunk.chunk_index) not in selected:
             return [*reranked, chunk]
-    return reranked
+    raise ValueError("vector reserve requires an unselected vector candidate")

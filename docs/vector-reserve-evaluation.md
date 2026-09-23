@@ -78,6 +78,11 @@ controlled, so it is not a steady-state latency estimate. The assistant-authored
 labels and local model judge are development evidence only. Normal API
 retrieval remains the three-passage default pending independent validation.
 
+After review, `vector_reserve` rejects `--top-k 10`: with ten fetched candidates,
+there would be no unused candidate to append. It also raises if a smaller corpus
+has no extra candidate. This input guard does not change the ten-case trial's
+selected sources or answers; that run used `--top-k 3` and had ten candidates.
+
 To reproduce this opt-in trial with the matching local PDF, isolated index, and
 model settings, use a fresh output path:
 

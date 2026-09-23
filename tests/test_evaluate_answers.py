@@ -373,6 +373,22 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertEqual(report.settings.candidate_count, 10)
             self.assertEqual(report.settings.max_context_chars, None)
 
+    def test_vector_reserve_rejects_top_k_ten_before_services_or_report(self) -> None:
+        with TemporaryDirectory() as directory, \
+                patch("sys.argv", [
+                    "evaluate_answers", "--strategy", "vector_reserve", "--top-k", "10",
+                    "--output", str(Path(directory) / "invalid.json"),
+                ]), \
+                patch("scripts.evaluate_answers.extract_pages") as extract, \
+                patch("scripts.evaluate_answers.snapshot") as snapshot_mock, \
+                redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit):
+                main()
+            self.assertIn("vector_reserve requires --top-k below 10", stderr.getvalue())
+            self.assertFalse((Path(directory) / "invalid.json").exists())
+            extract.assert_not_called()
+            snapshot_mock.assert_not_called()
+
     def test_explicit_cutoff_is_recorded_and_resume_requires_same_setting(self) -> None:
         raw = _new_report(datetime.now(timezone.utc), CORPUS, [ANSWER_CASES[0]],
                           "expanded", MODEL_NAME, top_k=3)

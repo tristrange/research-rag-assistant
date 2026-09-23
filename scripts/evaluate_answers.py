@@ -544,6 +544,8 @@ def main() -> None:
             case["id"] for case in available_cases
             if selected_ids is None or case["id"] in selected_ids
         ]
+    if strategy == "vector_reserve" and top_k >= CANDIDATE_COUNT:
+        parser.error(f"vector_reserve requires --top-k below {CANDIDATE_COUNT}")
     requested_set = set(requested_ids)
     cases = [case for case in available_cases if case["id"] in requested_set]
     if [case["id"] for case in cases] != requested_ids:
