@@ -21,11 +21,10 @@ function updateSubmitState() {
 
 function renderAnswer(answer) {
   const nodes = [];
-  const emphasis = /(\*\*|\*)([^*\n]+?)\1/g;
+  const emphasis = /(\*\*|\*)([^\s*](?:[^*\n]*[^\s*])?)\1/g;
   let position = 0;
 
   for (const match of answer.matchAll(emphasis)) {
-    if (match[2].trim() !== match[2]) continue;
     nodes.push(document.createTextNode(answer.slice(position, match.index)));
     const element = document.createElement(match[1] === "**" ? "strong" : "em");
     element.textContent = match[2];
