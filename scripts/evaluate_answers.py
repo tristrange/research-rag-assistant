@@ -166,7 +166,7 @@ class CorpusModel(StrictModel):
 
 
 class SettingsModel(StrictModel):
-    strategy: Literal["vector", "reranked", "expanded"]
+    strategy: Literal["vector", "reranked", "expanded", "vector_reserve"]
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1)
     answer_mode: Literal["plain", "verified"]
@@ -482,7 +482,7 @@ def main() -> None:
     parser.add_argument("--validate-only", action="store_true", help="check PDF fingerprint and labels without database or model calls")
     parser.add_argument("--case", dest="case_ids", action="append",
                         help="run just this case (repeat the flag to select more)")
-    parser.add_argument("--strategy", choices=["vector", "reranked", "expanded"], default=None)
+    parser.add_argument("--strategy", choices=["vector", "reranked", "expanded", "vector_reserve"], default=None)
     parser.add_argument("--answer-mode", choices=["plain", "verified"], default=None)
     parser.add_argument("--top-k", type=int, choices=range(1, 11),
                         help="seed passages to retain (default: 6 expanded, 3 otherwise)")
@@ -544,6 +544,8 @@ def main() -> None:
             case["id"] for case in available_cases
             if selected_ids is None or case["id"] in selected_ids
         ]
+    if strategy == "vector_reserve" and top_k >= CANDIDATE_COUNT:
+        parser.error(f"vector_reserve requires --top-k below {CANDIDATE_COUNT}")
     requested_set = set(requested_ids)
     cases = [case for case in available_cases if case["id"] in requested_set]
     if [case["id"] for case in cases] != requested_ids:
@@ -600,6 +602,8 @@ def main() -> None:
 
         answer = partial(answer_question, limit=top_k, use_reranking=strategy != "vector",
                          expand_context=strategy == "expanded", answer_mode=answer_mode)
+        if strategy == "vector_reserve":
+            answer = partial(answer, reserve_vector_candidate=True)
         for index in range(len(cast(list[CaseEvaluation], report["results"])), len(cases)):
             case = cases[index]
             print(f"Evaluating {index + 1}/{len(cases)}: {case['id']}...", flush=True)

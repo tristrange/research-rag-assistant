@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from app.db.models import Chunk
 from app.rag import answer_question
+from app.retrieval.rerank import with_vector_reserve
 
 
 class RagTests(unittest.TestCase):
@@ -65,6 +66,37 @@ class RagTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     answer_question("Question", limit=limit)
             search.assert_not_called()
+
+    def test_vector_reserve_adds_first_unselected_vector_candidate_to_verified_sources(self) -> None:
+        candidates = [
+            Chunk(document="paper.pdf", page=1, chunk_index=i, text=f"Evidence {i}")
+            for i in range(5)
+        ]
+        reranked = [candidates[2], candidates[0], candidates[4]]
+        with patch("app.rag.search_chunks", return_value=candidates) as search, \
+                patch("app.rag.rerank_chunks", return_value=reranked) as rerank, \
+                patch("app.rag.grounded_answer", return_value="Checked") as grounded:
+            result = answer_question("Question", answer_mode="verified", reserve_vector_candidate=True)
+
+        search.assert_called_once_with("Question", limit=10)
+        rerank.assert_called_once_with("Question", candidates, limit=3)
+        self.assertEqual([source["chunk_index"] for source in result["sources"]], [2, 0, 4, 1])
+        grounded.assert_called_once_with("Question", result["sources"])
+
+    def test_vector_reserve_rejects_incompatible_modes_before_search(self) -> None:
+        with patch("app.rag.search_chunks") as search:
+            with self.assertRaisesRegex(ValueError, "unexpanded reranking"):
+                answer_question("Question", reserve_vector_candidate=True, use_reranking=False)
+            with self.assertRaisesRegex(ValueError, "unexpanded reranking"):
+                answer_question("Question", reserve_vector_candidate=True, expand_context=True)
+            with self.assertRaisesRegex(ValueError, "limit below 10"):
+                answer_question("Question", limit=10, reserve_vector_candidate=True)
+            search.assert_not_called()
+
+    def test_vector_reserve_fails_when_corpus_has_no_extra_candidate(self) -> None:
+        only_chunk = Chunk(document="paper.pdf", page=1, chunk_index=0, text="Evidence")
+        with self.assertRaisesRegex(ValueError, "unselected vector candidate"):
+            with_vector_reserve([only_chunk], [only_chunk])
 
     def test_vector_mode_uses_same_generation_path_without_reranking(self) -> None:
         with patch("app.rag.search_chunks", return_value=[]) as search, \

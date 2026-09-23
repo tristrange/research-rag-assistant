@@ -347,6 +347,48 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertEqual(report.settings.max_context_chars, 6000)
             self.assertEqual(report.reranker_model, MODEL_NAME)
 
+    def test_vector_reserve_strategy_is_recorded_and_passed_to_answer_generation(self) -> None:
+        case = ANSWER_CASES[0]
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory) / "vector-reserve.json"
+            stack.enter_context(patch("sys.argv", [
+                "evaluate_answers", "--case", case["id"], "--strategy", "vector_reserve",
+                "--answer-mode", "verified", "--output", str(output),
+            ]))
+            self.patch_preflight(stack)
+            answer = stack.enter_context(patch("app.rag.answer_question", return_value={
+                "answer": "Unknown", "sources": [],
+            }))
+            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer",
+                                      side_effect=lambda generated, ignored: judged_answer(generated)))
+            with redirect_stdout(io.StringIO()):
+                main()
+
+            answer.assert_called_once_with(case["question"], limit=3, use_reranking=True,
+                                           expand_context=False, answer_mode="verified",
+                                           reserve_vector_candidate=True)
+            report = load_report(output)
+            self.assertEqual(report.settings.strategy, "vector_reserve")
+            self.assertEqual(report.settings.top_k, 3)
+            self.assertEqual(report.settings.candidate_count, 10)
+            self.assertEqual(report.settings.max_context_chars, None)
+
+    def test_vector_reserve_rejects_top_k_ten_before_services_or_report(self) -> None:
+        with TemporaryDirectory() as directory, \
+                patch("sys.argv", [
+                    "evaluate_answers", "--strategy", "vector_reserve", "--top-k", "10",
+                    "--output", str(Path(directory) / "invalid.json"),
+                ]), \
+                patch("scripts.evaluate_answers.extract_pages") as extract, \
+                patch("scripts.evaluate_answers.snapshot") as snapshot_mock, \
+                redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit):
+                main()
+            self.assertIn("vector_reserve requires --top-k below 10", stderr.getvalue())
+            self.assertFalse((Path(directory) / "invalid.json").exists())
+            extract.assert_not_called()
+            snapshot_mock.assert_not_called()
+
     def test_explicit_cutoff_is_recorded_and_resume_requires_same_setting(self) -> None:
         raw = _new_report(datetime.now(timezone.utc), CORPUS, [ANSWER_CASES[0]],
                           "expanded", MODEL_NAME, top_k=3)
