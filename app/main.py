@@ -1,3 +1,4 @@
+import re
 from collections.abc import Awaitable, Callable
 from ipaddress import ip_address
 from pathlib import Path
@@ -8,7 +9,6 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
@@ -16,9 +16,7 @@ from app.retrieval.search import list_documents
 
 app = FastAPI()
 _query_gate = Lock()
-app.add_middleware(
-    TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"],
-)
+_LOCAL_HOST = re.compile(r"(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?", re.IGNORECASE)
 UI_DIR = Path(__file__).resolve().parent / "ui"
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
@@ -33,6 +31,8 @@ async def local_only(
             return JSONResponse({"detail": "Local access only"}, status_code=403)
     except ValueError:
         return JSONResponse({"detail": "Local access only"}, status_code=403)
+    if not _LOCAL_HOST.fullmatch(request.headers.get("host", "")):
+        return JSONResponse({"detail": "Invalid host header"}, status_code=400)
     return await call_next(request)
 
 

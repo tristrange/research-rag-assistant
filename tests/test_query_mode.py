@@ -32,6 +32,18 @@ class QueryModeTests(unittest.TestCase):
         )
         self.assertEqual(client.get("/documents").status_code, 400)
 
+    def test_bracketed_ipv6_loopback_host_is_allowed(self) -> None:
+        client = TestClient(
+            app, base_url="http://127.0.0.1", client=("::1", 50000),
+        )
+        self.assertEqual(client.get("/", headers={"Host": "[::1]:8000"}).status_code, 200)
+
+    def test_host_suffix_and_userinfo_are_rejected(self) -> None:
+        client = local_client()
+        for host in ("localhost.attacker.example", "attacker.example@127.0.0.1"):
+            with self.subTest(host=host):
+                self.assertEqual(client.get("/", headers={"Host": host}).status_code, 400)
+
     def test_verified_request_reaches_answer_pipeline(self) -> None:
         with patch("app.main.answer_question", return_value={"answer": "Checked", "sources": []}) as answer:
             response = query(QueryRequest(question="Question?", answer_mode="verified"))
