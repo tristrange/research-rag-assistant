@@ -99,6 +99,7 @@ def answer_question(
 def answer_each_document(
     question: str,
     *,
+    overview: bool,
     answer_mode: Literal["plain", "verified"] = "plain",
 ) -> AnswerResult:
     """Answer independently for every indexed paper, preserving attribution."""
@@ -106,11 +107,12 @@ def answer_each_document(
     if not documents:
         return {"answer": INSUFFICIENT_EVIDENCE, "sources": []}
 
-    sections = ["Answers by paper, based on retrieved passages:"]
+    heading = "Overviews" if overview else "Answers"
+    sections = [f"{heading} by paper, based on retrieved passages:"]
     sources: list[ChunkData] = []
     for document in documents:
         result = answer_question(
-            question, document=document, answer_mode=answer_mode, overview=True,
+            question, document=document, answer_mode=answer_mode, overview=overview,
         )
         sections.append(f"{document}:\n{result['answer']}")
         sources.extend(result["sources"])

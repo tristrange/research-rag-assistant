@@ -222,16 +222,20 @@ class RagTests(unittest.TestCase):
                 "text": f"Evidence for {document}",
             }]}
 
-        with patch("app.rag.list_documents", return_value=["a.pdf", "b.pdf"]), \
-                patch("app.rag.answer_question", side_effect=scoped_answer) as answer:
-            result = answer_each_document("Main findings?", answer_mode="verified")
-        self.assertEqual(answer.call_args_list, [
-            call("Main findings?", document="a.pdf", answer_mode="verified", overview=True),
-            call("Main findings?", document="b.pdf", answer_mode="verified", overview=True),
-        ])
-        self.assertIn("a.pdf:\nFinding for a.pdf", result["answer"])
-        self.assertIn("b.pdf:\nFinding for b.pdf", result["answer"])
-        self.assertEqual([source["document"] for source in result["sources"]], ["a.pdf", "b.pdf"])
+        for overview in (True, False):
+            with self.subTest(overview=overview), \
+                    patch("app.rag.list_documents", return_value=["a.pdf", "b.pdf"]), \
+                    patch("app.rag.answer_question", side_effect=scoped_answer) as answer:
+                result = answer_each_document(
+                    "Main findings?", answer_mode="verified", overview=overview,
+                )
+            self.assertEqual(answer.call_args_list, [
+                call("Main findings?", document="a.pdf", answer_mode="verified", overview=overview),
+                call("Main findings?", document="b.pdf", answer_mode="verified", overview=overview),
+            ])
+            self.assertIn("a.pdf:\nFinding for a.pdf", result["answer"])
+            self.assertIn("b.pdf:\nFinding for b.pdf", result["answer"])
+            self.assertEqual([source["document"] for source in result["sources"]], ["a.pdf", "b.pdf"])
 
 
 if __name__ == "__main__":

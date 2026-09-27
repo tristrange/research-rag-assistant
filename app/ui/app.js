@@ -91,7 +91,10 @@ async function submitQuestion(event) {
   sourcesPanel.hidden = true;
   sourceList.replaceChildren();
   requestStatus.classList.remove("is-idle");
-  const eachPaper = documentSelect.value === "__each__";
+  let scope = "relevant";
+  if (documentSelect.value === "__each__") scope = "each";
+  if (documentSelect.value === "__each_query__") scope = "each_query";
+  const eachPaper = scope !== "relevant";
   requestStatus.textContent = eachPaper
     ? "Searching each indexed paper separately. This can take several minutes…"
     : "Searching and preparing an answer. Verified mode may take several minutes…";
@@ -103,7 +106,7 @@ async function submitQuestion(event) {
       body: JSON.stringify({
         question,
         answer_mode: modeSelect.value,
-        scope: eachPaper ? "each" : "relevant",
+        scope,
         document: eachPaper ? null : documentSelect.value || null,
       }),
     });
