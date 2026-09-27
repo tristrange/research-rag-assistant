@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 from time import perf_counter
 
+from pydantic import ValidationError
+
 from app.grounding import (
-    GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, generate_verification_json, grounding_fingerprint, verify_draft,
+    GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
+    generate_verification_json, grounding_fingerprint, verify_draft,
 )
 from app.types import ChunkData
 
@@ -27,6 +30,18 @@ NEGATIVE_RESULT = ChunkData(document="synthetic.pdf", page=4, chunk_index=0,
                             section="results", text="In our experiment, treatment left the measured response unchanged compared with controls.")
 MISSING_RESULT = ChunkData(document="synthetic.pdf", page=4, chunk_index=0,
                            section="methods", text="In our experiment, we measured the response after treatment.")
+MIXED_DIET_RESULTS = ChunkData(document="synthetic.pdf", page=5, chunk_index=0,
+                               section="results", text=(
+                                   "After short-term treatment, liver triacylglycerol increased "
+                                   "2.8-fold in mice; after long-term treatment, it increased "
+                                   "2.6-fold in chow-fed mice."
+                               ))
+CHOW_DIET_RESULTS = ChunkData(document="synthetic.pdf", page=5, chunk_index=0,
+                              section="results", text=(
+                                  "After short-term treatment, liver triacylglycerol increased "
+                                  "2.8-fold in chow-fed mice; after long-term treatment, it "
+                                  "increased 2.6-fold in chow-fed mice."
+                              ))
 
 # Fixed drafts deliberately include cases a generator should never emit.
 # Expected answers are not sent to the verifier.
@@ -64,6 +79,14 @@ FIXTURES = [
     ("unsupported_negative_answer", "Did treatment lower the measured response compared with controls?", MISSING_RESULT,
      "Treatment did not lower the measured response compared with controls.",
      "this_document_authors", MISSING_RESULT["text"], False),
+    ("unsupported_shared_population", "How did liver triacylglycerol change after short-term versus long-term treatment in chow-fed mice?",
+     MIXED_DIET_RESULTS,
+     "Liver triacylglycerol increased 2.8-fold after short-term and 2.6-fold after long-term treatment in chow-fed mice.",
+     "this_document_authors", MIXED_DIET_RESULTS["text"], False),
+    ("supported_shared_population", "How did liver triacylglycerol change after short-term versus long-term treatment in chow-fed mice?",
+     CHOW_DIET_RESULTS,
+     "Liver triacylglycerol increased 2.8-fold after short-term and 2.6-fold after long-term treatment in chow-fed mice.",
+     "this_document_authors", CHOW_DIET_RESULTS["text"], True),
     ("reference_as_current_study", "What did this paper find about AMPK?", REFERENCE,
      "The current paper found that AMPK activity is elevated in cachectic muscle.",
      "this_document_authors", "AMPK activity is elevated in cachectic muscle.", False),
@@ -81,11 +104,36 @@ FIXTURES = [
      "external_publication", "Treatment delayed weight loss in mice.", False),
 ]
 
+# These paired controls test semantic qualification, not deterministic quote
+# validation. A rejected draft is not a passing negative unless the verifier ran.
+SEMANTIC_CONTROLS = frozenset({"unsupported_shared_population", "supported_shared_population"})
+
+
+def complete_verifier_verdict(outputs: list[dict[str, object]], claim_count: int) -> bool:
+    """Require one schema-valid verdict covering every draft claim."""
+    if len(outputs) != 1:
+        return False
+    try:
+        result = VerificationResult.model_validate(outputs[0])
+    except ValidationError:
+        return False
+    indexes = [verdict.claim_index for verdict in result.verdicts]
+    return len(indexes) == claim_count and set(indexes) == set(range(1, claim_count + 1))
+
+
+def control_passed(identifier: str, expected: bool, accepted: bool, verifier_verdict_complete: bool) -> bool:
+    return accepted == expected and (identifier not in SEMANTIC_CONTROLS or verifier_verdict_complete)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--case", dest="case_ids", action="append",
+                        help="run just this control (repeat to select more)")
     args = parser.parse_args()
+    fixtures = [fixture for fixture in FIXTURES if args.case_ids is None or fixture[0] in args.case_ids]
+    if not fixtures or (args.case_ids and set(args.case_ids) != {fixture[0] for fixture in fixtures}):
+        parser.error("Selected control IDs must exist")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Reserve first; preserve each completed check even if a model call fails later.
     with args.output.open("x"):
@@ -94,11 +142,11 @@ def main() -> None:
         "started_at": datetime.now(timezone.utc).isoformat(), "status": "running",
         "model": GROUNDING_MODEL, "temperature": 0.0, "think": VERIFIER_THINK,
         "grounding_sha256": grounding_fingerprint(), "results": [],
-        "methodology": f"{len(FIXTURES)} assistant-authored synthetic controls, one run each; not proof of verifier accuracy.",
+        "methodology": f"{len(fixtures)} assistant-authored synthetic controls, one run each; not proof of verifier accuracy.",
     }
     results: list[dict[str, object]] = []
     try:
-        for identifier, question, source, text, attribution, quote, expected in FIXTURES:
+        for identifier, question, source, text, attribution, quote, expected in fixtures:
             draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
                 "text": text, "attribution": attribution,
                 "citations": [{"source_id": 1, "quote": quote}],
@@ -112,13 +160,16 @@ def main() -> None:
 
             start = perf_counter()
             accepted = verify_draft(question, draft, [source], verifier=record)
+            verdict_complete = complete_verifier_verdict(outputs, len(draft.claims))
+            passed = control_passed(identifier, expected, accepted, verdict_complete)
             results.append({"id": identifier, "expected": expected, "accepted": accepted,
-                            "passed": accepted == expected, "question": question,
+                            "passed": passed, "verifier_called": bool(outputs),
+                            "verifier_verdict_complete": verdict_complete, "question": question,
                             "draft": draft.model_dump(), "sources": [source],
                             "verifier_outputs": outputs, "elapsed_ms": (perf_counter()-start)*1000})
             report["results"] = results
             args.output.write_text(json.dumps(report, indent=2) + "\n")
-            print(f"{'PASS' if accepted == expected else 'FAIL'} {identifier}: accepted={accepted}", flush=True)
+            print(f"{'PASS' if passed else 'FAIL'} {identifier}: accepted={accepted}", flush=True)
         report["status"] = "complete"
         report["passed"] = all(result["passed"] for result in results)
     except (Exception, KeyboardInterrupt) as error:

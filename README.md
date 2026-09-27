@@ -305,6 +305,11 @@ uv run python -m scripts.check_grounding --output evaluation-results/grounding-c
 uv run python -m scripts.evaluate_answers --strategy expanded --answer-mode verified
 ```
 
+Use `--case CONTROL_ID` (repeatable) with `scripts.check_grounding` to rerun
+specific verifier controls; each run needs a fresh output path. The
+[Activin follow-up](docs/activin-vector-reserve-validation.md#fixed-source-follow-up-2026-09-27)
+records paired controls for a population qualifier in a two-duration answer.
+
 Verified mode uses `gpt-oss:20b` with low reasoning for drafting, medium reasoning
 for verification, and temperature zero. Install it with `ollama pull gpt-oss:20b` before trying this
 mode. Plain evaluation and the evaluation judge continue to use `qwen3:8b`.
