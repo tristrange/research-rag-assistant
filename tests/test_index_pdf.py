@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import pymupdf
 from sqlalchemy import Connection, create_engine, event, select
 from sqlalchemy.engine import ExecutionContext
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
 from app.db.models import Chunk
+from app.ingestion.pdf import extract_pages
 from app.types import PageData
 from scripts import index_pdf
 
@@ -25,7 +27,7 @@ class IndexPdfTests(unittest.TestCase):
         self.pages: list[PageData] = [{"document": "sample.pdf", "page": 1, "text": "Original text"}]
         for target, replacement in [
             ("SessionLocal", self.sessions),
-            ("extract_pages", lambda _: self.pages),
+            ("extract_pages", lambda _, **kwargs: self.pages),
             ("embed_text", lambda _: [0.0] * 768),
         ]:
             patcher = patch.object(index_pdf, target, replacement)
@@ -73,6 +75,47 @@ class IndexPdfTests(unittest.TestCase):
         with patch.object(index_pdf, "embed_text", side_effect=RuntimeError("offline")):
             with self.assertRaisesRegex(RuntimeError, "offline"):
                 index_pdf.index_pdf()
+        self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+
+    def test_oversized_pdf_is_rejected_before_embedding_and_keeps_index(self) -> None:
+        index_pdf.index_pdf()
+        with TemporaryDirectory() as directory:
+            paper = Path(directory) / "sample.pdf"
+            document = pymupdf.open()
+            document.new_page().insert_text((72, 72), "Text longer than the test limit")
+            document.save(paper)
+            document.close()
+
+            with patch.object(index_pdf, "extract_pages", extract_pages), patch.object(index_pdf, "MAX_PAGE_CHARS", 10), patch.object(index_pdf, "embed_text") as embedder:
+                with self.assertRaisesRegex(ValueError, "PDF page 1 exceeds"):
+                    index_pdf.index_pdf(str(paper))
+                embedder.assert_not_called()
+        self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+
+    def test_too_many_blank_pages_are_rejected_before_embedding(self) -> None:
+        index_pdf.index_pdf()
+        with TemporaryDirectory() as directory:
+            paper = Path(directory) / "sample.pdf"
+            document = pymupdf.open()
+            for _ in range(3):
+                document.new_page()
+            document.save(paper)
+            document.close()
+
+            with patch.object(index_pdf, "extract_pages", extract_pages), patch.object(index_pdf, "MAX_PDF_PAGES", 2), patch.object(index_pdf, "embed_text") as embedder:
+                with self.assertRaisesRegex(ValueError, "2-page limit"):
+                    index_pdf.index_pdf(str(paper))
+                embedder.assert_not_called()
+        self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+
+    def test_excess_chunks_are_rejected_before_embedding_and_keep_index(self) -> None:
+        index_pdf.index_pdf()
+        self.pages[0]["text"] = "x" * 2000
+
+        with patch.object(index_pdf, "MAX_CHUNKS", 1), patch.object(index_pdf, "embed_text") as embedder:
+            with self.assertRaisesRegex(ValueError, "1-chunk limit"):
+                index_pdf.index_pdf()
+            embedder.assert_not_called()
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
 
     def test_insert_failure_rolls_back_deletion(self) -> None:

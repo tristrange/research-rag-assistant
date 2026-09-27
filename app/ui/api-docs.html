@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>API reference · Research RAG Assistant</title>
+    <link rel="stylesheet" href="/static/styles.css?v=3">
+  </head>
+  <body>
+    <main class="page-shell">
+      <p><a href="/">← Back to the assistant</a></p>
+      <h1>API reference</h1>
+      <p>This local API has three routes. Its complete, current schema is available as
+        <a href="/openapi.json">OpenAPI JSON</a>.</p>
+      <h2>GET /</h2>
+      <p>Open the browser interface.</p>
+      <h2>GET /documents</h2>
+      <p>List the filenames of indexed papers.</p>
+      <h2>POST /query</h2>
+      <p>Ask a question and receive an answer with retrieved passages. Send JSON with a
+        <code>question</code>, and optionally a <code>document</code> or <code>scope</code>.</p>
+      <pre><code>curl -X POST http://127.0.0.1:8000/query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What were the main findings?"}'</code></pre>
+    </main>
+  </body>
+</html>

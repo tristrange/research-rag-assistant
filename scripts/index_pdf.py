@@ -14,15 +14,25 @@ PDF_PATH = "data/sample.pdf"
 
 CHUNK_SIZE = 500
 OVERLAP = 100
+MAX_PDF_PAGES = 500
+MAX_PAGE_CHARS = 100_000
+MAX_PDF_CHARS = 2_000_000
+MAX_CHUNKS = 10_000
 
 
 def index_pdf(pdf_path: str = PDF_PATH) -> int:
     """Replace a document's chunks atomically, using its filename as identity."""
-    pages = extract_pages(pdf_path)
+    pages = extract_pages(
+        pdf_path,
+        max_pages=MAX_PDF_PAGES,
+        max_page_chars=MAX_PAGE_CHARS,
+        max_total_chars=MAX_PDF_CHARS,
+    )
     chunks = chunk_pages(
         pages,
         chunk_size=CHUNK_SIZE,
         overlap=OVERLAP,
+        max_chunks=MAX_CHUNKS,
     )
 
     # Finish extraction and embedding before touching the existing index.

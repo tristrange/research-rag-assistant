@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -24,7 +25,7 @@ class BrowserUiTests(unittest.TestCase):
                 self.assertIn(fragment, response.text)
         self.assertNotIn('class="step"', response.text)
 
-    def test_browser_assets_and_api_docs_are_served(self) -> None:
+    def test_browser_assets_and_local_api_docs_are_served(self) -> None:
         client = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000))
         script = client.get("/static/app.js?v=7")
         stylesheet = client.get("/static/styles.css?v=3")
@@ -34,6 +35,19 @@ class BrowserUiTests(unittest.TestCase):
         self.assertEqual(stylesheet.status_code, 200)
         self.assertIn("text/css", stylesheet.headers["content-type"])
         self.assertEqual(docs.status_code, 200)
+        self.assertIn("/openapi.json", docs.text)
+        self.assertNotIn("<script", docs.text)
+        self.assertNotIn("cdn.", docs.text)
+        self.assertEqual(client.get("/redoc").status_code, 404)
+        self.assertEqual(client.get("/docs/oauth2-redirect").status_code, 404)
+        self.assertEqual(client.get("/openapi.json").status_code, 200)
+
+        with patch("app.main.list_documents", return_value=["paper.pdf"]):
+            self.assertEqual(client.get("/documents").json(), ["paper.pdf"])
+        with patch("app.main.answer_question", return_value={"answer": "Supported answer", "sources": []}):
+            response = client.post("/query", json={"question": "What happened?"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"answer": "Supported answer", "sources": []})
 
 
 if __name__ == "__main__":

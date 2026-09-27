@@ -1,4 +1,7 @@
 import unittest
+from operator import index
+from typing import SupportsIndex
+from unittest.mock import patch
 
 from app.ingestion.chunking import _next_chunk_start, chunk_pages
 from app.types import PageData
@@ -120,6 +123,57 @@ class ChunkingTests(unittest.TestCase):
         self.assertTrue(all(len(chunk["text"]) <= 10 for chunk in token_chunks))
         self.assertTrue(all(chunk["text"] and set(chunk["text"]) == {"x"} for chunk in token_chunks))
         self.assertLess(max(chunk["chunk_index"] for chunk in token_chunks), len(token))
+
+    def test_long_token_uses_bounded_searches_and_preserves_coverage(self) -> None:
+        class SearchTrackedText(str):
+            def __init__(self, value: str) -> None:
+                self.search_spans: list[int] = []
+
+            def find(
+                self, sub: str, start: SupportsIndex | None = None,
+                end: SupportsIndex | None = None,
+            ) -> int:
+                begin = 0 if start is None else index(start)
+                stop = len(self) if end is None else index(end)
+                self.search_spans.append(stop - begin)
+                return super().find(sub, begin, stop)
+
+            def rfind(
+                self, sub: str, start: SupportsIndex | None = None,
+                end: SupportsIndex | None = None,
+            ) -> int:
+                begin = 0 if start is None else index(start)
+                stop = len(self) if end is None else index(end)
+                self.search_spans.append(stop - begin)
+                return super().rfind(sub, begin, stop)
+
+        tracked = SearchTrackedText("x" * 200_000)
+        self.assertEqual(_next_chunk_start(tracked, 100_000, 100_500, 100, 500), 100_400)
+        self.assertLessEqual(max(tracked.search_spans), 502)
+
+        token = ("abcdefghijklmnopqrstuvwxyz" * 7693)[:200_000]
+        chunks = chunk_pages([page(token)], chunk_size=500, overlap=100)
+
+        self.assertEqual(len(chunks), 500)
+        self.assertTrue(all(len(chunk["text"]) <= 500 for chunk in chunks))
+        self.assertEqual(chunks[0]["text"], token[:500])
+        self.assertEqual(chunks[1]["text"], token[400:900])
+        self.assertEqual(chunks[-1]["text"], token[199_600:])
+
+    def test_punctuation_checks_do_not_rescan_the_page_prefix(self) -> None:
+        with patch("app.ingestion.chunking._ABBREVIATION_PERIOD") as pattern:
+            pattern.search.return_value = None
+            chunk_pages([page("A. " * 1000)], chunk_size=500, overlap=100)
+
+        self.assertGreater(pattern.search.call_count, 100)
+        self.assertTrue(all(
+            call.args[2] - call.args[1] <= 64
+            for call in pattern.search.call_args_list
+        ))
+
+    def test_rejects_excess_chunks(self) -> None:
+        with self.assertRaisesRegex(ValueError, "2-chunk limit"):
+            chunk_pages([page("x" * 25)], chunk_size=10, overlap=0, max_chunks=2)
 
     def test_rejects_invalid_chunk_settings(self) -> None:
         for chunk_size, overlap in [(0, 0), (-1, 0), (10, -1), (10, 10), (10, 11)]:
