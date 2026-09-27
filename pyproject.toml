@@ -1,7 +1,7 @@
 [project]
 name = "research-rag-assistant"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local-first RAG assistant for querying academic PDFs"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -15,15 +15,8 @@ dependencies = [
     "uvicorn[standard]>=0.52.4",
 ]
 
-[project.scripts]
-research-rag-assistant = "research_rag_assistant:main"
-
-[build-system]
-requires = ["uv_build>=0.12.7,<0.13.0"]
-build-backend = "uv_build"
-
 [tool.mypy]
-files = ["app", "scripts", "tests", "src"]
+files = ["app", "scripts", "tests"]
 strict = true
 explicit_package_bases = true
 follow_imports = "silent"

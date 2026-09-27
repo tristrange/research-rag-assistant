@@ -374,9 +374,8 @@ uv run python -m scripts.compare_reranking --top-k 3 --candidates 10 --repetitio
 
 `--document` changes the indexed filename of the **same evaluation paper**; it does
 not supply labels for a different paper. `--output` chooses a JSON file; existing
-files are not overwritten. After experimenting with `compare_chunking`, run
-`scripts.index_pdf` again to restore the documented 500/100 configuration before
-comparing against these results.
+files are not overwritten. If you change the chunking configuration, reindex the
+paper before comparing against these results.
 
 ### Measured comparison (2026-09-14)
 
