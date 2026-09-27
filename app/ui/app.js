@@ -19,19 +19,50 @@ function updateSubmitState() {
   askButton.disabled = !hasDocuments || isSubmitting || !questionInput.value.trim();
 }
 
-function renderAnswer(answer) {
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function appendLinkedText(nodes, text, sourcePages, references) {
+  if (!references) {
+    nodes.push(document.createTextNode(text));
+    return;
+  }
+
+  let position = 0;
+  for (const match of text.matchAll(references)) {
+    // A filename may be a suffix of another word; only link a complete reference.
+    if (match.index > 0 && /[\w.-]/.test(text[match.index - 1])) continue;
+    nodes.push(document.createTextNode(text.slice(position, match.index)));
+    const page = sourcePages.get(match[0].toLowerCase());
+    const link = document.createElement("a");
+    link.href = `#${page.id}`;
+    link.textContent = match[0];
+    link.addEventListener("click", () => { page.open = true; });
+    nodes.push(link);
+    position = match.index + match[0].length;
+  }
+  nodes.push(document.createTextNode(text.slice(position)));
+}
+
+function renderAnswer(answer, sourcePages) {
   const nodes = [];
+  const labels = [...sourcePages.keys()].sort((left, right) => right.length - left.length);
+  const references = labels.length
+    ? new RegExp(`(${labels.map(escapeRegex).join("|")})(?![\\w])`, "gi")
+    : null;
   const emphasis = /(\*\*|\*)([^\s*](?:[^*\n]*[^\s*])?)\1/g;
   let position = 0;
-
   for (const match of answer.matchAll(emphasis)) {
-    nodes.push(document.createTextNode(answer.slice(position, match.index)));
+    appendLinkedText(nodes, answer.slice(position, match.index), sourcePages, references);
     const element = document.createElement(match[1] === "**" ? "strong" : "em");
-    element.textContent = match[2];
+    const content = [];
+    appendLinkedText(content, match[2], sourcePages, references);
+    element.append(...content);
     nodes.push(element);
     position = match.index + match[0].length;
   }
-  nodes.push(document.createTextNode(answer.slice(position)));
+  appendLinkedText(nodes, answer.slice(position), sourcePages, references);
   answerText.replaceChildren(...nodes);
 }
 
@@ -64,19 +95,36 @@ async function loadDocuments() {
 
 function showSources(sources) {
   sourceList.replaceChildren();
+  const groups = new Map();
+  const sourcePages = new Map();
   for (const source of sources) {
-    const item = document.createElement("details");
-    item.className = "source-item";
-    const label = document.createElement("summary");
-    label.textContent = `${source.document} · page ${source.page} · ${source.section || "unknown"}`;
+    const key = JSON.stringify([source.document, source.page]);
+    let group = groups.get(key);
+    if (!group) {
+      const item = document.createElement("details");
+      item.className = "source-item";
+      item.id = `source-page-${groups.size + 1}`;
+      const label = document.createElement("summary");
+      label.textContent = `${source.document} · page ${source.page}`;
+      item.append(label);
+      sourceList.append(item);
+      group = { item, sections: new Set(), label };
+      groups.set(key, group);
+      sourcePages.set(`${source.document}, page ${source.page}`.toLowerCase(), item);
+    }
+    group.sections.add(source.section || "unknown");
     const excerpt = document.createElement("p");
     excerpt.className = "source-excerpt";
     excerpt.textContent = source.text;
-    item.append(label, excerpt);
-    sourceList.append(item);
+    group.item.append(excerpt);
+  }
+  for (const [key, group] of groups) {
+    const [filename, page] = JSON.parse(key);
+    group.label.textContent = `${filename} · page ${page} · ${[...group.sections].join(", ")}`;
   }
   sourceCount.textContent = String(sources.length);
   sourcesPanel.hidden = sources.length === 0;
+  return sourcePages;
 }
 
 async function submitQuestion(event) {
@@ -116,9 +164,9 @@ async function submitQuestion(event) {
       throw new Error("invalid answer response");
     }
 
-    renderAnswer(result.answer);
+    const sourcePages = showSources(result.sources);
+    renderAnswer(result.answer, sourcePages);
     answerPanel.hidden = false;
-    showSources(result.sources);
     requestStatus.textContent = "Answer ready.";
   } catch (error) {
     requestStatus.textContent = "The request did not complete.";

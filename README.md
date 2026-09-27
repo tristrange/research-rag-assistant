@@ -170,8 +170,10 @@ uv run uvicorn app.main:app --reload --reload-dir app
 
 Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the browser interface.
 It lists the indexed PDFs, lets you search one paper, top matches across the
-library, or every paper separately in overview or targeted-search mode. It offers plain and experimental verified
-answers. The passages below an answer are
+library, or every paper separately in overview or targeted-search mode. It offers
+plain and experimental verified answers. Page references that match a returned
+source link to its retrieved passages, grouped by document and page. These links
+help with inspection but do not verify a claim. The passages below an answer are
 the retrieved context; they are not necessarily passages the answer cited. The
 page uses the same `/documents` and `/query` endpoints as the command-line
 examples below, and needs no separate frontend install or build step.
@@ -565,6 +567,12 @@ Run the regression tests without Ollama or PostgreSQL:
 
 ```bash
 uv run python -m unittest discover -s tests -v
+```
+
+If Node.js is installed, check the browser answer and source rendering separately:
+
+```bash
+node --test tests/test_ui_rendering.js
 ```
 
 These tests use SQLite and stubbed extraction, embeddings, and reranking to check

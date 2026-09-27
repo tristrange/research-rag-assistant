@@ -17,7 +17,7 @@ class BrowserUiTests(unittest.TestCase):
             '<label for="answer-mode">',
             'id="request-error" class="request-error" role="alert"',
             'id="source-list"',
-            'src="/static/app.js?v=5"',
+            'src="/static/app.js?v=6"',
             'Each paper (overview)',
             'Each paper (targeted search)',
         ]:
@@ -27,8 +27,8 @@ class BrowserUiTests(unittest.TestCase):
 
     def test_browser_assets_and_api_docs_are_served(self) -> None:
         client = TestClient(app)
-        script = client.get("/static/app.js?v=5")
-        stylesheet = client.get("/static/styles.css?v=2")
+        script = client.get("/static/app.js?v=6")
+        stylesheet = client.get("/static/styles.css?v=3")
         docs = client.get("/docs")
         self.assertEqual(script.status_code, 200)
         self.assertIn("javascript", script.headers["content-type"])

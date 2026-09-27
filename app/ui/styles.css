@@ -145,16 +145,20 @@ button:disabled { cursor: not-allowed; opacity: 0.48; box-shadow: none; }
   background: var(--soft);
 }
 #answer-text { margin: 0; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+#answer-text a { color: var(--accent-dark); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+#answer-text a:hover { text-decoration-thickness: 2px; }
 .sources-panel { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
 .sources-heading { display: flex; align-items: baseline; gap: 0.55rem; }
 .sources-heading h3 { margin: 0; }
 #source-count { padding: 0.12rem 0.45rem; border-radius: 99px; background: #edf5ef; color: var(--accent-dark); font-size: 0.75rem; font-weight: 700; }
 .sources-panel .field-note { margin: 0.4rem 0 1rem; }
 .source-item { margin-top: 0.65rem; border: 1px solid var(--line); border-radius: 0.55rem; background: #fff; }
+.source-item:target { border-color: var(--accent); box-shadow: 0 0 0 2px #176c5926; }
 .source-item summary { padding: 0.75rem 0.9rem; cursor: pointer; font-size: 0.84rem; font-weight: 650; overflow-wrap: anywhere; }
 .source-item summary:hover { background: var(--soft); }
 .source-item[open] summary { border-bottom: 1px solid var(--line); }
 .source-excerpt { margin: 0; padding: 0.85rem; color: #334b45; font-size: 0.86rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.source-excerpt + .source-excerpt { border-top: 1px solid var(--line); }
 
 @media (max-width: 800px) {
   .page-shell { padding-top: 2.5rem; }
