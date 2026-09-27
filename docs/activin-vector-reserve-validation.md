@@ -160,3 +160,55 @@ area, and the paper is now development data. A separate fixed-source diagnostic
 could inspect whether the cross-page refusal reproduces and which stage produces
 it; any replay would be a new generation trial, not a reconstruction of this
 first run.
+
+## Fixed-source follow-up (2026-09-27)
+
+The saved source bundles for `activin-liver-tg-duration` were replayed once per
+arm with the same grounding prompt fingerprint
+(`9808eeca3e7f1cbc8c2bef56b01d11869eb20f67ff97e49c11376a57ff494646`),
+GPT-OSS 20B, draft thinking `low`, and verifier thinking `medium`. Retrieval and
+judging were not rerun. The baseline replay answered after its initial draft
+used an invalid `claim` field instead of `text`; bounded repair corrected the
+schema and the fold changes. The vector-reserve replay drafted the correct
+2.8-fold and 2.6-fold changes, but verification rejected the claim: its quoted
+page-3 short-term result does not say those mice were chow-fed. The repair draft
+then declined to answer. This reproduces the refusal at the verifier stage in
+a new trial; it does not recover the original run's unrecorded trace or prove
+that the extra passage caused the refusal.
+
+The baseline's accepted answer used the same page-3 quote, so its short-term
+*chow-fed* qualifier was not established by its cited passage either. The
+paper's page-2 methods describe a standard-chow group, but that methods passage
+was absent from both saved source bundles. The benchmark's short-term evidence
+label likewise quotes only the 2.8-fold result, while its reference answer
+adds the chow-fed qualifier. Thus the apparent vector-reserve regression mixes
+retrieval, answer generation, and a source-support gap in the frozen label.
+Keep the original manifest and first-run reports intact; neither arm supports
+changing the API default from this case.
+
+Two assistant-authored synthetic verifier controls now distinguish a comparison
+where only the long-term result specifies chow-fed mice from one where both
+results do. The first control is rejected and the second accepted with the
+current grounding contract. The first control attempt failed both before the
+fixture's quote was made an exact available evidence span; its report is
+retained. The runner now requires these semantic controls to actually call the
+verifier, so an invalid quote cannot make the expected rejection look like a
+pass. The corrected pair passed 2/2, with one verifier response for each.
+This tests one population qualifier, not general verifier accuracy.
+
+All reports remain in ignored `evaluation-results/` and contain source text.
+Their SHA-256 digests are:
+
+| Report | SHA-256 |
+| --- | --- |
+| `activin-liver-baseline-replay-20260927.json` | `ebadec01ba1ce43ca9166384dd042afbdc225a3a3dd8189f7ba61858c2f8bdff` |
+| `activin-liver-reserve-replay-20260927.json` | `35fe51fcf289c55da53aa85a4f6c5a7fa2eb86da5117025c3c61ce3a2cc578bd` |
+| `activin-population-controls-20260927.json` (invalid fixtures) | `21202c482f1e266214df6616ab9223962ae0e20036ecf7b91a45fa11867c06c3` |
+| `activin-population-controls-revised-20260927.json` | `0f926bd4c6181c27674faa54115483560a8d74b0d86f628fa85c30bd65c3d273` |
+| `activin-population-controls-final-20260927.json` (semantic-call guard) | `7b77a5b15d826f81183b4db335a560686b4287bc71a2ecee934f07bb6dc6841d` |
+
+For the next retrieval experiment, freeze a new development comparison that
+requires both a measured result and its study-design qualifier, then assess
+whether the returned *cited passages* establish each requested fact. Exact
+quote presence and answer-level scoring alone cannot establish this. Preserve
+an untouched validation paper for any later default-change decision.
