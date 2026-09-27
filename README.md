@@ -96,8 +96,8 @@ curl -X POST http://127.0.0.1:8000/query \
 ```
 
 Omitting `document` keeps corpus-wide retrieval of the top matching passages;
-it does not guarantee coverage of every indexed paper. For a separate answer
-for **each** indexed paper, use `scope: "each"` without `document`:
+it does not guarantee coverage of every indexed paper. For a findings overview
+of **each** indexed paper, use `scope: "each"` without `document`:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/query \
@@ -106,7 +106,7 @@ curl -X POST http://127.0.0.1:8000/query \
   | jq
 ```
 
-This mode retrieves passages from each paper independently, preferring its
+This overview mode retrieves passages from each paper independently, preferring its
 conclusion, then abstract, discussion, and results sections, with a document-wide
 fallback when those section labels are unavailable. It runs a separate
 answer call per paper and can take several minutes, especially in verified mode.
@@ -114,6 +114,17 @@ Each answer is labelled with its paper. It is still based on selected passages,
 not a complete reading of every PDF. An insufficient-evidence answer means the
 retrieved passages did not establish the requested finding, not that the paper
 has none.
+
+For a specific question, such as a method or protocol, use `scope: "each_query"`.
+It still answers separately for every indexed paper, but searches each complete
+paper for passages relevant to the question instead of prioritizing summaries:
+
+```bash
+curl -X POST http://127.0.0.1:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question":"How was glucose tolerance measured?","scope":"each_query"}' \
+  | jq
+```
 
 An unknown filename yields an insufficient-evidence answer with no sources; an
 empty or path-like filename is rejected. Document identity is still the basename, so two PDFs with the same
@@ -159,7 +170,7 @@ uv run uvicorn app.main:app --reload --reload-dir app
 
 Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the browser interface.
 It lists the indexed PDFs, lets you search one paper, top matches across the
-library, or every paper separately. It offers plain and experimental verified
+library, or every paper separately in overview or targeted-search mode. It offers plain and experimental verified
 answers. The passages below an answer are
 the retrieved context; they are not necessarily passages the answer cited. The
 page uses the same `/documents` and `/query` endpoints as the command-line

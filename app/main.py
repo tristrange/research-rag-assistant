@@ -18,7 +18,7 @@ app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 class QueryRequest(BaseModel):
     question: str
     answer_mode: Literal["plain", "verified"] = "plain"
-    scope: Literal["relevant", "each"] = "relevant"
+    scope: Literal["relevant", "each", "each_query"] = "relevant"
     document: str | None = None
 
     @field_validator("document")
@@ -30,7 +30,7 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def valid_scope(self) -> Self:
-        if self.scope == "each" and self.document is not None:
+        if self.scope in ("each", "each_query") and self.document is not None:
             raise ValueError("each-paper scope cannot select one document")
         return self
 
@@ -61,7 +61,13 @@ def documents() -> list[str]:
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     if request.scope == "each":
-        result = answer_each_document(request.question, answer_mode=request.answer_mode)
+        result = answer_each_document(
+            request.question, answer_mode=request.answer_mode, overview=True,
+        )
+    elif request.scope == "each_query":
+        result = answer_each_document(
+            request.question, answer_mode=request.answer_mode, overview=False,
+        )
     else:
         result = answer_question(
             request.question, answer_mode=request.answer_mode, document=request.document,
