@@ -39,11 +39,34 @@ Install dependencies:
 uv sync
 ```
 
-Start PostgreSQL:
+Create local credentials and start PostgreSQL. The private `.env` file is ignored
+by Git; source it in each new terminal before running the API or scripts:
 
 ```bash
+if [ ! -e .env ]; then
+  umask 077
+  RAG_DB_PASSWORD=$(openssl rand -hex 24)
+  printf 'RAG_DB_PASSWORD=%s\nRAG_DATABASE_URL=postgresql+psycopg://rag:%s@localhost:5432/rag\n' \
+    "$RAG_DB_PASSWORD" "$RAG_DB_PASSWORD" > .env
+fi
+set -a
+. ./.env
+set +a
 docker compose up -d
 ```
+
+For an existing PostgreSQL volume created with the old `rag` password, rotate
+the role once after starting the container (a new volume needs no rotation):
+
+```bash
+docker compose exec -T db psql -U rag -d rag <<SQL
+ALTER ROLE rag WITH PASSWORD '${RAG_DB_PASSWORD}';
+SQL
+```
+
+Compose now publishes PostgreSQL only on `127.0.0.1`. The application is still
+intended for local use; do not expose its API or Ollama to other devices without
+adding authentication and deployment-specific access controls.
 
 Initialize the database:
 
@@ -54,6 +77,7 @@ uv run python -m scripts.init_db
 Pull the local models:
 
 ```bash
+ollama pull gpt-oss:20b
 ollama pull qwen3:8b
 ollama pull nomic-embed-text
 ```
@@ -165,18 +189,47 @@ model follows it. See the [attribution evaluation](docs/source-attribution-evalu
 Start the API:
 
 ```bash
-uv run uvicorn app.main:app --reload --reload-dir app
+uv run uvicorn app.main:app --host 127.0.0.1 --reload --reload-dir app
 ```
 
 Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the browser interface.
 It lists the indexed PDFs, lets you search one paper, top matches across the
-library, or every paper separately in overview or targeted-search mode. It offers
-plain and experimental verified answers. Page references that match a returned
+library, or every paper separately in overview or targeted-search mode. It uses
+experimental verified answers. Page references that match a returned
 source link to its retrieved passages, grouped by document and page. These links
 help with inspection but do not verify a claim. The passages below an answer are
 the retrieved context; they are not necessarily passages the answer cited. The
 page uses the same `/documents` and `/query` endpoints as the command-line
 examples below, and needs no separate frontend install or build step.
+
+## Local security boundary
+
+PDF text is untrusted. A paper can contain instructions directed at an assistant;
+if retrieved, those instructions may influence a generated answer. The browser and
+`/query` endpoint use verified answers only: they require source-specific quotes
+and a separate claim check. This cannot prove that a PDF is authentic or make
+prompt injection impossible. Review a PDF and its provenance before indexing it,
+and inspect cited passages before relying on an answer. The plain generator remains
+available only to local evaluation scripts for comparisons, not through the API.
+
+The API accepts questions up to 2,000 characters and runs one query at a time;
+an overlapping query receives HTTP 429. The app rejects non-loopback clients and
+unexpected Host headers, including a basic DNS-rebinding route into localhost.
+It has no user authentication, so keep Uvicorn, PostgreSQL, and Ollama on loopback.
+If you later want access from other devices, add authentication and per-client
+limits before changing this boundary. A local reverse proxy can make a remote
+client appear to be on loopback, so the application check is not authentication.
+The browser inserts model and PDF text as text, not HTML.
+
+Run the synthetic prompt-injection probe against your installed Ollama models:
+
+```bash
+uv run python -m scripts.check_prompt_injection
+uv run python -m scripts.check_prompt_injection --mode plain
+```
+
+The probe tests one attack pattern, not all possible injections. A failing plain
+probe demonstrates why the API does not offer plain mode.
 
 ## Local model settings
 
@@ -184,20 +237,16 @@ Set these environment variables before starting the API or evaluation process:
 
 | Variable | Default | Role |
 |---|---|---|
-| `RAG_GENERATOR_MODEL` | `qwen3:8b` | Plain answer generation |
+| `RAG_GENERATOR_MODEL` | `qwen3:8b` | Plain generation in local evaluation scripts |
 | `RAG_GROUNDING_MODEL` | `gpt-oss:20b` | Verified drafting and verification |
 | `RAG_JUDGE_MODEL` | `qwen3:8b` | Evaluation and judge calibration |
 | `RAG_DRAFT_THINK` | `low` | Verified draft reasoning |
 | `RAG_VERIFIER_THINK` | `medium` | Verified reasoning |
-| `RAG_DATABASE_URL` | `postgresql+psycopg://rag:rag@localhost:5432/rag` | Index connection |
+| `RAG_DB_PASSWORD` | Required by Compose | Local PostgreSQL password |
+| `RAG_DATABASE_URL` | No usable password by default; set via private `.env` | Index connection |
 
-For example, use an already-installed GPT-OSS model for plain answers:
-
-```bash
-RAG_GENERATOR_MODEL=gpt-oss:20b uv run uvicorn app.main:app --reload --reload-dir app
-```
-
-Verified mode uses `RAG_GROUNDING_MODEL` independently of the plain generator.
+The API uses `RAG_GROUNDING_MODEL`; local plain-mode evaluation uses
+`RAG_GENERATOR_MODEL` independently.
 Reasoning values accept `true`, `false`, `low`, `medium`, or `high`; choose values
 supported by the selected model. These settings do not change the embedding model
 or require reindexing. Models must already be installed in Ollama; there is no
@@ -207,14 +256,15 @@ actual evidence, not rely only on aggregate model grades.
 
 ## Verified answer mode (experimental)
 
-This opt-in mode is experimental. In the latest 24-question development run it
+The API's verified mode is experimental. In the latest 24-question development run it
 answered 17 of 18 answerable questions and correctly refused all six unanswerable
 questions. One answerable question still received a false refusal. These results
 come from one paper used during development; they are not a reliability guarantee.
 See the [evaluation report](docs/verified-claims-evaluation.md) for the full results
-and the retained failures from earlier versions. Plain remains the default.
+and the retained failures from earlier versions. Plain remains available only to
+local evaluation scripts.
 
-Set `answer_mode` to `verified` to try claim-level grounding:
+Omit `answer_mode` to use claim-level grounding, or set it explicitly to `verified`:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/query \
@@ -236,8 +286,10 @@ response. Model connection errors still propagate as errors, not evidence refusa
 The response shape remains `answer` and `sources`; sources are the retrieved bundle,
 not a list filtered to cited passages. Quote matches establish textual presence, not
 semantic support, and the same local model acts as drafter and verifier. This mode
-can reject valid answers or miss subtle unsupported claims. The default stays `plain`;
-neighbor expansion also remains opt-in through the evaluation CLI. The
+can reject valid answers or miss subtle unsupported claims. The API and browser
+use `verified`; `answer_mode: "plain"` is rejected by the API. Local evaluation
+scripts retain plain generation for controlled comparisons. Neighbor expansion
+also remains opt-in through the evaluation CLI. The
 [refusal diagnostics](docs/grounding-refusal-diagnostics.md) distinguish initial
 draft refusals from verifier errors and record the targeted checks.
 
@@ -248,7 +300,7 @@ uv run python -m scripts.evaluate_answers --strategy expanded --answer-mode veri
 
 Verified mode uses `gpt-oss:20b` with low reasoning for drafting, medium reasoning
 for verification, and temperature zero. Install it with `ollama pull gpt-oss:20b` before trying this
-mode. Plain answers and the evaluation judge continue to use `qwen3:8b`.
+mode. Plain evaluation and the evaluation judge continue to use `qwen3:8b`.
 Verified requests use a 12,288-token context window, a 4,096-token output limit
 (including reasoning), and a 300-second timeout per call. Evaluation records the answer mode, both
 model configurations, and the grounding prompt/schema contract fingerprint. Resume

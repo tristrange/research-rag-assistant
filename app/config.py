@@ -14,7 +14,7 @@ def setting(name: str, default: str) -> str:
 GENERATOR_MODEL = setting("RAG_GENERATOR_MODEL", "qwen3:8b")
 GROUNDING_MODEL = setting("RAG_GROUNDING_MODEL", "gpt-oss:20b")
 JUDGE_MODEL = setting("RAG_JUDGE_MODEL", "qwen3:8b")
-DATABASE_URL = setting("RAG_DATABASE_URL", "postgresql+psycopg://rag:rag@localhost:5432/rag")
+DATABASE_URL = setting("RAG_DATABASE_URL", "postgresql+psycopg://rag@localhost:5432/rag")
 
 
 def reasoning_setting(name: str, default: str) -> bool | Literal["low", "medium", "high"]:

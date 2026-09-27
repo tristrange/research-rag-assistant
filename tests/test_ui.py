@@ -7,17 +7,16 @@ from app.main import app
 
 class BrowserUiTests(unittest.TestCase):
     def test_home_serves_labeled_query_form_and_result_regions(self) -> None:
-        response = TestClient(app).get("/")
+        response = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)).get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
         for fragment in [
             '<form id="query-form">',
             '<label for="document">',
             '<label for="question">',
-            '<label for="answer-mode">',
             'id="request-error" class="request-error" role="alert"',
             'id="source-list"',
-            'src="/static/app.js?v=6"',
+            'src="/static/app.js?v=7"',
             'Each paper (overview)',
             'Each paper (targeted search)',
         ]:
@@ -26,8 +25,8 @@ class BrowserUiTests(unittest.TestCase):
         self.assertNotIn('class="step"', response.text)
 
     def test_browser_assets_and_api_docs_are_served(self) -> None:
-        client = TestClient(app)
-        script = client.get("/static/app.js?v=6")
+        client = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000))
+        script = client.get("/static/app.js?v=7")
         stylesheet = client.get("/static/styles.css?v=3")
         docs = client.get("/docs")
         self.assertEqual(script.status_code, 200)

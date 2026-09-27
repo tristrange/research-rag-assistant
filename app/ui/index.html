@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
     <link rel="stylesheet" href="/static/styles.css?v=3">
-    <script src="/static/app.js?v=6" defer></script>
+    <script src="/static/app.js?v=7" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -39,14 +39,9 @@
             <p class="field-note">An overview prioritizes each paper's conclusions. Targeted search finds passages for your question in each paper. Both can take longer.</p>
 
             <label for="question">Question</label>
-            <textarea id="question" name="question" rows="5" placeholder="What were the main findings?" required></textarea>
+            <textarea id="question" name="question" rows="5" maxlength="2000" placeholder="What were the main findings?" required></textarea>
 
-            <label for="answer-mode">Answer mode</label>
-            <select id="answer-mode" name="answer-mode">
-              <option value="plain">Plain answer</option>
-              <option value="verified">Verified answer (experimental)</option>
-            </select>
-            <p class="field-note">Verified mode checks claim support but can take several minutes and may refuse an answer even when evidence exists.</p>
+            <p class="field-note">Answers are checked against retrieved passages. This can take several minutes and may refuse an answer even when evidence exists. Always inspect the source passages before relying on an answer.</p>
 
             <button id="ask-button" type="submit" disabled>Ask question <span aria-hidden="true">→</span></button>
           </form>

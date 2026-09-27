@@ -2,7 +2,6 @@ const form = document.getElementById("query-form");
 const documentSelect = document.getElementById("document");
 const libraryStatus = document.getElementById("library-status");
 const questionInput = document.getElementById("question");
-const modeSelect = document.getElementById("answer-mode");
 const askButton = document.getElementById("ask-button");
 const requestStatus = document.getElementById("request-status");
 const requestError = document.getElementById("request-error");
@@ -153,7 +152,7 @@ async function submitQuestion(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question,
-        answer_mode: modeSelect.value,
+        answer_mode: "verified",
         scope,
         document: eachPaper ? null : documentSelect.value || null,
       }),
@@ -170,9 +169,13 @@ async function submitQuestion(event) {
     requestStatus.textContent = "Answer ready.";
   } catch (error) {
     requestStatus.textContent = "The request did not complete.";
-    requestError.textContent = error instanceof TypeError
-      ? "Could not connect to the API. Check that the server is running."
-      : "The query failed. Check the API logs and local services, then try again.";
+    if (error instanceof TypeError) {
+      requestError.textContent = "Could not connect to the API. Check that the server is running.";
+    } else if (error instanceof Error && error.message === "HTTP 429") {
+      requestError.textContent = "Another question is still running. Wait for it to finish, then try again.";
+    } else {
+      requestError.textContent = "The query failed. Check the API logs and local services, then try again.";
+    }
     requestError.hidden = false;
   } finally {
     isSubmitting = false;
