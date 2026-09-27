@@ -12,6 +12,7 @@ _ABBREVIATION_PERIOD = re.compile(
     r"(?:\bet\s+al|\b(?:fig|e\.g|i\.e|dr|mr|mrs|vs))\.$",
     re.IGNORECASE,
 )
+_ABBREVIATION_LOOKBEHIND = 64
 
 
 def _is_abbreviation_period(text: str, match: re.Match[str]) -> bool:
@@ -19,7 +20,11 @@ def _is_abbreviation_period(text: str, match: re.Match[str]) -> bool:
     # et al. permits any whitespace (including extracted PDF line breaks)
     # between its tokens. Search against the full prefix so token boundaries
     # cannot be fabricated by trimming the text.
-    return _ABBREVIATION_PERIOD.search(text, 0, match.start() + 1) is not None
+    # Search only the local suffix. A full-prefix search at every punctuation
+    # mark makes punctuation-heavy pages quadratic in length.
+    return _ABBREVIATION_PERIOD.search(
+        text, max(0, match.start() + 1 - _ABBREVIATION_LOOKBEHIND), match.start() + 1,
+    ) is not None
 
 
 def _next_chunk_end(text: str, start: int, chunk_size: int, previous_end: int) -> int:
@@ -73,8 +78,26 @@ def _next_chunk_start(text: str, start: int, end: int, overlap: int, chunk_size:
 
     # Do not cut an ordinary word just to satisfy overlap. Hard splitting is
     # useful only when the word itself exceeds the configured chunk size.
-    token_start = max(text.rfind(" ", 0, desired), text.rfind("\n", 0, desired), text.rfind("\t", 0, desired)) + 1
-    token_end_candidates = [position for position in (text.find(" ", desired), text.find("\n", desired), text.find("\t", desired)) if position >= 0]
+    # Include the delimiters around a token of exactly chunk_size characters.
+    window_start = max(0, desired - chunk_size - 1)
+    window_end = min(len(text), desired + chunk_size + 1)
+    last_separator = max(
+        text.rfind(" ", window_start, desired),
+        text.rfind("\n", window_start, desired),
+        text.rfind("\t", window_start, desired),
+    )
+    if last_separator < 0 and window_start > 0:
+        return desired
+    token_start = last_separator + 1
+    token_end_candidates = [
+        position for position in (
+            text.find(" ", desired, window_end),
+            text.find("\n", desired, window_end),
+            text.find("\t", desired, window_end),
+        ) if position >= 0
+    ]
+    if not token_end_candidates and window_end < len(text):
+        return desired
     token_end = min(token_end_candidates) if token_end_candidates else len(text)
     if token_end - token_start > chunk_size:
         return desired
@@ -85,11 +108,15 @@ def chunk_pages(
     pages: list[PageData],
     chunk_size: int = 1000,
     overlap: int = 200,
+    *,
+    max_chunks: int | None = None,
 ) -> list[ChunkData]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than zero")
     if overlap < 0 or overlap >= chunk_size:
         raise ValueError("overlap must be between zero and chunk_size - 1")
+    if max_chunks is not None and max_chunks <= 0:
+        raise ValueError("max_chunks must be greater than zero")
 
     chunks: list[ChunkData] = []
     current_document: str | None = None
@@ -123,6 +150,8 @@ def chunk_pages(
                     continue
                 # Text is emitted as an exact page substring, without strip(), so
                 # punctuation, numbers, and whitespace at either edge are retained.
+                if max_chunks is not None and len(chunks) >= max_chunks:
+                    raise ValueError(f"PDF exceeds the {max_chunks}-chunk limit")
                 chunks.append(
                     {
                         "document": page["document"],

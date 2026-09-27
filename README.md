@@ -162,6 +162,11 @@ numbers and detached sentence fragments, but does not guarantee correct retrieva
 or answers. Sentence detection is a lightweight punctuation heuristic, not a full
 parser for scientific prose.
 
+Indexing rejects PDFs with more than 500 pages, 100,000 extracted characters on
+one page, 2,000,000 extracted characters in total, or 10,000 chunks. These limits keep an
+unusual PDF from monopolizing local processing; a rejected import leaves the
+existing index unchanged.
+
 After updating the chunker, rerun `uv run python -m scripts.index_pdf` to replace
 the stored chunks and embeddings. Existing indexes do not change automatically.
 Then rerun the retrieval and answer evaluations below; older reports describe the
@@ -220,6 +225,8 @@ If you later want access from other devices, add authentication and per-client
 limits before changing this boundary. A local reverse proxy can make a remote
 client appear to be on loopback, so the application check is not authentication.
 The browser inserts model and PDF text as text, not HTML.
+The `/docs` page is served locally without third-party scripts and links to the
+current OpenAPI schema at `/openapi.json`.
 
 Run the synthetic prompt-injection probe against your installed Ollama models:
 

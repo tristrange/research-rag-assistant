@@ -14,7 +14,7 @@ from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
 
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None)
 _query_gate = Lock()
 _LOCAL_HOST = re.compile(r"(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?", re.IGNORECASE)
 UI_DIR = Path(__file__).resolve().parent / "ui"
@@ -79,6 +79,11 @@ class QueryResponse(BaseModel):
 @app.get("/", response_class=FileResponse)
 def home() -> FileResponse:
     return FileResponse(UI_DIR / "index.html")
+
+
+@app.get("/docs", response_class=FileResponse, include_in_schema=False)
+def api_docs() -> FileResponse:
+    return FileResponse(UI_DIR / "api-docs.html")
 
 
 @app.get("/documents", response_model=list[str])
