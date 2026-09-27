@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 from time import perf_counter
 
+from pydantic import ValidationError
+
 from app.grounding import (
-    GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, generate_verification_json, grounding_fingerprint, verify_draft,
+    GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
+    generate_verification_json, grounding_fingerprint, verify_draft,
 )
 from app.types import ChunkData
 
@@ -106,8 +109,20 @@ FIXTURES = [
 SEMANTIC_CONTROLS = frozenset({"unsupported_shared_population", "supported_shared_population"})
 
 
-def control_passed(identifier: str, expected: bool, accepted: bool, verifier_called: bool) -> bool:
-    return accepted == expected and (identifier not in SEMANTIC_CONTROLS or verifier_called)
+def complete_verifier_verdict(outputs: list[dict[str, object]], claim_count: int) -> bool:
+    """Require one schema-valid verdict covering every draft claim."""
+    if len(outputs) != 1:
+        return False
+    try:
+        result = VerificationResult.model_validate(outputs[0])
+    except ValidationError:
+        return False
+    indexes = [verdict.claim_index for verdict in result.verdicts]
+    return len(indexes) == claim_count and set(indexes) == set(range(1, claim_count + 1))
+
+
+def control_passed(identifier: str, expected: bool, accepted: bool, verifier_verdict_complete: bool) -> bool:
+    return accepted == expected and (identifier not in SEMANTIC_CONTROLS or verifier_verdict_complete)
 
 
 def main() -> None:
@@ -145,9 +160,11 @@ def main() -> None:
 
             start = perf_counter()
             accepted = verify_draft(question, draft, [source], verifier=record)
-            passed = control_passed(identifier, expected, accepted, bool(outputs))
+            verdict_complete = complete_verifier_verdict(outputs, len(draft.claims))
+            passed = control_passed(identifier, expected, accepted, verdict_complete)
             results.append({"id": identifier, "expected": expected, "accepted": accepted,
-                            "passed": passed, "verifier_called": bool(outputs), "question": question,
+                            "passed": passed, "verifier_called": bool(outputs),
+                            "verifier_verdict_complete": verdict_complete, "question": question,
                             "draft": draft.model_dump(), "sources": [source],
                             "verifier_outputs": outputs, "elapsed_ms": (perf_counter()-start)*1000})
             report["results"] = results

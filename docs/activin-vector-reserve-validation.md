@@ -196,6 +196,12 @@ verifier, so an invalid quote cannot make the expected rejection look like a
 pass. The corrected pair passed 2/2, with one verifier response for each.
 This tests one population qualifier, not general verifier accuracy.
 
+A returned but schema-invalid verifier object could still make the
+expected-negative control pass. The runner now also requires a
+schema-valid verdict with exactly one verdict per draft claim. Both controls
+passed again with complete verdicts. This protects the meaning of a green
+semantic-control result; it does not change application answering.
+
 All reports remain in ignored `evaluation-results/` and contain source text.
 Their SHA-256 digests are:
 
@@ -206,6 +212,7 @@ Their SHA-256 digests are:
 | `activin-population-controls-20260927.json` (invalid fixtures) | `21202c482f1e266214df6616ab9223962ae0e20036ecf7b91a45fa11867c06c3` |
 | `activin-population-controls-revised-20260927.json` | `0f926bd4c6181c27674faa54115483560a8d74b0d86f628fa85c30bd65c3d273` |
 | `activin-population-controls-final-20260927.json` (semantic-call guard) | `7b77a5b15d826f81183b4db335a560686b4287bc71a2ecee934f07bb6dc6841d` |
+| `activin-population-controls-schema-20260927.json` (complete-verdict guard) | `e9d63f54dc4e515ec439d37602d4f0032de270ddd3d25733bd9462bc6e988317` |
 
 For the next retrieval experiment, freeze a new development comparison that
 requires both a measured result and its study-design qualifier, then assess
