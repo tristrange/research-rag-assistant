@@ -34,7 +34,7 @@ function appendLinkedText(nodes, text, sourcePages, references) {
     // A filename may be a suffix of another word; only link a complete reference.
     if (match.index > 0 && /[\w.-]/.test(text[match.index - 1])) continue;
     nodes.push(document.createTextNode(text.slice(position, match.index)));
-    const page = sourcePages.get(match[0].toLowerCase());
+    const page = sourcePages.get(match[0]);
     const link = document.createElement("a");
     link.href = `#${page.id}`;
     link.textContent = match[0];
@@ -49,7 +49,7 @@ function renderAnswer(answer, sourcePages) {
   const nodes = [];
   const labels = [...sourcePages.keys()].sort((left, right) => right.length - left.length);
   const references = labels.length
-    ? new RegExp(`(${labels.map(escapeRegex).join("|")})(?![\\w])`, "gi")
+    ? new RegExp(`(${labels.map(escapeRegex).join("|")})(?![\\w])`, "g")
     : null;
   const emphasis = /(\*\*|\*)([^\s*](?:[^*\n]*[^\s*])?)\1/g;
   let position = 0;
@@ -110,7 +110,7 @@ function showSources(sources) {
       sourceList.append(item);
       group = { item, sections: new Set(), label };
       groups.set(key, group);
-      sourcePages.set(`${source.document}, page ${source.page}`.toLowerCase(), item);
+      sourcePages.set(`${source.document}, page ${source.page}`, item);
     }
     group.sections.add(source.section || "unknown");
     const excerpt = document.createElement("p");

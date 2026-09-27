@@ -85,6 +85,19 @@ test("unreturned or partial page references remain plain text", () => {
   assert.match(nodes[0].textContent, /study\.pdf, page 90; oldstudy\.pdf, page 9; study\.pdf, page 8/);
 });
 
+test("case-distinct filenames link only to their own passages", () => {
+  const { showSources, renderAnswer, elements } = loadUi();
+  const pages = showSources([
+    { document: "Study.pdf", page: 4, section: "Results", text: "Uppercase paper" },
+    { document: "study.pdf", page: 4, section: "Results", text: "Lowercase paper" },
+  ]);
+  renderAnswer("Study.pdf, page 4; study.pdf, page 4; STUDY.pdf, page 4", pages);
+
+  const links = elements.get("answer-text").children.filter((node) => node.tagName === "A");
+  assert.deepEqual(links.map((link) => link.href), ["#source-page-1", "#source-page-2"]);
+  assert.match(elements.get("answer-text").textContent, /STUDY\.pdf, page 4$/);
+});
+
 test("a page reference inside bold text remains bold and clickable", () => {
   const { showSources, renderAnswer, elements } = loadUi();
   const pages = showSources([
