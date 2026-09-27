@@ -23,7 +23,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), [
             "qwen3:8b", "gpt-oss:20b", "qwen3:8b",
-            "postgresql+psycopg://rag:rag@localhost:5432/rag",
+            "postgresql+psycopg://rag@localhost:5432/rag",
         ])
 
     def test_roles_and_database_can_be_overridden_independently(self) -> None:

@@ -1,25 +1,53 @@
+from collections.abc import Awaitable, Callable
+from ipaddress import ip_address
 from pathlib import Path
+from threading import Lock
 from typing import Literal, Self
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
 
 
 app = FastAPI()
+_query_gate = Lock()
+app.add_middleware(
+    TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"],
+)
 UI_DIR = Path(__file__).resolve().parent / "ui"
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
 
+@app.middleware("http")
+async def local_only(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    """Reject accidental network exposure of this unauthenticated local app."""
+    try:
+        if request.client is None or not ip_address(request.client.host).is_loopback:
+            return JSONResponse({"detail": "Local access only"}, status_code=403)
+    except ValueError:
+        return JSONResponse({"detail": "Local access only"}, status_code=403)
+    return await call_next(request)
+
+
 class QueryRequest(BaseModel):
-    question: str
-    answer_mode: Literal["plain", "verified"] = "plain"
+    question: str = Field(min_length=1, max_length=2000)
+    answer_mode: Literal["verified"] = "verified"
     scope: Literal["relevant", "each", "each_query"] = "relevant"
     document: str | None = None
+
+    @field_validator("question")
+    @classmethod
+    def valid_question(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("question must contain non-whitespace text")
+        return value.strip()
 
     @field_validator("document")
     @classmethod
@@ -60,20 +88,24 @@ def documents() -> list[str]:
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
-    if request.scope == "each":
-        result = answer_each_document(
-            request.question, answer_mode=request.answer_mode, overview=True,
+    if not _query_gate.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="Another query is already running")
+    try:
+        if request.scope == "each":
+            result = answer_each_document(
+                request.question, answer_mode=request.answer_mode, overview=True,
+            )
+        elif request.scope == "each_query":
+            result = answer_each_document(
+                request.question, answer_mode=request.answer_mode, overview=False,
+            )
+        else:
+            result = answer_question(
+                request.question, answer_mode=request.answer_mode, document=request.document,
+            )
+        return QueryResponse(
+            answer=result["answer"],
+            sources=[Source(**source) for source in result["sources"]],
         )
-    elif request.scope == "each_query":
-        result = answer_each_document(
-            request.question, answer_mode=request.answer_mode, overview=False,
-        )
-    else:
-        result = answer_question(
-            request.question, answer_mode=request.answer_mode, document=request.document,
-        )
-
-    return QueryResponse(
-        answer=result["answer"],
-        sources=[Source(**source) for source in result["sources"]],
-    )
+    finally:
+        _query_gate.release()
