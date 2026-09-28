@@ -43,7 +43,7 @@ class ReviewManifest(StrictModel):
         return self
 
 
-REVIEW_COLUMNS = ["review_set_sha256", "case_key", "decision", "notes"]
+REVIEW_COLUMNS = ["case_key", "decision", "notes", "review_set_sha256"]
 DECISIONS = {"pending", "pass", "needs_fix", "label_issue"}
 
 
@@ -141,7 +141,7 @@ def prepare_packet(manifest: ReviewManifest, root: Path, output: Path) -> None:
             result = results[case_id]
             key = f"{selection.id}/{case_id}"
             articles.append(_case_html(key, result, len(articles) + 1, document, pdf.as_uri()))
-            rows.append([review_set_hash(manifest), key, "pending", ""])
+            rows.append([key, "pending", "", review_set_hash(manifest)])
     navigation = "<ol>" + "".join(
         f'<li><a href="#case-{number}">{escape(key)}</a></li>'
         for number, key in enumerate(case_keys(manifest), 1)

@@ -33,6 +33,11 @@ and duration qualifiers, supported negative results, cited-study attribution,
 and four unanswerable controls. All cases and papers have already been inspected
 during development. They are not an independent validation set.
 
+All four reports completed on 2026-09-28 using application commit `e5b9c0f`.
+The selection protocol was committed as `085bcd6` before generation. Each
+selected question was generated once, with no selective retries. Thomas and
+Emma will review the packet together; their decisions are still pending.
+
 Prepare a local HTML packet and CSV worksheet from the completed reports. Pin
 report hashes and case IDs in `benchmarks/v1-development-review.json`. The packet
 shows recorded answers and every retrieved passage, with reference labels in a
@@ -61,9 +66,11 @@ uv run python -m scripts.prepare_human_review \
 
 Open `packet.html` in that directory in a browser. Reviewers can inspect the
 cases together and enter agreed decisions in `review.csv`; note disagreements
-or disputed labels. The provenance file records the source reports and index
-fingerprints. PDF page links open the original local file in a new tab; the
-exporter checks its hash against the report before preparing the packet.
+or disputed labels. Edit only the `decision` and `notes` columns. The remaining
+columns bind the worksheet to this exact selection. The provenance file records
+the source reports and index fingerprints. PDF page links open the original
+local file in a new tab; the exporter checks its hash against the report before
+preparing the packet.
 No database or model service is needed to prepare or review the
 packet. The output directory must be new so existing review work is preserved.
 
