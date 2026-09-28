@@ -414,10 +414,12 @@ Latency is specific to this local run. The assistant's retrieval defaults are un
 
 ## Status
 
-Still in development. Initial passage-level and answer-quality evaluation is available.
-The browser interface supports one-paper or library-wide questions. Next steps
-include reviewing reference labels and judge scores, improving document identity,
-and making answer citations clearer.
+The local assistant has verified answering, passage-level and answer-quality
+evaluation, and a browser interface for one-paper or library-wide questions.
+The [local v1 readiness plan](docs/v1-readiness.md) defines the remaining quality,
+evidence-display, usability, and release milestones. Its first step is a bounded
+human review of 16 development cases; preparing the packet does not complete
+that review or approve a release.
 
 ## Answer-quality evaluation
 

@@ -39,6 +39,36 @@ shows recorded answers and every retrieved passage, with reference labels in a
 separate expandable section. Model-judge scores are omitted. Paper PDFs and the
 packet stay in ignored local directories; do not commit them.
 
+The recorded answer configuration hash is
+`7851218bd54bbee9fe17a63f4aec70125d637596547e3272554948c12b31308e`.
+It binds model tags and report settings, including the grounding prompt/schema
+fingerprint, embedding model, and reranker. It does not pin model weight digests.
+The exporter rejects reports with a different configuration even when their
+file hashes match the selection manifest.
+
+With the matching local reports present, run from the repository root:
+
+```bash
+uv run python -m scripts.prepare_human_review \
+  --output evaluation-results/v1-human-review
+```
+
+Open `packet.html` in that directory in a browser. You and Emma can inspect the
+cases together and enter agreed decisions in `review.csv`; note disagreements
+or disputed labels. The provenance file records the source reports and index
+fingerprints. No database or model service is needed to prepare or review the
+packet. The output directory must be new so existing review work is preserved.
+
+To count decisions and detect pending cases, missing rows, or unresolved issues:
+
+```bash
+uv run python -m scripts.prepare_human_review \
+  --summarize evaluation-results/v1-human-review/review.csv
+```
+
+The review CSV is bound to the frozen selection; it cannot be reused after
+changing reports, case IDs, or configuration. Decisions and notes stay local.
+
 ## Human review
 
 A human reviewer should read the question and answer first, then inspect the
