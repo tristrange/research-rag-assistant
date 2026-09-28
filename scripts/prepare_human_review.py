@@ -66,19 +66,28 @@ def _text(value: str) -> str:
     return f"<pre>{escape(value)}</pre>"
 
 
-def _case_html(key: str, result: CompletedResultModel, number: int) -> str:
+def _location(document: str, page: int, pdf_document: str, pdf_uri: str) -> str:
+    label = f"{escape(document)}, PDF page {page}"
+    if document == pdf_document:
+        return f'<a href="{escape(pdf_uri, quote=True)}#page={page}" target="_blank" rel="noopener">{label}</a>'
+    return label
+
+
+def _case_html(key: str, result: CompletedResultModel, number: int, pdf_document: str, pdf_uri: str) -> str:
     label = "answerable" if result.case.answerable else "unanswerable"
     sources = "".join(
-        f"<h4>Passage {index}: {escape(source.document)}, PDF page {source.page}, "
+        f"<h4>Passage {index}: {_location(source.document, source.page, pdf_document, pdf_uri)}, "
         f"chunk {source.chunk_index}, {escape(source.section)}</h4>{_text(source.text)}"
         for index, source in enumerate(result.sources, 1)
     ) or "<p>No passages returned.</p>"
     evidence = "".join(
-        f"<h4>{escape(item.document)}, PDF page {item.page}</h4>{_text(item.quote)}"
+        f"<h4>{_location(item.document, item.page, pdf_document, pdf_uri)}</h4>{_text(item.quote)}"
         for item in result.case.evidence
     ) or "<p>No evidence label; inspect the paper to confirm unanswerability.</p>"
     return (
-        f'<article id="case-{number}"><h2>{escape(key)}</h2><h3>Question</h3>{_text(result.case.question)}'
+        f'<article id="case-{number}"><h2>{escape(key)}</h2>'
+        f'<p>Original paper: <a href="{escape(pdf_uri, quote=True)}" target="_blank" '
+        f'rel="noopener">{escape(pdf_document)}</a></p><h3>Question</h3>{_text(result.case.question)}'
         f"<h3>Recorded answer</h3>{_text(result.answer)}"
         f"<h3>Retrieved passages</h3>{sources}"
         f"<details><summary>Reference label ({label}) — review this too</summary>"
@@ -107,6 +116,17 @@ def prepare_packet(manifest: ReviewManifest, root: Path, output: Path) -> None:
             raise ValueError("human review requires completed verified-answer reports")
         if configuration_hash(report) != manifest.configuration_sha256:
             raise ValueError(f"Answer configuration differs from the frozen protocol: {selection.id}")
+        documents = list(report.corpus.chunks_by_document)
+        if len(documents) != 1:
+            raise ValueError("review requires an isolated single-paper report")
+        document = documents[0]
+        if Path(document).name != document or "\\" in document or Path(document).suffix.lower() != ".pdf":
+            raise ValueError("paper identity must be a PDF filename")
+        pdf = (root / "data" / document).resolve()
+        if (root / "data").resolve() not in pdf.parents:
+            raise ValueError("paper resolves outside data")
+        if sha256(pdf.read_bytes()).hexdigest() != report.paper_sha256:
+            raise ValueError(f"PDF hash changed: {selection.id}")
         results = {result.case.id: result for result in report.results}
         if not set(selection.case_ids) <= results.keys():
             raise ValueError(f"Missing selected cases: {selection.id}")
@@ -120,7 +140,7 @@ def prepare_packet(manifest: ReviewManifest, root: Path, output: Path) -> None:
         for case_id in selection.case_ids:
             result = results[case_id]
             key = f"{selection.id}/{case_id}"
-            articles.append(_case_html(key, result, len(articles) + 1))
+            articles.append(_case_html(key, result, len(articles) + 1, document, pdf.as_uri()))
             rows.append([review_set_hash(manifest), key, "pending", ""])
     navigation = "<ol>" + "".join(
         f'<li><a href="#case-{number}">{escape(key)}</a></li>'
@@ -143,7 +163,10 @@ def prepare_packet(manifest: ReviewManifest, root: Path, output: Path) -> None:
         'the passages actually cited, or refusal behavior. An answerable question may be refused '
         'because retrieval missed evidence; mark that needs_fix. Missing evidence is not a negative result.</p>'
         '<p>This packet reuses inspected development cases and historical answers. It is not a '
-        'fresh validation run or a release approval.</p>' + navigation + "".join(articles) + '</html>'
+        'fresh validation run or a release approval. Reports contain displayed page references '
+        'and retrieved passages, but not the original selected quote for each claim. A cited page '
+        'may match several passages; inspect their support rather than assuming every passage was cited.</p>'
+        + navigation + "".join(articles) + '</html>'
     )
     output.mkdir(parents=True, exist_ok=False)
     (output / "packet.html").write_text(html, encoding="utf-8")
@@ -161,7 +184,7 @@ def summarize_review(manifest: ReviewManifest, path: Path) -> dict[str, int]:
     expected = set(case_keys(manifest))
     counts = dict.fromkeys(sorted(DECISIONS), 0)
     seen: set[str] = set()
-    with path.open(newline="", encoding="utf-8") as handle:
+    with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames != REVIEW_COLUMNS:
             raise ValueError("review CSV columns changed")

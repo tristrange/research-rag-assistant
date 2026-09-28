@@ -39,6 +39,12 @@ shows recorded answers and every retrieved passage, with reference labels in a
 separate expandable section. Model-judge scores are omitted. Paper PDFs and the
 packet stay in ignored local directories; do not commit them.
 
+The current answer reports do not retain the original structured draft or
+selected quote for each claim. This packet can assess displayed page references
+against returned passages and the PDF, but cannot reconstruct the original
+quote-level verification. A cited page may match multiple passages. Exposing
+the selected evidence is part of the separate evidence-display milestone.
+
 The recorded answer configuration hash is
 `7851218bd54bbee9fe17a63f4aec70125d637596547e3272554948c12b31308e`.
 It binds model tags and report settings, including the grounding prompt/schema
@@ -46,17 +52,19 @@ fingerprint, embedding model, and reranker. It does not pin model weight digests
 The exporter rejects reports with a different configuration even when their
 file hashes match the selection manifest.
 
-With the matching local reports present, run from the repository root:
+With the matching local reports and PDFs present, run from the repository root:
 
 ```bash
 uv run python -m scripts.prepare_human_review \
   --output evaluation-results/v1-human-review
 ```
 
-Open `packet.html` in that directory in a browser. You and Emma can inspect the
+Open `packet.html` in that directory in a browser. Reviewers can inspect the
 cases together and enter agreed decisions in `review.csv`; note disagreements
 or disputed labels. The provenance file records the source reports and index
-fingerprints. No database or model service is needed to prepare or review the
+fingerprints. PDF page links open the original local file in a new tab; the
+exporter checks its hash against the report before preparing the packet.
+No database or model service is needed to prepare or review the
 packet. The output directory must be new so existing review work is preserved.
 
 To count decisions and detect pending cases, missing rows, or unresolved issues:
@@ -106,8 +114,10 @@ The local v1 target is no observed material unsupported claim or attribution
 error, appropriate refusal on every unanswerable control, and correct,
 sufficiently complete cited answers for at least 80% of answerable questions in
 that small final set. Report exact counts and limitations, not a broad accuracy
-claim. A material failure requires a fix and a new separately reserved check;
-do not rerun the same questions until they pass and call that validation.
+claim. An unsupported claim, attribution error, inappropriate unanswerable
+answer, or coverage below that target requires a fix and a new separately
+reserved check; do not rerun the same questions until they pass and call that
+validation. Any allowed false refusals must be documented as limitations.
 
 Complete the remaining usability and release milestones, record known limits,
 then tag v1. This review tooling and a green worksheet alone do not approve release.

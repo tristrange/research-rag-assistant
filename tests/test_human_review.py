@@ -20,6 +20,9 @@ class HumanReviewTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / "evaluation-results").mkdir()
+        (self.root / "data").mkdir()
+        self.pdf = self.root / "data/paper.pdf"
+        self.pdf.write_bytes(b"synthetic PDF fixture")
         case = AnswerEvaluationCase(
             id="control", question="What happened?", answerable=True,
             reference_answer="A synthetic response increased.",
@@ -36,7 +39,8 @@ class HumanReviewTests(unittest.TestCase):
         )
         report = _new_report(datetime.now(timezone.utc),
                              CorpusSnapshot(sha256="corpus", chunks_by_document={"paper.pdf": 1}),
-                             [case], "reranked", "reranker", "verified")
+                             [case], "reranked", "reranker", "verified",
+                             paper_sha256=sha256(self.pdf.read_bytes()).hexdigest())
         report.update(status="complete", results=[result], metrics=summarize([result]),
                       calibration={"version": report["calibration_version"], "passed": True,
                                    "results": [{"id": "test", "passed": True,
@@ -71,6 +75,7 @@ class HumanReviewTests(unittest.TestCase):
         self.assertNotIn("<script>", html)
         self.assertNotIn("<img ", html)
         self.assertIn("&lt;script&gt;", html)
+        self.assertIn(self.pdf.resolve().as_uri() + "#page=2", html)
         self.assertNotIn("HIDDEN_JUDGE_SCORE", html)
         self.assertEqual(summarize_review(self.manifest, csv_path)["pending"], 1)
         self.assertTrue((self.output / "provenance.json").is_file())
@@ -88,6 +93,12 @@ class HumanReviewTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.prepare()
         self.assertEqual((self.output / "review.csv").read_bytes(), before)
+
+    def test_changed_paper_is_rejected_before_output_creation(self) -> None:
+        self.pdf.write_bytes(b"different paper version")
+        with self.assertRaisesRegex(ValueError, "PDF hash changed"):
+            self.prepare()
+        self.assertFalse(self.output.exists())
 
     def test_incomplete_or_plain_reports_are_not_substituted(self) -> None:
         original = self.path.read_text()
@@ -108,6 +119,9 @@ class HumanReviewTests(unittest.TestCase):
         path = self.prepare()
         self.edit_review("pass")
         self.assertEqual(summarize_review(self.manifest, path)["pass"], 1)
+        path.write_text("\ufeff" + path.read_text())
+        self.assertEqual(summarize_review(self.manifest, path)["pass"], 1)
+        path.write_text(path.read_text(encoding="utf-8-sig"))
         self.edit_review("label_issue", "The population is not established by this label.")
         self.assertEqual(summarize_review(self.manifest, path)["label_issue"], 1)
         self.edit_review("needs_fix")
