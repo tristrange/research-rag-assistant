@@ -118,3 +118,31 @@ and after grading. Replay JSON alone does not attest model weights. New complete
 comparisons need a corresponding identity-checked orchestration record; individual
 manual replays should not be presented as weight-pinned comparisons without it.
 The exact local runner and logs are retained beside the ignored raw reports.
+
+## Prespecified revised configuration after control timeouts
+
+The initial Qwen3 thinking-enabled control run completed 17 checks (15 passes,
+two semantic failures), then timed out on `missing_comparison` at the existing
+300-second request limit. Qwen3.5 timed out on its first positive control at the
+same limit. Both original reports are retained; neither Qwen paper arm was run
+under that initial configuration. These are incomplete control runs, not zero
+answer-quality scores or evidence about every possible configuration of either model.
+
+Before any paper answers, freeze a revised phase in
+`benchmarks/verified-model-comparison-direct.json`: Qwen3 and Qwen3.5 drafting and
+verification use `false`/`false`; GPT-OSS retains `low`/`medium`. All other budgets,
+code, weights, cases and saved passages remain fixed. Boolean-false calls use the
+application's existing 120-second timeout; GPT-OSS named thinking uses 300 seconds.
+The control failure motivates a configuration change, not a hidden retry. Treat
+this as a new development experiment, preserve the initial failures, and report
+both phases. No prompt or evidence-policy changes are allowed.
+
+Reuse GPT-OSS's first unchanged control and paper trials from the initial phase;
+they have not yet run at this freeze. After that baseline arm, run all 18 controls
+and the four first paper replays for Qwen3 with thinking disabled, then Qwen3.5.
+Retain every result, even if controls fail. Incomplete controls still stop that
+paper arm; completed semantic failures allow diagnostic paper runs but disqualify
+default promotion. There are no repeated completed paper questions within an arm.
+Generation order differs from the original plan, further limiting latency claims.
+Use the revised protocol explicitly when grading these configurations:
+`--protocol benchmarks/verified-model-comparison-direct.json`.

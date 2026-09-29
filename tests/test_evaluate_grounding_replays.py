@@ -64,7 +64,7 @@ class EvaluateReplayTests(unittest.TestCase):
         settings = cast(dict[str, object], report["settings"])
         self.protocol = ComparisonProtocol.model_validate(dict(
             schema_version=1, review_set_sha256=review_set_hash(self.manifest),
-            ollama_version="test", judge_model="qwen3:8b", judge_digest="c" * 64, candidates=[dict(
+            ollama_version="test", judge_model="qwen3:8b", judge_digest="c" * 64, grounding_code_sha256=sha256(Path("app/grounding.py").read_bytes()).hexdigest(), candidates=[dict(
                 model=settings["verifier_model"], digest="a" * 64,
                 draft_think="low", verifier_think="medium",
                 grounding_sha256=settings["generator_prompt_sha256"],

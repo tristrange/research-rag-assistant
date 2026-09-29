@@ -57,6 +57,7 @@ class ComparisonProtocol(StrictModel):
     ollama_version: str
     judge_model: str
     judge_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    grounding_code_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     candidates: list[CandidateConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -81,7 +82,8 @@ def validate_run_metadata(
                        for item in record.get("models", []))):
         raise ValueError("generation record does not attest the frozen model/runtime")
     grounding_path = Path(__file__).resolve().parents[1] / "app/grounding.py"
-    if record.get("grounding_code_sha256") != sha256(grounding_path.read_bytes()).hexdigest():
+    if (record.get("grounding_code_sha256") != protocol.grounding_code_sha256
+            or sha256(grounding_path.read_bytes()).hexdigest() != protocol.grounding_code_sha256):
         raise ValueError("generation record used a different grounding implementation")
     for item in provenance:
         matches = [step for step in record.get("steps", [])

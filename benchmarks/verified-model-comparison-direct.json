@@ -7,16 +7,16 @@
     {
       "model": "qwen3:8b",
       "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
-      "draft_think": true,
-      "verifier_think": true,
-      "grounding_sha256": "102167ec9503ae4ddaa863560452b026fe5d0dfdb9a017fdb89fe77970df5fd9"
+      "draft_think": false,
+      "verifier_think": false,
+      "grounding_sha256": "0deeee4d4fa4374798f6e492ef536be42be16968797eed40c1abb193fc233593"
     },
     {
       "model": "qwen3.5:9b",
       "digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
-      "draft_think": true,
-      "verifier_think": true,
-      "grounding_sha256": "828228adff04148169b52ea55c954836c87eebd4d661e2dc13ab7edda3b84c62"
+      "draft_think": false,
+      "verifier_think": false,
+      "grounding_sha256": "6f6faadbd54b98f5d82c3f628d7a5801afd94b0e16fda09777b402b26660c0d5"
     },
     {
       "model": "gpt-oss:20b",
