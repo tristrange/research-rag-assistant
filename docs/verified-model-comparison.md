@@ -21,6 +21,17 @@ comparisons, not isolated parameter-count effects. Thinking budgets differ acros
 families. Temperature is zero; context/output limits remain 12,288/4,096 tokens.
 Other model defaults remain as installed and are retained in local metadata.
 
+The application overrides both installed Qwen temperatures to zero for these JSON
+calls. This is a shared operational protocol, not the vendors' recommended thinking
+configuration. [Qwen3's model card](https://huggingface.co/Qwen/Qwen3-8B#best-practices)
+recommends temperature 0.6 for thinking and warns that greedy decoding can cause
+repetition. [Qwen3.5's model card](https://huggingface.co/Qwen/Qwen3.5-9B#best-practices)
+recommends temperature 1.0 for general thinking tasks. This is a plausible contributor
+to long generation, not proof of why the recorded calls timed out. A future experiment
+should freeze model-specific sampling settings and suitable timeout/output budgets
+before testing them; preserve this zero-temperature run and its failures. The thinking
+results here do not establish each model's speed or quality under recommended settings.
+
 Run all 18 existing synthetic verifier controls once per model before paper
 answers. Record semantic verdict completeness separately from deterministic
 rejections: rejecting malformed output is safe behavior, but does not establish
