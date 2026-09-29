@@ -29,8 +29,15 @@ def reasoning_setting(name: str, default: str) -> bool | Literal["low", "medium"
     raise ValueError(f"{name} must be true, false, low, medium, or high")
 
 
-DRAFT_THINK = reasoning_setting("RAG_DRAFT_THINK", "low")
-VERIFIER_THINK = reasoning_setting("RAG_VERIFIER_THINK", "medium")
+def qwen_family(model: str) -> str | None:
+    family = model.rsplit("/", 1)[-1].split(":", 1)[0].lower()
+    return family if family in {"qwen3", "qwen3.5"} else None
+
+
+DRAFT_THINK = reasoning_setting("RAG_DRAFT_THINK", "true" if qwen_family(GROUNDING_MODEL) else "low")
+VERIFIER_THINK = reasoning_setting("RAG_VERIFIER_THINK", "true" if qwen_family(GROUNDING_MODEL) else "medium")
+if qwen_family(GROUNDING_MODEL) and (not isinstance(DRAFT_THINK, bool) or not isinstance(VERIFIER_THINK, bool)):
+    raise ValueError("Qwen grounding requires true or false for RAG_DRAFT_THINK and RAG_VERIFIER_THINK")
 
 
 class GroundingSampling(BaseModel):
@@ -48,7 +55,27 @@ class GroundingSampling(BaseModel):
         return cast(dict[str, float | int], self.model_dump(exclude_none=True))
 
 
-GROUNDING_SAMPLING = GroundingSampling.model_validate_json(setting("RAG_GROUNDING_SAMPLING", "{}"))
+def resolve_grounding_sampling(
+    model: str, draft_think: bool | str, verifier_think: bool | str,
+    overrides: GroundingSampling,
+) -> GroundingSampling:
+    """Use Qwen's general-thinking profile when either shared-sampling stage thinks."""
+    defaults: dict[str, float | int] = {"temperature": 0.0}
+    family = qwen_family(model)
+    if family and (draft_think is True or verifier_think is True):
+        defaults.update(temperature=0.6 if family == "qwen3" else 1.0,
+                        top_p=0.95, top_k=20, min_p=0.0,
+                        presence_penalty=0.0 if family == "qwen3" else 1.5, repeat_penalty=1.0)
+    # Only explicitly supplied values override the selected profile. In particular,
+    # {} or a filter-only override must not reintroduce temperature zero for thinking.
+    explicit = overrides.model_dump(exclude_unset=True, exclude_none=True)
+    return GroundingSampling.model_validate(defaults | explicit)
+
+
+GROUNDING_SAMPLING = resolve_grounding_sampling(
+    GROUNDING_MODEL, DRAFT_THINK, VERIFIER_THINK,
+    GroundingSampling.model_validate_json(setting("RAG_GROUNDING_SAMPLING", "{}")),
+)
 
 
 def timeout_setting() -> float | None:

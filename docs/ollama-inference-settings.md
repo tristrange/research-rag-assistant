@@ -9,21 +9,33 @@ temperature 1.0 with those filters, presence penalty 1.5 and repetition penalty 
 for general thinking tasks. These are starting points for experiments, not
 settings validated for this assistant's evidence checks.
 
+The application now selects those general-thinking profiles automatically for
+model families `qwen3` and `qwen3.5` (including namespace-qualified Ollama names).
+Their thinking flags default to `true`; named GPT-OSS levels such as `low` are
+rejected for these families. When either drafting or verification thinks, both
+stages share the family's thinking sampling profile. Mixed thinking flags do not
+silently leave the thinking stage at temperature zero.
+
+`RAG_GROUNDING_SAMPLING` overlays explicitly supplied fields on this profile.
+An absent variable, `{}`, or a filter-only override preserves the recommended
+temperature. Explicit zero remains possible for controlled experiments; it is
+not recommended for Qwen thinking. Both stages with thinking disabled retain the
+tested temperature-zero baseline; other models and the judge retain their prior
+settings. Custom aliases do not imply a model family, so configure them explicitly.
+
 ## Configure a fresh trial
 
 Set variables before starting Python. For Qwen3 thinking:
 
 ```bash
 RAG_GROUNDING_MODEL=qwen3:8b \
-RAG_DRAFT_THINK=true RAG_VERIFIER_THINK=true \
-RAG_GROUNDING_SAMPLING='{"temperature":0.6,"top_p":0.95,"top_k":20,"min_p":0,"presence_penalty":0,"repeat_penalty":1}' \
 RAG_GROUNDING_TIMEOUT_SECONDS=180 RAG_GROUNDING_OUTPUT_TOKENS=4096 \
 uv run python -m scripts.check_grounding \
   --output evaluation-results/qwen3-sampling-new.json
 ```
 
-For Qwen3.5 thinking, change the model to `qwen3.5:9b`, temperature to `1.0`
-and presence penalty to `1.5`. Ollama calls its repetition-penalty option
+For Qwen3.5 thinking, change only the model to `qwen3.5:9b`; the profile selects
+temperature `1.0` and presence penalty `1.5`. Ollama calls its repetition-penalty option
 `repeat_penalty`.
 
 For the faster Qwen3.5 configuration from the previous comparison:
@@ -82,6 +94,18 @@ verifier controls were selected for each: supported current-study result, wrong
 number, unsupported shared population, and supported shared population. Each arm
 stops on a failed call without retries. Installed model identities, runtime and
 source code hashes are retained with the protocol and completion hashes locally.
+These diagnostic runs used commit `fcec66f` and explicit settings, before the
+automatic-profile adjustment. Their files and results remain unchanged. The new
+automatic thinking profiles select the same sampling values; that equivalence
+does not turn the earlier incomplete or failing controls into passes.
+
+After the automatic-profile adjustment, four fresh one-token transport probes
+exercised drafting and verification for both Qwen models without sampling or
+thinking overrides. Both resolved to their documented profiles, and each call
+raised the expected output-budget error on the installed runtime. These checks
+confirm request compatibility, not correct answers or adequate thinking budgets.
+The ignored `automatic-qwen-profiles.json` report has SHA-256
+`82ac93cf2687b1d782d7d3fbab24c35e55283ffb7c0086b26c750e557590aac4`.
 
 | Configuration | Completed controls | Correct verdicts | Observed call times | Outcome |
 | --- | --- | --- | --- | --- |
