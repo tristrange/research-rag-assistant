@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "purpose": "development",
+  "configuration_sha256": "7851218bd54bbee9fe17a63f4aec70125d637596547e3272554948c12b31308e",
+  "selections": [
+    {
+      "id": "sample",
+      "report": "evaluation-results/v1-review-sample-20260928.json",
+      "sha256": "5b4d9810552c0ee9dfe20c829e6cb2fb8fbeafc058aa9f2135c5208ec4c18d9a",
+      "case_ids": [
+        "c26-body-mass-loss",
+        "glucose-tolerance-protocol",
+        "cited-rosiglitazone",
+        "own-rosiglitazone-dose"
+      ]
+    },
+    {
+      "id": "housing",
+      "report": "evaluation-results/v1-review-housing-20260928.json",
+      "sha256": "011e6bc33065eb7e2046bc1b9279674af4d7bac094887bae24209aee872f87d0",
+      "case_ids": [
+        "housing-fat-loss",
+        "housing-bat-atp",
+        "housing-grip-runs",
+        "housing-female-response"
+      ]
+    },
+    {
+      "id": "mitochondrial",
+      "report": "evaluation-results/v1-review-mitochondrial-20260928.json",
+      "sha256": "5177844ee439ec32c5db36515e03e7df13d2e8ef4242e0044acd960b13cc8a8f",
+      "case_ids": [
+        "cytosolic-mtdna",
+        "muscle-csa-sexes",
+        "food-intake-negative",
+        "rab5c-inhibitor-mouse-dose"
+      ]
+    },
+    {
+      "id": "activin",
+      "report": "evaluation-results/v1-review-activin-20260928.json",
+      "sha256": "151f94f4505e3d8cebb4a36b4b1da4481fbe0d62763a14e6696048d3bdb47757",
+      "case_ids": [
+        "activin-long-regimen",
+        "activin-human-myotubes",
+        "activin-liver-tg-duration",
+        "activin-female-gtt"
+      ]
+    }
+  ]
+}
