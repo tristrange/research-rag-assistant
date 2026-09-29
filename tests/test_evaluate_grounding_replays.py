@@ -11,8 +11,8 @@ from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, summariz
 from app.judge_calibration import CalibrationReport
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import ReportModel, _new_report
-from scripts.evaluate_grounding_replays import evaluate, load_inputs
-from scripts.prepare_human_review import ReviewManifest, ReviewSelection, configuration_hash
+from scripts.evaluate_grounding_replays import ComparisonProtocol, evaluate, load_inputs
+from scripts.prepare_human_review import ReviewManifest, ReviewSelection, configuration_hash, review_set_hash
 
 
 class EvaluateReplayTests(unittest.TestCase):
@@ -53,12 +53,20 @@ class EvaluateReplayTests(unittest.TestCase):
         self.path = self.root / "evaluation-results/replay.json"
         self.output = self.root / "evaluation-results/judged.json"
         self.write()
+        settings = cast(dict[str, object], report["settings"])
+        self.protocol = ComparisonProtocol.model_validate(dict(
+            schema_version=1, review_set_sha256=review_set_hash(self.manifest),
+            ollama_version="test", judge_model="qwen3:8b", candidates=[dict(
+                model=settings["verifier_model"], digest="a" * 64,
+                draft_think="low", verifier_think="medium",
+                grounding_sha256=settings["generator_prompt_sha256"],
+            )]))
 
     def write(self) -> None:
         self.path.write_text(json.dumps(self.replay))
 
     def test_fixed_sources_are_scored_without_retrieving_or_generating(self) -> None:
-        generated, provenance, settings = load_inputs(self.manifest, self.root, [self.path])
+        generated, provenance, settings = load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
         self.assertEqual(generated[0]["case"]["id"], "paper/control")
         self.assertEqual(generated[0]["answer_ms"], 10.0)
         self.assertEqual(generated[0]["sources"], self.result["sources"])
@@ -74,33 +82,33 @@ class EvaluateReplayTests(unittest.TestCase):
                 self.replay["results"] = [{**original, field: changed}]
                 self.write()
                 with self.assertRaisesRegex(ValueError, "changed a question, label, or source"):
-                    load_inputs(self.manifest, self.root, [self.path])
+                    load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
 
     def test_changed_source_hash_is_rejected(self) -> None:
         self.source.write_text(self.source.read_text() + " ")
         with self.assertRaisesRegex(ValueError, "hash changed"):
-            load_inputs(self.manifest, self.root, [self.path])
+            load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
 
     def test_missing_duplicate_or_incomplete_runs_are_rejected(self) -> None:
         for paths in [[], [self.path, self.path]]:
             with self.subTest(paths=paths), self.assertRaises(ValueError):
-                load_inputs(self.manifest, self.root, paths)
+                load_inputs(self.manifest, self.root, paths, protocol=self.protocol)
         self.replay["status"] = "failed"
         self.write()
         with self.assertRaises(ValueError):
-            load_inputs(self.manifest, self.root, [self.path])
+            load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
 
     def test_changed_budget_is_rejected(self) -> None:
         settings = cast(dict[str, object], self.replay["settings"])
         settings["grounding_output_tokens"] = 8192
         self.write()
         with self.assertRaisesRegex(ValueError, "changed frozen setting"):
-            load_inputs(self.manifest, self.root, [self.path])
+            load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
 
     def test_existing_output_is_preserved_without_judging(self) -> None:
         self.output.write_text("preserve")
         with patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate, self.assertRaises(ValueError):
-            evaluate(self.manifest, self.root, [self.path], self.output)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
         calibrate.assert_not_called()
         self.assertEqual(self.output.read_text(), "preserve")
 
@@ -109,7 +117,7 @@ class EvaluateReplayTests(unittest.TestCase):
         with (patch("scripts.evaluate_grounding_replays.run_calibration", return_value=calibration),
               patch("scripts.evaluate_grounding_replays.judge_case_answer") as judge,
               self.assertRaises(SystemExit)):
-            evaluate(self.manifest, self.root, [self.path], self.output)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
         judge.assert_not_called()
         saved = json.loads(self.output.read_text())
         self.assertEqual(saved["status"], "calibration_failed")
@@ -122,8 +130,37 @@ class EvaluateReplayTests(unittest.TestCase):
         with (patch("scripts.evaluate_grounding_replays.run_calibration", return_value=calibration),
               patch("scripts.evaluate_grounding_replays.judge_case_answer", side_effect=RuntimeError("judge failed")),
               self.assertRaisesRegex(RuntimeError, "judge failed")):
-            evaluate(self.manifest, self.root, [self.path], self.output)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
         saved = json.loads(self.output.read_text())
         self.assertEqual(saved["status"], "failed")
         self.assertIsNone(saved["metrics"])
         self.assertEqual(self.path.read_bytes(), original)
+
+    def test_changed_prompt_or_candidate_is_rejected(self) -> None:
+        for key, value in [("generator_prompt_sha256", "b" * 64),
+                           ("verifier_model", "other-model"), ("generator_think", "false")]:
+            with self.subTest(key=key):
+                settings = cast(dict[str, object], self.replay["settings"])
+                original = settings[key]
+                settings[key] = value
+                self.write()
+                with self.assertRaisesRegex(ValueError, "frozen candidate"):
+                    load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
+                settings[key] = original
+
+    def test_relative_source_paths_use_source_root(self) -> None:
+        self.replay["source_report"] = "evaluation-results/source.json"
+        self.write()
+        generated, _, _ = load_inputs(self.manifest, self.root, [self.path], protocol=self.protocol)
+        self.assertEqual(len(generated), 1)
+
+    def test_different_selection_and_judge_are_rejected_before_calls(self) -> None:
+        different = self.protocol.model_copy(update={"review_set_sha256": "b" * 64})
+        with self.assertRaisesRegex(ValueError, "different frozen selection"):
+            load_inputs(self.manifest, self.root, [self.path], protocol=different)
+        with (patch("scripts.evaluate_grounding_replays.JUDGE_MODEL", "other-judge"),
+              patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
+              self.assertRaisesRegex(ValueError, "judge differs")):
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
+        calibrate.assert_not_called()
+        self.assertFalse(self.output.exists())

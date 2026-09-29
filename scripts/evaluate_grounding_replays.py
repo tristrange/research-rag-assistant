@@ -6,14 +6,14 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Literal, cast
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.answer_evaluation import (
     AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer,
     evidence_found, judge_case_answer, summarize,
 )
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
-from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, generate_json
+from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, Thinking, generate_json
 from app.types import ChunkData
 from scripts.evaluate_answers import (
     CaseModel, CorpusModel, EVALUATOR_PROMPT_SHA256, ReportModel, SettingsModel,
@@ -41,10 +41,36 @@ class CompletedReplay(StrictModel):
     results: list[ReplayCase] = Field(min_length=1)
 
 
+class CandidateConfig(StrictModel):
+    model: str = Field(min_length=1)
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    draft_think: Thinking
+    verifier_think: Thinking
+    grounding_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ComparisonProtocol(StrictModel):
+    schema_version: Literal[1]
+    review_set_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    ollama_version: str
+    judge_model: str
+    candidates: list[CandidateConfig] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_candidates(self) -> "ComparisonProtocol":
+        names = [item.model for item in self.candidates]
+        if len(names) != len(set(names)):
+            raise ValueError("candidate models must be unique")
+        return self
+
+
 def load_inputs(
     manifest: ReviewManifest, root: Path, paths: list[Path],
+    *, protocol: ComparisonProtocol,
 ) -> tuple[list[GeneratedCaseAnswer], list[dict[str, object]], SettingsModel]:
     """Require the complete frozen selection, original labels, and exact passages."""
+    if protocol.review_set_sha256 != review_set_hash(manifest):
+        raise ValueError("comparison protocol names a different frozen selection")
     selections = {(root / item.report).resolve(): item for item in manifest.selections}
     seen: set[Path] = set()
     generated: list[GeneratedCaseAnswer] = []
@@ -53,7 +79,7 @@ def load_inputs(
     for path in paths:
         replay_bytes = path.read_bytes()
         replay = CompletedReplay.model_validate_json(replay_bytes)
-        source_path = Path(replay.source_report).resolve()
+        source_path = (root / replay.source_report).resolve()
         if source_path not in selections or source_path in seen:
             raise ValueError("replays must cover each frozen source report exactly once")
         seen.add(source_path)
@@ -68,6 +94,14 @@ def load_inputs(
             raise ValueError("replay corpus differs from source report")
         if replay.settings.answer_mode != "verified":
             raise ValueError("only verified replays can be compared")
+        candidate = next((item for item in protocol.candidates
+                          if item.model == replay.settings.verifier_model), None)
+        if candidate is None or (
+            replay.settings.verifier_think != candidate.verifier_think
+            or replay.settings.generator_think != str(candidate.draft_think).lower()
+            or replay.settings.generator_prompt_sha256 != candidate.grounding_sha256
+        ):
+            raise ValueError("replay does not match a frozen candidate configuration")
         # Changing a model's thinking controls is allowed; retrieval and budgets stay fixed.
         mutable = {"verifier_model", "verifier_think", "generator_think", "generator_prompt_sha256"}
         for key, value in source.settings.model_dump().items():
@@ -106,12 +140,18 @@ def load_inputs(
     return generated, provenance, settings
 
 
-def evaluate(manifest: ReviewManifest, root: Path, paths: list[Path], output: Path) -> None:
-    generated, provenance, settings = load_inputs(manifest, root, paths)
+def evaluate(
+    manifest: ReviewManifest, root: Path, paths: list[Path], output: Path,
+    *, protocol: ComparisonProtocol,
+) -> None:
+    if JUDGE_MODEL != protocol.judge_model or JUDGE_THINK is not False:
+        raise ValueError("judge differs from the frozen comparison protocol")
+    generated, provenance, settings = load_inputs(manifest, root, paths, protocol=protocol)
     reserve_output(output)
     results: list[CaseEvaluation] = []
     report: dict[str, object] = {
-        "status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
+        "status": "running", "error": None, "started_at": datetime.now(timezone.utc).isoformat(),
+        "protocol": protocol.model_dump(),
         "review_set_sha256": review_set_hash(manifest), "inputs": provenance,
         "settings": settings.model_dump(), "judge_model": JUDGE_MODEL,
         "judge_think": JUDGE_THINK, "judge_temperature": 0.0,
@@ -129,6 +169,7 @@ def evaluate(manifest: ReviewManifest, root: Path, paths: list[Path], output: Pa
         save_report(output, report)
         if not calibration["passed"]:
             report["status"] = "calibration_failed"
+            report["error"] = "Judge calibration failed"
             raise SystemExit("Judge calibration failed; no answer metrics published")
         for item in generated:
             result = judge_case_answer(item, generate_json)
@@ -150,11 +191,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("replays", type=Path, nargs="+")
     parser.add_argument("--manifest", type=Path, default=Path("benchmarks/v1-development-review.json"))
+    parser.add_argument("--protocol", type=Path, default=Path("benchmarks/verified-model-comparison.json"))
     parser.add_argument("--source-root", type=Path, default=Path.cwd())
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     manifest = ReviewManifest.model_validate_json(args.manifest.read_bytes())
-    evaluate(manifest, args.source_root, args.replays, args.output)
+    protocol = ComparisonProtocol.model_validate_json(args.protocol.read_bytes())
+    evaluate(manifest, args.source_root, args.replays, args.output, protocol=protocol)
 
 
 if __name__ == "__main__":
