@@ -5,13 +5,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, summarize
 from app.judge_calibration import CalibrationReport
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import ReportModel, _new_report
-from scripts.evaluate_grounding_replays import ComparisonProtocol, evaluate, load_inputs
+from scripts.evaluate_grounding_replays import ComparisonProtocol, evaluate, judge_runtime as inspect_judge_runtime, load_inputs
 from scripts.prepare_human_review import ReviewManifest, ReviewSelection, configuration_hash, review_set_hash
 
 
@@ -183,3 +183,25 @@ class EvaluateReplayTests(unittest.TestCase):
                      generation_record=self.record)
         calibrate.assert_not_called()
         self.assertFalse(self.output.exists())
+
+    def test_runtime_check_rejects_changed_judge_digest(self) -> None:
+        version = Mock()
+        version.json.return_value = {"version": "test"}
+        tags = Mock()
+        tags.json.return_value = {"models": [{"name": "qwen3:8b", "digest": "wrong"}]}
+        with (patch("scripts.evaluate_grounding_replays.httpx.get", side_effect=[version, tags]),
+              self.assertRaisesRegex(ValueError, "installed judge/runtime")):
+            inspect_judge_runtime(self.protocol)
+
+    def test_runtime_change_during_grading_preserves_grades_without_metrics(self) -> None:
+        calibration = CalibrationReport(version="2", passed=True, results=[])
+        with (patch("scripts.evaluate_grounding_replays.run_calibration", return_value=calibration),
+              patch("scripts.evaluate_grounding_replays.judge_case_answer", return_value=self.result),
+              patch("scripts.evaluate_grounding_replays.judge_runtime", side_effect=[{"version": "one"}, {"version": "two"}]),
+              self.assertRaisesRegex(ValueError, "changed while grading")):
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol,
+                     generation_record=self.record)
+        saved = json.loads(self.output.read_text())
+        self.assertEqual(saved["status"], "failed")
+        self.assertEqual(len(saved["results"]), 1)
+        self.assertIsNone(saved["metrics"])
