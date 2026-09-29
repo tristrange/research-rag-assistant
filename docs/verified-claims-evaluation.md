@@ -353,7 +353,9 @@ judge time was 8.82 seconds.
 
 Verification now lists the question's essential requirements and assesses each
 against the cited passages. Population, sex, species, study, intervention, dose,
-comparison and time-period qualifiers cannot be silently omitted. Code rejects
+comparison and time-period qualifiers were intended to be preserved. The open list
+still allowed the verifier to omit a requested qualifier, as the missing-dose
+control later demonstrated. Code rejects
 an answer if any requirement is unsupported, even when the overall answer and
 claim verdicts otherwise say to accept it. The draft instructions require the same
 scope discipline. Three additional controls check a supported population, an

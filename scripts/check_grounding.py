@@ -9,8 +9,9 @@ from time import perf_counter
 from pydantic import ValidationError
 
 from app.grounding import (
-    GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
-    generate_verification_json, grounding_fingerprint, verify_draft,
+    GroundedClaim, GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
+    build_verifier_evidence, generate_verification_json, grounding_fingerprint,
+    validate_verification_structure, verify_draft,
     GROUNDING_SAMPLING, GROUNDING_VERIFIER_TIMEOUT_SECONDS, GROUNDING_OUTPUT_TOKENS,
 )
 from app.types import ChunkData
@@ -21,6 +22,14 @@ REFERENCE = ChunkData(document="synthetic.pdf", page=10, chunk_index=0,
                           "Smith et al. Treatment delayed weight loss in mice. Journal 2011.\n"
                           "Jones et al. AMPK activity is elevated in cachectic muscle. Journal 2020."
                       ))
+DOSE_REFERENCE = ChunkData(document="synthetic.pdf", page=11, chunk_index=0,
+                            section="references", text=(
+                                "Smith et al. Treatment at 5 mg/kg daily delayed weight loss in mice. Journal 2011."
+                            ))
+DURATION_REFERENCE = ChunkData(document="synthetic.pdf", page=12, chunk_index=0,
+                                section="references", text=(
+                                    "Smith et al. Treatment for six weeks delayed weight loss in mice. Journal 2011."
+                                ))
 RESULT = ChunkData(document="synthetic.pdf", page=6, chunk_index=0,
                    section="results", text="In our experiments, mice lost 1.2 g after three days of food restriction.")
 
@@ -74,6 +83,15 @@ FIXTURES = [
     ("title_with_requested_missing_dose", "At what dose did treatment delay weight loss in the cited Smith study?", REFERENCE,
      "The cited title reports that treatment delayed weight loss in mice.",
      "external_publication", "Treatment delayed weight loss in mice.", False),
+    ("supported_requested_dose", "At what dose did treatment delay weight loss in the cited Smith study?", DOSE_REFERENCE,
+     "Smith et al. reported that treatment at 5 mg/kg daily delayed weight loss in mice.",
+     "external_publication", "Treatment at 5 mg/kg daily delayed weight loss in mice.", True),
+    ("title_with_requested_missing_duration", "For how long was treatment given in the cited Smith study?", REFERENCE,
+     "The cited title reports that treatment delayed weight loss in mice.",
+     "external_publication", "Treatment delayed weight loss in mice.", False),
+    ("supported_requested_duration", "For how long was treatment given in the cited Smith study?", DURATION_REFERENCE,
+     "Smith et al. reported that treatment for six weeks delayed weight loss in mice.",
+     "external_publication", "Treatment for six weeks delayed weight loss in mice.", True),
     ("supported_negative_answer", "Did treatment lower the measured response compared with controls?", NEGATIVE_RESULT,
      "Treatment did not lower the measured response compared with controls.",
      "this_document_authors", NEGATIVE_RESULT["text"], True),
@@ -105,25 +123,28 @@ FIXTURES = [
      "external_publication", "Treatment delayed weight loss in mice.", False),
 ]
 
-# These paired controls test semantic qualification, not deterministic quote
-# validation. A rejected draft is not a passing negative unless the verifier ran.
-SEMANTIC_CONTROLS = frozenset({"unsupported_shared_population", "supported_shared_population"})
+# This one control is intentionally rejected by deterministic validation because
+# a current-study claim cites a reference entry. All others test the verifier.
+DETERMINISTIC_CONTROLS = frozenset({"reference_as_current_study"})
 
 
-def complete_verifier_verdict(outputs: list[dict[str, object]], claim_count: int) -> bool:
-    """Require one schema-valid verdict covering every draft claim."""
+def complete_verifier_verdict(
+    question: str, outputs: list[dict[str, object]], claims: list[GroundedClaim], sources: list[ChunkData],
+) -> bool:
+    """Require a schema- and evidence-valid complete semantic verdict."""
     if len(outputs) != 1:
         return False
     try:
         result = VerificationResult.model_validate(outputs[0])
-    except ValidationError:
+        validate_verification_structure(question, result, claims, sources)
+    except (ValidationError, TypeError, ValueError):
         return False
     indexes = [verdict.claim_index for verdict in result.verdicts]
-    return len(indexes) == claim_count and set(indexes) == set(range(1, claim_count + 1))
+    return len(indexes) == len(claims) and set(indexes) == set(range(1, len(claims) + 1))
 
 
 def control_passed(identifier: str, expected: bool, accepted: bool, verifier_verdict_complete: bool) -> bool:
-    return accepted == expected and (identifier not in SEMANTIC_CONTROLS or verifier_verdict_complete)
+    return accepted == expected and (identifier in DETERMINISTIC_CONTROLS or verifier_verdict_complete)
 
 
 def main() -> None:
@@ -155,6 +176,7 @@ def main() -> None:
                 "citations": [{"source_id": 1, "quote": quote}],
             }]})
             outputs: list[dict[str, object]] = []
+            verifier_evidence = build_verifier_evidence(draft.claims, [source])
 
             def record(prompt: str, schema: dict[str, object]) -> dict[str, object]:
                 response = generate_verification_json(prompt, schema)
@@ -163,12 +185,13 @@ def main() -> None:
 
             start = perf_counter()
             accepted = verify_draft(question, draft, [source], verifier=record)
-            verdict_complete = complete_verifier_verdict(outputs, len(draft.claims))
+            verdict_complete = complete_verifier_verdict(question, outputs, draft.claims, [source])
             passed = control_passed(identifier, expected, accepted, verdict_complete)
             results.append({"id": identifier, "expected": expected, "accepted": accepted,
                             "passed": passed, "verifier_called": bool(outputs),
                             "verifier_verdict_complete": verdict_complete, "question": question,
                             "draft": draft.model_dump(), "sources": [source],
+                            "verifier_evidence": verifier_evidence,
                             "verifier_outputs": outputs, "elapsed_ms": (perf_counter()-start)*1000})
             report["results"] = results
             args.output.write_text(json.dumps(report, indent=2) + "\n")
