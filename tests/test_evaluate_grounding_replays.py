@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 from typing import cast
 import unittest
@@ -10,9 +11,10 @@ from unittest.mock import Mock, patch
 from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, summarize
 from app.judge_calibration import CalibrationReport
 from scripts.compare_reranking import CorpusSnapshot
-from scripts.evaluate_answers import ReportModel, _new_report
+from scripts.evaluate_answers import EVALUATOR_PROMPT_SHA256, ReportModel, _new_report
 from scripts.evaluate_grounding_replays import ComparisonProtocol, evaluate, judge_runtime as inspect_judge_runtime, load_inputs
 from scripts.prepare_human_review import ReviewManifest, ReviewSelection, configuration_hash, review_set_hash
+from scripts.record_grounding_replays import record_arm
 
 
 class EvaluateReplayTests(unittest.TestCase):
@@ -59,11 +61,13 @@ class EvaluateReplayTests(unittest.TestCase):
         self.record = self.root / "run.json"
         record = dict(status="complete", server_version={"version": "test"}, models=[dict(name="gpt-oss:20b", digest="a" * 64)],
                       grounding_code_sha256=sha256(Path("app/grounding.py").read_bytes()).hexdigest(),
-                      steps=[dict(report=str(self.path), returncode=0)])
+                      steps=[dict(report=str(self.path), returncode=0,
+                                  replay_sha256=sha256(self.path.read_bytes()).hexdigest())])
         self.record.write_text(json.dumps(record))
         settings = cast(dict[str, object], report["settings"])
         self.protocol = ComparisonProtocol.model_validate(dict(
-            schema_version=1, review_set_sha256=review_set_hash(self.manifest),
+            schema_version=2, review_set_sha256=review_set_hash(self.manifest),
+            evaluator_prompt_sha256=EVALUATOR_PROMPT_SHA256,
             ollama_version="test", judge_model="qwen3:8b", judge_digest="c" * 64, grounding_code_sha256=sha256(Path("app/grounding.py").read_bytes()).hexdigest(), candidates=[dict(
                 model=settings["verifier_model"], digest="a" * 64,
                 draft_think="low", verifier_think="medium",
@@ -183,6 +187,120 @@ class EvaluateReplayTests(unittest.TestCase):
                      generation_record=self.record)
         calibrate.assert_not_called()
         self.assertFalse(self.output.exists())
+
+    def test_changed_answer_bytes_are_rejected_before_judging(self) -> None:
+        results = cast(list[dict[str, object]], self.replay["results"])
+        results[0]["answer"] = "A replacement answer attributed to the original run."
+        self.write()
+        with (patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
+              self.assertRaisesRegex(ValueError, "digest recorded at generation completion")):
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol,
+                     generation_record=self.record)
+        calibrate.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_missing_generation_digest_is_rejected_before_judging(self) -> None:
+        record = json.loads(self.record.read_text())
+        del record["steps"][0]["replay_sha256"]
+        self.record.write_text(json.dumps(record))
+        with (patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
+              self.assertRaisesRegex(ValueError, "digest recorded at generation completion")):
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol,
+                     generation_record=self.record)
+        calibrate.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_changed_evaluator_prompt_is_rejected_before_any_calls(self) -> None:
+        with (patch("scripts.evaluate_grounding_replays.EVALUATOR_PROMPT_SHA256", "b" * 64),
+              patch("scripts.evaluate_grounding_replays.judge_runtime") as runtime,
+              patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
+              self.assertRaisesRegex(ValueError, "evaluator prompt differs")):
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol,
+                     generation_record=self.record)
+        runtime.assert_not_called()
+        calibrate.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_protocol_requires_frozen_evaluator_hash(self) -> None:
+        value = self.protocol.model_dump()
+        del value["evaluator_prompt_sha256"]
+        with self.assertRaises(ValueError):
+            ComparisonProtocol.model_validate(value)
+
+    def generate_replay(self, command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        path = Path(command[command.index("--output") + 1])
+        path.write_text(json.dumps(self.replay))
+        environment = cast(dict[str, str], kwargs["env"])
+        candidate = self.protocol.candidates[0]
+        self.assertEqual(environment["RAG_GROUNDING_MODEL"], candidate.model)
+        self.assertEqual(environment["RAG_DRAFT_THINK"], str(candidate.draft_think).lower())
+        self.assertEqual(environment["RAG_VERIFIER_THINK"], str(candidate.verifier_think).lower())
+        return subprocess.CompletedProcess(command, 0)
+
+    def test_recorder_captures_completed_bytes_and_later_edits_fail(self) -> None:
+        directory = self.root / "new-arm"
+        with (patch("scripts.record_grounding_replays.model_identity", return_value={"name": "gpt-oss:20b", "digest": "a" * 64}),
+              patch("scripts.record_grounding_replays.subprocess.run", side_effect=self.generate_replay) as run):
+            record_arm(self.manifest, self.root, self.protocol, directory)
+        run.assert_called_once()
+        replay, record_path = directory / "paper.json", directory / "run.json"
+        record = json.loads(record_path.read_text())
+        self.assertEqual(record["status"], "complete")
+        self.assertEqual(record["steps"][0]["replay_sha256"], sha256(replay.read_bytes()).hexdigest())
+        self.assertIn("digest_recorded_at", record["steps"][0])
+        # Alter the answer after the recorder has finished, without changing its record.
+        value = json.loads(replay.read_text())
+        value["results"][0]["answer"] = "An edited answer."
+        replay.write_text(json.dumps(value))
+        with (patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
+              self.assertRaisesRegex(ValueError, "digest recorded at generation completion")):
+            evaluate(self.manifest, self.root, [replay], self.output, protocol=self.protocol,
+                     generation_record=record_path)
+        calibrate.assert_not_called()
+
+    def test_recorder_preserves_failed_subprocess_without_retry(self) -> None:
+        directory = self.root / "failed-arm"
+
+        def fail(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            self.generate_replay(command, **kwargs)
+            return subprocess.CompletedProcess(command, 1)
+
+        with (patch("scripts.record_grounding_replays.model_identity", return_value={"name": "gpt-oss:20b", "digest": "a" * 64}),
+              patch("scripts.record_grounding_replays.subprocess.run", side_effect=fail) as run,
+              self.assertRaisesRegex(RuntimeError, "Replay failed")):
+            record_arm(self.manifest, self.root, self.protocol, directory)
+        run.assert_called_once()
+        saved = json.loads((directory / "run.json").read_text())
+        self.assertEqual(saved["status"], "failed")
+        self.assertEqual(saved["steps"][0]["returncode"], 1)
+        self.assertTrue((directory / "paper.json").exists())
+
+    def test_recorder_runtime_change_keeps_report_but_fails_arm(self) -> None:
+        directory = self.root / "changed-runtime"
+        identity = {"name": "gpt-oss:20b", "digest": "a" * 64}
+        with (patch("scripts.record_grounding_replays.model_identity", side_effect=[identity, identity, ValueError("runtime changed")]),
+              patch("scripts.record_grounding_replays.subprocess.run", side_effect=self.generate_replay),
+              self.assertRaisesRegex(ValueError, "runtime changed")):
+            record_arm(self.manifest, self.root, self.protocol, directory)
+        saved = json.loads((directory / "run.json").read_text())
+        self.assertEqual(saved["status"], "failed")
+        self.assertEqual(saved["steps"][0]["replay_sha256"], sha256((directory / "paper.json").read_bytes()).hexdigest())
+
+    def test_recorder_rejects_existing_directory_and_changed_sources(self) -> None:
+        directory = self.root / "existing-arm"
+        directory.mkdir()
+        keep = directory / "keep.txt"
+        keep.write_text("preserve")
+        with (patch("scripts.record_grounding_replays.subprocess.run") as run,
+              self.assertRaises(FileExistsError)):
+            record_arm(self.manifest, self.root, self.protocol, directory)
+        run.assert_not_called()
+        self.assertEqual(keep.read_text(), "preserve")
+        self.source.write_text(self.source.read_text() + " ")
+        with (patch("scripts.record_grounding_replays.model_identity") as identity,
+              self.assertRaisesRegex(ValueError, "source report hash changed")):
+            record_arm(self.manifest, self.root, self.protocol, self.root / "unused")
+        identity.assert_not_called()
 
     def test_runtime_check_rejects_changed_judge_digest(self) -> None:
         version = Mock()

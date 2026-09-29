@@ -78,9 +78,13 @@ thinking settings, so they intentionally differ while the grounding code stays
 unchanged. The original selection manifest continues to identify the saved
 passages and development labels.
 
-From the repository root with the original ignored source reports present, run
-one model at a time. The revised practical configuration disables Qwen thinking.
-For example, the sample-paper Qwen3.5 replay is:
+The current protocol manifests use schema 2, added during PR review to freeze the
+evaluator fingerprint and require completion-time replay digests. The historical
+trials used schema 1. A changed evaluator fingerprint is rejected before grading;
+matching judge weights alone does not establish identical grading instructions.
+
+For a **new** trial, start from the repository root with the original ignored source
+reports present. Run one model at a time. For example:
 
 ```bash
 RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=false RAG_VERIFIER_THINK=false \
@@ -88,49 +92,55 @@ uv run python -m scripts.check_grounding \
   --output evaluation-results/qwen35-controls-new.json
 
 RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=false RAG_VERIFIER_THINK=false \
-uv run python -m scripts.replay_grounding \
-  evaluation-results/v1-review-sample-20260928.json \
-  --case c26-body-mass-loss --case glucose-tolerance-protocol \
-  --case cited-rosiglitazone --case own-rosiglitazone-dose \
-  --output evaluation-results/qwen35-sample-new.json
-```
-
-Repeat the replay for the other three papers using the matching source paths and
-four case IDs from the selection manifest. Use `qwen3:8b` with `false`/`false`, or
-`gpt-oss:20b` with `low`/`medium`, for the other arms. Verify local weight digests
-against the protocol before and after each arm. Never overwrite a source or replay.
-
-The generation commands above repeat individual trials. For grading the retained
-Qwen3.5 arm from this comparison, use its completed replays and orchestration
-record together:
-
-```bash
-RAG_JUDGE_MODEL=qwen3:8b uv run python -m scripts.evaluate_grounding_replays \
-  evaluation-results/compare-qwen35-9b-direct-sample-20260929.json \
-  evaluation-results/compare-qwen35-9b-direct-housing-20260929.json \
-  evaluation-results/compare-qwen35-9b-direct-mitochondrial-20260929.json \
-  evaluation-results/compare-qwen35-9b-direct-activin-20260929.json \
+uv run python -m scripts.record_grounding_replays \
   --protocol benchmarks/verified-model-comparison-direct.json \
-  --generation-record evaluation-results/verified-model-comparison-direct-20260929-run.json \
+  --output-dir evaluation-results/qwen35-recorded-new
+
+RAG_JUDGE_MODEL=qwen3:8b uv run python -m scripts.evaluate_grounding_replays \
+  evaluation-results/qwen35-recorded-new/sample.json \
+  evaluation-results/qwen35-recorded-new/housing.json \
+  evaluation-results/qwen35-recorded-new/mitochondrial.json \
+  evaluation-results/qwen35-recorded-new/activin.json \
+  --protocol benchmarks/verified-model-comparison-direct.json \
+  --generation-record evaluation-results/qwen35-recorded-new/run.json \
   --output evaluation-results/qwen35-judged-new.json
 ```
 
-The grader rejects modified source-report bytes, questions, labels, passages,
-budgets, candidate settings or prompt fingerprints, and incomplete/duplicate
-paper sets. It checks source hashes rather than connecting to a database.
-`--source-root` can point to the checkout holding the original ignored reports.
-Each grading attempt uses a fresh output path; grading failures preserve saved
-answers. A new grading attempt is not a new generation trial and must still be
-reported rather than selectively replacing an unfavorable grade.
+Inspect the controls before starting paper generation. Stop an arm if controls are
+incomplete or no positive control is accepted; completed semantic failures permit
+only diagnostic paper runs and disqualify default promotion. The recording wrapper
+runs the paper arm, not the controls. It checks the frozen source/model/configuration,
+uses a fresh directory, pins candidate thinking settings in each subprocess, hashes
+each replay as that generation process exits, and checkpoints the run record. Failures
+preserve outputs and stop without retries. Model/runtime identity is checked before
+and after each replay. Use `qwen3:8b` with `false`/`false`, or `gpt-oss:20b` with
+`low`/`medium`, for new trials of the other arms, always with fresh paths.
 
-Generation identities are attested by the retained local orchestration record:
-its runner checks each model digest before every paper replay and after each arm.
-The grader binds that record by hash, requires its successful replay entries and
-matching model/runtime, and verifies the installed judge digest/runtime before
-and after grading. Replay JSON alone does not attest model weights. New complete
-comparisons need a corresponding identity-checked orchestration record; individual
-manual replays should not be presented as weight-pinned comparisons without it.
-The exact local runner and logs are retained beside the ignored raw reports.
+The grader rejects modified source-report bytes, questions, labels, passages, answer
+bytes, budgets, candidate settings, grounding/evaluator fingerprints, and incomplete
+or duplicate paper sets. Answer digests must match the successful generation steps,
+not merely hashes computed while loading files for grading. It also checks installed
+judge identity/runtime before and after grading. These are integrity checks against
+a trusted local run record, not cryptographic signatures of the model's execution.
+`--source-root` can point to the checkout holding the original ignored reports.
+Every grading attempt uses a fresh output path and preserves saved answers on failure.
+
+### Legacy experiment provenance
+
+The retained September 29 generation records checked model identities and return
+codes but did **not** capture replay digests when generation finished. Their scoring
+reports hashed replay bytes at grading time; all three also recorded the same evaluator
+fingerprint, `b9c68934238f422d44debca5ab4cc7f1668e961edbad49f93cbfe0a2ec0a3e73`.
+These grade-time hashes and matching fingerprints are verifiable, but cannot establish
+completion-time byte integrity retroactively. The result tables below therefore
+remain **legacy development observations**, with this weaker provenance limitation.
+
+Do not backfill hashes into those run records or overwrite their reports. The schema-2
+grader rejects them because their completion digests are absent. Regrading those legacy
+files with the current strict tool is intentionally unsupported; new compliant trials
+require new generation through the wrapper. No new trial or grading was performed to
+address these review comments, and the original measurements are unchanged. The exact
+legacy runners, logs, records and scoring reports remain retained with the hashes below.
 
 ## Prespecified revised configuration after control timeouts
 
@@ -215,8 +225,8 @@ The seven answer/refusal categories sum to 16 per arm. Controls include determin
 rejections: GPT-OSS had 16 complete semantic verdicts and two deterministic rejections;
 each Qwen had 17 complete semantic verdicts and one deterministic rejection. These are
 not 18 independent successful model reasoning decisions. Qwen3 failed six negative
-controls (attribution, shared population, embellishment, mixed attribution, and missing
-comparison); Qwen3.5 accepted an effect summary despite a requested missing dose.
+controls (two attribution controls, shared population, embellishment, mixed attribution,
+and missing comparison); Qwen3.5 accepted an effect summary despite a requested missing dose.
 
 Qwen3.5 answered all nine questions whose bundles fully establish the requested facts.
 It refused four presumed-unanswerable requests and three answerable requests with
@@ -311,7 +321,8 @@ prevent these real-case judging errors; same-family judge bias remains a limitat
 
 The following artifacts remain under ignored `evaluation-results/`. SHA-256 values
 bind the final bytes. Each graded report contains the hashes of its four replay inputs
-and generation record; those records attest the installed weight/runtime checks.
+and generation record; those legacy records attest the installed weight/runtime checks but lack completion-time
+replay digests, as described above.
 The source-report hashes remain in the original selection manifest. The local driver
 scripts and logs are retained for inspection, without committing raw paper passages.
 

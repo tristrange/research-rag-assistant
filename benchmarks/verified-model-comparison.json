@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "review_set_sha256": "a42dadfbdf4b8a02160934fd31d47cac5ae8299601585bd6baf60744c42d1b82",
   "ollama_version": "0.34.4",
   "judge_model": "qwen3:8b",
@@ -27,5 +27,6 @@
     }
   ],
   "judge_digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
-  "grounding_code_sha256": "8b082940f86362e2df1bdb0443734cc27b207efa0aa9780f0f72538fd50f126f"
+  "grounding_code_sha256": "8b082940f86362e2df1bdb0443734cc27b207efa0aa9780f0f72538fd50f126f",
+  "evaluator_prompt_sha256": "b9c68934238f422d44debca5ab4cc7f1668e961edbad49f93cbfe0a2ec0a3e73"
 }

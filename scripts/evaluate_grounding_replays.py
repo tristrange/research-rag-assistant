@@ -52,12 +52,13 @@ class CandidateConfig(StrictModel):
 
 
 class ComparisonProtocol(StrictModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     review_set_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     ollama_version: str
     judge_model: str
     judge_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     grounding_code_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    evaluator_prompt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     candidates: list[CandidateConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -66,6 +67,18 @@ class ComparisonProtocol(StrictModel):
         if len(names) != len(set(names)):
             raise ValueError("candidate models must be unique")
         return self
+
+
+def validate_candidate_settings(protocol: ComparisonProtocol, settings: SettingsModel) -> CandidateConfig:
+    candidate = next((item for item in protocol.candidates
+                      if item.model == settings.verifier_model), None)
+    if candidate is None or (
+        settings.verifier_think != candidate.verifier_think
+        or settings.generator_think != str(candidate.draft_think).lower()
+        or settings.generator_prompt_sha256 != candidate.grounding_sha256
+    ):
+        raise ValueError("replay does not match a frozen candidate configuration")
+    return candidate
 
 
 def validate_run_metadata(
@@ -90,9 +103,11 @@ def validate_run_metadata(
                    if Path(step.get("report", "")).resolve() == Path(str(item["replay"])).resolve()]
         if len(matches) != 1 or matches[0].get("returncode") != 0:
             raise ValueError("generation record does not contain this successful replay")
+        if matches[0].get("replay_sha256") != item["sha256"]:
+            raise ValueError("replay bytes differ from the digest recorded at generation completion")
     return {"path": str(path), "sha256": sha256(raw).hexdigest(),
             "methodology": "Orchestrator recorded identities and checked digest before each replay "
-                           "and after each arm; replay bytes are separately hashed in inputs."}
+                           "and after each arm; replay bytes match completion-time digests."}
 
 
 def judge_runtime(protocol: ComparisonProtocol) -> dict[str, str]:
@@ -139,14 +154,7 @@ def load_inputs(
             raise ValueError("replay corpus differs from source report")
         if replay.settings.answer_mode != "verified":
             raise ValueError("only verified replays can be compared")
-        candidate = next((item for item in protocol.candidates
-                          if item.model == replay.settings.verifier_model), None)
-        if candidate is None or (
-            replay.settings.verifier_think != candidate.verifier_think
-            or replay.settings.generator_think != str(candidate.draft_think).lower()
-            or replay.settings.generator_prompt_sha256 != candidate.grounding_sha256
-        ):
-            raise ValueError("replay does not match a frozen candidate configuration")
+        validate_candidate_settings(protocol, replay.settings)
         # Changing a model's thinking controls is allowed; retrieval and budgets stay fixed.
         mutable = {"verifier_model", "verifier_think", "generator_think", "generator_prompt_sha256"}
         for key, value in source.settings.model_dump().items():
@@ -191,6 +199,8 @@ def evaluate(
 ) -> None:
     if JUDGE_MODEL != protocol.judge_model or JUDGE_THINK is not False:
         raise ValueError("judge differs from the frozen comparison protocol")
+    if EVALUATOR_PROMPT_SHA256 != protocol.evaluator_prompt_sha256:
+        raise ValueError("evaluator prompt differs from the frozen comparison protocol")
     generated, provenance, settings = load_inputs(manifest, root, paths, protocol=protocol)
     attestation = validate_run_metadata(generation_record, protocol, settings, provenance)
     runtime = judge_runtime(protocol)
