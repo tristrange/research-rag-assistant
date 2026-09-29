@@ -139,8 +139,9 @@ The control failure motivates a configuration change, not a hidden retry. Treat
 this as a new development experiment, preserve the initial failures, and report
 both phases. No prompt or evidence-policy changes are allowed.
 
-Reuse GPT-OSS's first unchanged control and paper trials from the initial phase;
-they have not yet run at this freeze. After that baseline arm, run all 18 controls
+Reuse GPT-OSS's first unchanged control and paper trials from the initial phase.
+Its controls had started at the revision freeze; its paper trials had not. After
+that baseline arm, run all 18 controls
 and the four first paper replays for Qwen3 with thinking disabled, then Qwen3.5.
 Retain every result, even if controls fail. Incomplete controls still stop that
 paper arm; completed semantic failures allow diagnostic paper runs but disqualify
@@ -175,3 +176,148 @@ machine scores, and report these interpretation limits alongside them:
 
 The other nine answerable bundles establish their requested facts, including the
 rosiglitazone result as the title of a cited publication, with appropriate attribution.
+
+
+## First-trial development results
+
+All three revised configurations completed the same 16 questions, without transport
+errors. The separate assistant audit inspected every final answer, actual cited chunk,
+and draft/verifier/repair trace. Counts describe support from those retrieved passages,
+not certification of the full papers or reference labels.
+
+| Outcome | GPT-OSS 20B | Qwen3 8B, no thinking | Qwen3.5 9B, no thinking |
+| --- | ---: | ---: | ---: |
+| Synthetic controls passed / completed | 18/18 | 12/18 | 17/18 |
+| Complete substantive answers with full retrieved support | 8 | 7 | 9 |
+| Answers with clear unsupported final claims or qualifiers | 1 | 5 | 0 |
+| Correct refusals on the four labeled-unanswerable cases | 4 | 1 | 4 |
+| Safe refusals on answerable cases with incomplete context | 2 | 0 | 3 |
+| Avoidable refusal despite complete available evidence | 1 | 0 | 0 |
+| Supported but off-target answers | 0 | 2 | 0 |
+| Incomplete comparison answer | 0 | 1 | 0 |
+| Cases using the bounded repair | 5 | 0 | 3 |
+| Cases with draft-schema validation errors | 3 | 0 | 0 |
+| Median generation seconds, all 16 cases | 39.0 | 36.2 | 44.8 |
+| Mean generation seconds, all 16 cases | 41.5 | 37.6 | 38.7 |
+
+The seven answer/refusal categories sum to 16 per arm. Controls include deterministic
+rejections: GPT-OSS had 16 complete semantic verdicts and two deterministic rejections;
+each Qwen had 17 complete semantic verdicts and one deterministic rejection. These are
+not 18 independent successful model reasoning decisions. Qwen3 failed six negative
+controls (attribution, shared population, embellishment, mixed attribution, and missing
+comparison); Qwen3.5 accepted an effect summary despite a requested missing dose.
+
+Qwen3.5 answered all nine questions whose bundles fully establish the requested facts.
+It refused four presumed-unanswerable requests and three answerable requests with
+incomplete evidence. This is the strongest observed support/usefulness balance here.
+It is a promising development candidate, not an approved default: its missing-dose
+control failed, some component verifier explanations were wrong, and zero unsupported
+final answers on this small inspected sample does not establish general reliability.
+
+GPT-OSS prevented a mistaken 24% total-fat-mass draft but repair then refused despite
+available 35% evidence. It also accepted the liver-TG numeric comparison with two
+unestablished population/duration bindings. Qwen3 merged separate cited publications,
+substituted ATPase activity for ATP levels, imported female populations from questions,
+and misbound treatment durations. Its salicylate dose and regional-fat-weight answers
+were sourced but answered different questions. Its partial mtDNA answer additionally
+inferred a control comparator not explicitly established for that measured outcome.
+
+Some accepted structured quote fragments omit supporting qualifiers or even quote a
+different sentence; the full cited chunks establish the supported final facts. Exact
+span presence alone is not a complete claim-support test. GPT-OSS had one composite
+claim with unsupported context; Qwen3 had eight clear unsupported claim units across
+five answers, plus the mtDNA comparator caveat. Unsupported here means the cited
+retrieval does not establish the assertion, not that the full scientific paper proves
+it false. No output numerical value was fabricated from nowhere; the failures often
+attach real numbers or findings to the wrong outcome, population, or publication.
+
+Latency includes loading, verification, and repairs, excludes retrieval and judging,
+and mixes answers with fast refusals. One sequential trial per case, different thinking
+settings and model defaults, and unequal refusal counts prevent a steady-state speed
+ranking. The small median differences do not justify choosing a model on speed alone.
+
+Keep application defaults unchanged. The next bounded improvement should strengthen
+verifier evidence for requested outcome/population/duration/attribution requirements,
+then address the missing retrieval context. Preserve the 16-case human packet for
+Thomas and Emma; this comparison does not complete their review or the v1 milestone.
+
+
+## Paired case audit
+
+“Sourced/off-target” means an explicit fact is present in the cited chunk but does not
+answer the requested finding. “Unsafe context” means at least one final assertion or
+attribution is unestablished by the retrieved evidence. Refusals are evidence-relative;
+“incomplete context” does not imply the full paper lacks the answer.
+
+| Case | GPT-OSS | Qwen3, no thinking | Qwen3.5, no thinking |
+| --- | --- | --- | --- |
+| `c26-body-mass-loss` | Supported | Supported | Supported |
+| `glucose-tolerance-protocol` | Supported | Supported | Supported |
+| `cited-rosiglitazone` | Supported | Unsafe attribution/absence | Supported |
+| `own-rosiglitazone-dose` | Correct refusal | Correct refusal | Correct refusal |
+| `housing-fat-loss` | Avoidable refusal | Sourced/off-target | Supported |
+| `housing-bat-atp` | Incomplete-context refusal | Unsafe outcome substitution | Incomplete-context refusal |
+| `housing-grip-runs` | Supported | Supported | Supported |
+| `housing-female-response` | Correct refusal | Unsafe population | Correct refusal |
+| `cytosolic-mtdna` | Incomplete-context refusal | Partial; comparator caveat | Incomplete-context refusal |
+| `muscle-csa-sexes` | Supported | Supported | Supported |
+| `food-intake-negative` | Supported | Supported | Supported |
+| `rab5c-inhibitor-mouse-dose` | Correct refusal | Sourced/off-target drug | Correct refusal |
+| `activin-long-regimen` | Supported | Supported | Supported |
+| `activin-human-myotubes` | Supported | Supported | Supported |
+| `activin-liver-tg-duration` | Unsafe qualifiers | Unsafe qualifiers/off-target | Incomplete-context refusal |
+| `activin-female-gtt` | Correct refusal | Unsafe population | Correct refusal |
+
+
+## Fixed-judge diagnostics
+
+All three scoring reports completed all 16 saved cases. Each attempt passed all
+13 existing calibration fixtures with `qwen3:8b`, thinking disabled. The unchanged
+evaluator scores exact fixed refusals deterministically; other answers use the fixed
+model. Grades below retain the original assistant-authored reference labels.
+Correctness, completeness, citation support and exact-evidence hit rate are normalized
+means over the 12 labeled-answerable cases; composite pass rate includes all 16.
+
+| Automated diagnostic | GPT-OSS | Qwen3, no thinking | Qwen3.5, no thinking |
+| --- | ---: | ---: | ---: |
+| Correctness / completeness | 75.0% / 75.0% | 87.5% / 87.5% | 75.0% / 75.0% |
+| Citation support | 100.0% | 79.2% | 100.0% |
+| Exact-evidence hit rate | 66.7% | 66.7% | 66.7% |
+| Composite passes | 11/16 | 7/16 | 11/16 |
+| Refusals on labeled-answerable questions | 3/12 | 0/12 | 3/12 |
+| Refusals on labeled-unanswerable questions | 4/4 | 1/4 | 4/4 |
+
+The automated GPT-OSS/Qwen3.5 tie masks their fat-loss/liver-TG difference. The judge
+awarded GPT-OSS's overqualified liver answer full citation support and also accepted
+Qwen3's merged-publication/absence claims. Conversely, it gave Qwen3's sourced regional
+fat-weight statement zero citation support, conflating its off-target response with
+unsupported content. Exact-label misses also fail the fully supported grip-run and
+long-regimen answers for every model. Neither correctness means nor composite pass
+rates alone establish the recommended configuration. Calibration success did not
+prevent these real-case judging errors; same-family judge bias remains a limitation.
+
+## Retained local evidence
+
+The following artifacts remain under ignored `evaluation-results/`. SHA-256 values
+bind the final bytes. Each graded report contains the hashes of its four replay inputs
+and generation record; those records attest the installed weight/runtime checks.
+The source-report hashes remain in the original selection manifest. The local driver
+scripts and logs are retained for inspection, without committing raw paper passages.
+
+| Artifact filename | SHA-256 |
+| --- | --- |
+| `compare-qwen3-8b-controls-20260929.json` | `ae0c0a145fc71e399461629f48362c8f69932f2b789dd876afeca1baed18d819` |
+| `compare-qwen35-9b-controls-20260929.json` | `1aacb7532a4c7ff504d2b7d37be780bce7956fc4340ba0c753068a4a023a3192` |
+| `compare-gpt-oss-20b-controls-20260929.json` | `74ea6fc6d91861f59715b6fc20455bd8662fbaa0da7294928e02fb6cd2e1e15e` |
+| `compare-qwen3-8b-direct-controls-20260929.json` | `ffb19599697125fae580e9d9c4e9d395d78c782a03c6abbf419501e793fc03a0` |
+| `compare-qwen35-9b-direct-controls-20260929.json` | `faa45a30c0fcd0eba1d905409b256c7b6de674571df180001ba9050e74ef3545` |
+| `verified-model-comparison-20260929-run.json` | `b68fccc670dc937d18d9953d7f8d37c0ee8991604bd23a2930c1810f7f3da7d6` |
+| `verified-model-comparison-direct-20260929-run.json` | `e814cb4ce15c8cec0da9100745d7cfaf60b83d0ffaede09c0f494a317aeb2a2f` |
+| `compare-gpt-oss-20b-judged-20260929.json` | `f64854c34bce1c5bab79485e5f11fa002c11977fd04d950edbf784553fcc73c8` |
+| `compare-qwen3-8b-direct-judged-20260929.json` | `ce65b6230296d3bb5a71ca1f45ff7ace6b2fb0eceac1452810839772a0784145` |
+| `compare-qwen35-9b-direct-judged-20260929.json` | `9e1ff582b0eb47080cd28db325635cd1aabffa9d52376b95ba46dabb9b6deb4d` |
+| `verified-model-comparison-grading-20260929-run.json` | `13511ca31cea4ce6ac441467fa3274cbac563c12f2a5b55980d1ec2f8b87838b` |
+| `verified-model-comparison-assistant-audit-20260929.json` | `b586a0faece7da3f19ed12a4d73370f2d47e55fe9e89bbc3f6d24207344fbc42` |
+| `run-verified-comparison-20260929.py` | `4d53c44d7431bb33a236f864609536caa23ac2526c387ba1271de85e9ce605ef` |
+| `run-verified-comparison-direct-20260929.py` | `0f261b47a4c7d22017476c14942d48eaa6f5ce9563eb090a9a36dbd654163b97` |
+| `grade-verified-comparison-20260929.py` | `4a1facbfde6e64706be3eda586150750503996d71a9a9f7c4c51f1871c4afb0b` |
