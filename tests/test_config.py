@@ -3,13 +3,35 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from app.config import reasoning_setting
+from app.config import GroundingSampling, reasoning_setting
 import subprocess
 import sys
 import unittest
 
 
 class ConfigTests(unittest.TestCase):
+    def test_invalid_inference_overrides_fail_at_startup(self) -> None:
+        for name, values in {
+            "RAG_GROUNDING_SAMPLING": ['{"temperature": "0.6"}', '{"temperature": -1}', '{"temperature": NaN}',
+                                      '{"temperature": 3}', '{"top_p": 0}', '{"top_k": true}',
+                                      '{"top_k": 1.5}', '{"min_p": 2}', '{"presence_penalty": 3}',
+                                      '{"repeat_penalty": 0}', '{"num_ctx": 100000}', '[]', ''],
+            "RAG_GROUNDING_TIMEOUT_SECONDS": ["0", "-1", "nan", "inf", "601", ""],
+            "RAG_GROUNDING_OUTPUT_TOKENS": ["0", "-1", "8193", "1.5", ""],
+        }.items():
+            for value in values:
+                with self.subTest(name=name, value=value):
+                    result = self.read_settings({name: value})
+                    self.assertNotEqual(result.returncode, 0)
+
+    def test_sampling_keeps_defaults_and_accepts_explicit_filters(self) -> None:
+        self.assertEqual(GroundingSampling().options(), {"temperature": 0.0})
+        self.assertEqual(GroundingSampling.model_validate_json(
+            '{"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0}'
+        ).options(), {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0})
+        result = self.read_settings({"RAG_GROUNDING_TIMEOUT_SECONDS": "450", "RAG_GROUNDING_OUTPUT_TOKENS": "2048"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def read_settings(self, overrides: dict[str, str]) -> subprocess.CompletedProcess[str]:
         environment = {k: v for k, v in os.environ.items() if not k.startswith("RAG_")}
         return subprocess.run(

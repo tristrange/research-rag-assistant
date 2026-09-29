@@ -15,6 +15,18 @@ from scripts.prepare_human_review import (
 
 
 class HumanReviewTests(unittest.TestCase):
+    def test_legacy_configuration_hash_keeps_unknown_inference_fields_absent(self) -> None:
+        raw = json.loads(self.path.read_text())
+        for field in ("grounding_sampling", "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds"):
+            del raw["settings"][field]
+        legacy = ReportModel.model_validate(raw)
+        original_configuration = {"settings": raw["settings"],
+                                  "generator_model": raw["generator_model"], "judge_model": raw["judge_model"],
+                                  "embedding_model": raw["embedding_model"], "reranker_model": raw["reranker_model"]}
+        self.assertEqual(configuration_hash(legacy), sha256(json.dumps(original_configuration, sort_keys=True).encode()).hexdigest())
+        self.assertIsNone(legacy.settings.grounding_sampling)
+        self.assertNotEqual(configuration_hash(legacy), self.manifest.configuration_sha256)
+
     def setUp(self) -> None:
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

@@ -13,8 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 from app.config import (
     GROUNDING_MODEL as GROUNDING_MODEL,
     DRAFT_THINK as DRAFT_THINK, VERIFIER_THINK as VERIFIER_THINK,
+    GROUNDING_SAMPLING as GROUNDING_SAMPLING, GROUNDING_TIMEOUT_SECONDS,
+    GROUNDING_OUTPUT_TOKENS as GROUNDING_OUTPUT_TOKENS,
 )
-from app.llm.ollama import generate_json
+from app.llm.ollama import default_timeout, generate_json
 from app.types import ChunkData
 
 
@@ -23,7 +25,8 @@ INSUFFICIENT_EVIDENCE = (
 )
 GROUNDING_CONTRACT_VERSION = "claim-grounding-v13"
 GROUNDING_CONTEXT_TOKENS = 12288
-GROUNDING_OUTPUT_TOKENS = 4096
+GROUNDING_DRAFT_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(DRAFT_THINK)
+GROUNDING_VERIFIER_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(VERIFIER_THINK)
 MAX_CLAIMS = 3
 MAX_QUOTE_CHARS = 4000
 
@@ -396,13 +399,15 @@ def _render_claims(claims: list[GroundedClaim], sources: list[ChunkData]) -> str
 def generate_draft_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
     """Reason about evidence and attribution before producing the structured draft."""
     return generate_json(prompt, schema, think=DRAFT_THINK, model=GROUNDING_MODEL,
-                         num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS)
+                         num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS,
+                         sampling=GROUNDING_SAMPLING.options(), timeout_seconds=GROUNDING_DRAFT_TIMEOUT_SECONDS)
 
 
 def generate_verification_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
     """Use reasoning for semantic verification; drafting and judging stay separate."""
     return generate_json(prompt, schema, think=VERIFIER_THINK, model=GROUNDING_MODEL,
-                         num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS)
+                         num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS,
+                         sampling=GROUNDING_SAMPLING.options(), timeout_seconds=GROUNDING_VERIFIER_TIMEOUT_SECONDS)
 
 
 def _verify_draft_with_feedback(
@@ -519,6 +524,9 @@ def grounding_fingerprint() -> str:
         "output_tokens": GROUNDING_OUTPUT_TOKENS,
         "draft_think": DRAFT_THINK,
         "verifier_think": VERIFIER_THINK,
+        "sampling": GROUNDING_SAMPLING.options(),
+        "draft_timeout_seconds": GROUNDING_DRAFT_TIMEOUT_SECONDS,
+        "verifier_timeout_seconds": GROUNDING_VERIFIER_TIMEOUT_SECONDS,
         "draft_instructions": _DRAFT_INSTRUCTIONS,
         "repair_instructions": _REPAIR_INSTRUCTIONS,
         "verifier_instructions": _VERIFIER_INSTRUCTIONS,

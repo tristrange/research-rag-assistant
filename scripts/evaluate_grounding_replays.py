@@ -15,6 +15,7 @@ from app.answer_evaluation import (
     evidence_found, judge_case_answer, summarize,
 )
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
+from app.config import GroundingSampling
 from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, Thinking, generate_json
 from app.types import ChunkData
 from scripts.evaluate_answers import (
@@ -49,10 +50,14 @@ class CandidateConfig(StrictModel):
     draft_think: Thinking
     verifier_think: Thinking
     grounding_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sampling: GroundingSampling | None = None
+    draft_timeout_seconds: float | None = Field(default=None, gt=0, le=600)
+    verifier_timeout_seconds: float | None = Field(default=None, gt=0, le=600)
+    output_tokens: int | None = Field(default=None, ge=1, le=8192)
 
 
 class ComparisonProtocol(StrictModel):
-    schema_version: Literal[2]
+    schema_version: Literal[2, 3]
     review_set_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     ollama_version: str
     judge_model: str
@@ -66,6 +71,12 @@ class ComparisonProtocol(StrictModel):
         names = [item.model for item in self.candidates]
         if len(names) != len(set(names)):
             raise ValueError("candidate models must be unique")
+        if self.schema_version == 3 and any(
+            item.sampling is None or item.draft_timeout_seconds is None
+            or item.verifier_timeout_seconds is None or item.output_tokens is None
+            for item in self.candidates
+        ):
+            raise ValueError("schema-3 candidates require explicit inference settings")
         return self
 
 
@@ -78,6 +89,15 @@ def validate_candidate_settings(protocol: ComparisonProtocol, settings: Settings
         or settings.generator_prompt_sha256 != candidate.grounding_sha256
     ):
         raise ValueError("replay does not match a frozen candidate configuration")
+    if protocol.schema_version == 3 and (
+        candidate.sampling is None or settings.grounding_sampling != candidate.sampling.options()
+        or settings.verifier_temperature != candidate.sampling.temperature
+        or settings.generator_temperature != str(candidate.sampling.temperature)
+        or settings.grounding_draft_timeout_seconds != candidate.draft_timeout_seconds
+        or settings.grounding_verifier_timeout_seconds != candidate.verifier_timeout_seconds
+        or settings.grounding_output_tokens != candidate.output_tokens
+    ):
+        raise ValueError("replay inference settings differ from the frozen candidate")
     return candidate
 
 
@@ -155,8 +175,13 @@ def load_inputs(
         if replay.settings.answer_mode != "verified":
             raise ValueError("only verified replays can be compared")
         validate_candidate_settings(protocol, replay.settings)
-        # Changing a model's thinking controls is allowed; retrieval and budgets stay fixed.
+        # Legacy protocols keep budgets/sampling unchanged. New protocols explicitly
+        # freeze candidate inference settings; retrieval and context remain fixed.
         mutable = {"verifier_model", "verifier_think", "generator_think", "generator_prompt_sha256"}
+        if protocol.schema_version == 3:
+            mutable |= {"verifier_temperature", "generator_temperature", "grounding_sampling",
+                        "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds",
+                        "grounding_output_tokens"}
         for key, value in source.settings.model_dump().items():
             if key not in mutable and replay.settings.model_dump()[key] != value:
                 raise ValueError(f"replay changed frozen setting: {key}")

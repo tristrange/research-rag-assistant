@@ -1,5 +1,12 @@
 # Three-model verified-answer comparison
 
+This is a historical study. The reproduction commands below refer to the
+implementation merged in PR #35 (`18deb01`), whose grounding hashes are frozen
+in the tracked schema-2 protocols. Current inference controls change those
+hashes; new runs need a fresh schema-3 protocol as described in the
+[inference-settings follow-up](ollama-inference-settings.md). Neither protocol
+nor any original study artifact is upgraded or backfilled in place.
+
 ## Initial frozen protocol
 
 Compare `qwen3:8b`, `qwen3.5:9b`, and `gpt-oss:20b` in that order, using

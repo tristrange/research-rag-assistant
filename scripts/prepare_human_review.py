@@ -56,7 +56,13 @@ def review_set_hash(manifest: ReviewManifest) -> str:
 
 
 def configuration_hash(report: ReportModel) -> str:
-    configuration = {"settings": report.settings.model_dump(),
+    settings = report.settings.model_dump()
+    # Preserve the identity of frozen reports written before inference controls.
+    # Missing fields remain unknown; they must not be inferred from today's defaults.
+    for key in ("grounding_sampling", "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds"):
+        if key not in report.settings.model_fields_set:
+            settings.pop(key)
+    configuration = {"settings": settings,
                      "generator_model": report.generator_model, "judge_model": report.judge_model,
                      "embedding_model": report.embedding_model, "reranker_model": report.reranker_model}
     return sha256(json.dumps(configuration, sort_keys=True).encode()).hexdigest()

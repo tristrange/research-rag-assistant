@@ -18,6 +18,47 @@ from scripts.record_grounding_replays import record_arm
 
 
 class EvaluateReplayTests(unittest.TestCase):
+    def inference_protocol(self) -> ComparisonProtocol:
+        protocol = self.protocol.model_dump()
+        protocol["schema_version"] = 3
+        candidates = cast(list[dict[str, object]], protocol["candidates"])
+        candidates[0].update(sampling={"temperature": 0.6, "top_k": 20},
+                             draft_timeout_seconds=450.0, verifier_timeout_seconds=450.0,
+                             output_tokens=2048, grounding_sha256="d" * 64)
+        return ComparisonProtocol.model_validate(protocol)
+
+    def test_new_protocol_freezes_every_inference_setting(self) -> None:
+        protocol = self.inference_protocol()
+        settings = cast(dict[str, object], self.replay["settings"])
+        settings.update(grounding_sampling={"temperature": 0.6, "top_k": 20}, verifier_temperature=0.6,
+                        generator_temperature="0.6", grounding_draft_timeout_seconds=450.0,
+                        grounding_verifier_timeout_seconds=450.0, grounding_output_tokens=2048,
+                        generator_prompt_sha256="d" * 64)
+        self.write()
+        load_inputs(self.manifest, self.root, [self.path], protocol=protocol)
+        for field, value in [
+            ("grounding_sampling", {"temperature": 0.6, "top_k": 40}),
+            ("verifier_temperature", 0.0), ("generator_temperature", "0.0"),
+            ("grounding_draft_timeout_seconds", 120.0), ("grounding_verifier_timeout_seconds", 120.0),
+            ("grounding_output_tokens", 4096),
+        ]:
+            original = settings[field]
+            with self.subTest(field=field):
+                settings[field] = value
+                self.write()
+                with self.assertRaisesRegex(ValueError, "inference settings differ"):
+                    load_inputs(self.manifest, self.root, [self.path], protocol=protocol)
+                settings[field] = original
+
+    def test_new_protocol_requires_explicit_inference_fields(self) -> None:
+        protocol = self.inference_protocol().model_dump()
+        candidates = cast(list[dict[str, object]], protocol["candidates"])
+        for field in ("sampling", "draft_timeout_seconds", "verifier_timeout_seconds", "output_tokens"):
+            original = candidates[0].pop(field)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "require explicit inference settings"):
+                ComparisonProtocol.model_validate(protocol)
+            candidates[0][field] = original
+
     def setUp(self) -> None:
         temporary = TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -235,6 +276,11 @@ class EvaluateReplayTests(unittest.TestCase):
         self.assertEqual(environment["RAG_GROUNDING_MODEL"], candidate.model)
         self.assertEqual(environment["RAG_DRAFT_THINK"], str(candidate.draft_think).lower())
         self.assertEqual(environment["RAG_VERIFIER_THINK"], str(candidate.verifier_think).lower())
+        if self.protocol.schema_version == 3:
+            assert candidate.sampling is not None
+            self.assertEqual(json.loads(environment["RAG_GROUNDING_SAMPLING"]), candidate.sampling.options())
+            self.assertEqual(environment["RAG_GROUNDING_TIMEOUT_SECONDS"], str(candidate.draft_timeout_seconds))
+            self.assertEqual(environment["RAG_GROUNDING_OUTPUT_TOKENS"], str(candidate.output_tokens))
         return subprocess.CompletedProcess(command, 0)
 
     def test_recorder_captures_completed_bytes_and_later_edits_fail(self) -> None:
@@ -257,6 +303,18 @@ class EvaluateReplayTests(unittest.TestCase):
             evaluate(self.manifest, self.root, [replay], self.output, protocol=self.protocol,
                      generation_record=record_path)
         calibrate.assert_not_called()
+
+    def test_schema3_recorder_pins_explicit_candidate_inference_environment(self) -> None:
+        value = self.protocol.model_dump()
+        value["schema_version"] = 3
+        candidates = cast(list[dict[str, object]], value["candidates"])
+        candidates[0].update(sampling={"temperature": 0.0}, draft_timeout_seconds=300.0,
+                             verifier_timeout_seconds=300.0, output_tokens=4096)
+        self.protocol = ComparisonProtocol.model_validate(value)
+        with (patch("scripts.record_grounding_replays.model_identity", return_value={"name": "gpt-oss:20b", "digest": "a" * 64}),
+              patch("scripts.record_grounding_replays.subprocess.run", side_effect=self.generate_replay) as run):
+            record_arm(self.manifest, self.root, self.protocol, self.root / "schema3-arm")
+        run.assert_called_once()
 
     def test_recorder_preserves_failed_subprocess_without_retry(self) -> None:
         directory = self.root / "failed-arm"
