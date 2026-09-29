@@ -20,6 +20,7 @@ from app.answer_evaluation import (
     GeneratedCaseAnswer,
     judge_case_answer,
 )
+from app.config import GroundingSampling
 from app.grounding import (
     DRAFT_THINK,
     GROUNDING_CONTEXT_TOKENS,
@@ -508,6 +509,9 @@ class AnswerRunnerTests(unittest.TestCase):
         self.assertEqual(settings["verifier_think"], VERIFIER_THINK)
         self.assertEqual(settings["grounding_context_tokens"], GROUNDING_CONTEXT_TOKENS)
         self.assertEqual(settings["grounding_output_tokens"], GROUNDING_OUTPUT_TOKENS)
+        self.assertEqual(settings["grounding_sampling"], {"temperature": 0.0})
+        self.assertEqual(settings["grounding_draft_timeout_seconds"], 300.0)
+        self.assertEqual(settings["grounding_verifier_timeout_seconds"], 300.0)
         self.assertEqual(settings["verifier_temperature"], 0.0)
         self.assertEqual(settings["judge_temperature"], 0.0)
         self.assertEqual(settings["judge_think"], False)
@@ -549,6 +553,9 @@ class AnswerRunnerTests(unittest.TestCase):
             ("settings", "VERIFIER_THINK", "high"),
             ("settings", "GROUNDING_CONTEXT_TOKENS", GROUNDING_CONTEXT_TOKENS + 1),
             ("settings", "GROUNDING_OUTPUT_TOKENS", GROUNDING_OUTPUT_TOKENS + 1),
+            ("settings", "GROUNDING_DRAFT_TIMEOUT_SECONDS", 450.0),
+            ("settings", "GROUNDING_VERIFIER_TIMEOUT_SECONDS", 450.0),
+            ("settings", "GROUNDING_SAMPLING", GroundingSampling(temperature=0.6, top_k=20)),
         ]
         for expected, setting, changed in changes:
             with self.subTest(setting=setting), patch(
@@ -565,6 +572,9 @@ class AnswerRunnerTests(unittest.TestCase):
         stored_settings = cast(dict[str, object], raw["settings"])
         stored_settings.pop("grounding_context_tokens")
         stored_settings.pop("grounding_output_tokens")
+        stored_settings.pop("grounding_sampling")
+        stored_settings.pop("grounding_draft_timeout_seconds")
+        stored_settings.pop("grounding_verifier_timeout_seconds")
         saved = ReportModel.model_validate(raw)
         self.assertIsNone(saved.settings.grounding_context_tokens)
         self.assertIsNone(saved.settings.grounding_output_tokens)

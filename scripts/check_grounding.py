@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from app.grounding import (
     GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
     generate_verification_json, grounding_fingerprint, verify_draft,
+    GROUNDING_SAMPLING, GROUNDING_VERIFIER_TIMEOUT_SECONDS, GROUNDING_OUTPUT_TOKENS,
 )
 from app.types import ChunkData
 
@@ -140,7 +141,9 @@ def main() -> None:
         pass
     report: dict[str, object] = {
         "started_at": datetime.now(timezone.utc).isoformat(), "status": "running",
-        "model": GROUNDING_MODEL, "temperature": 0.0, "think": VERIFIER_THINK,
+        "model": GROUNDING_MODEL, "temperature": GROUNDING_SAMPLING.temperature, "think": VERIFIER_THINK,
+        "sampling": GROUNDING_SAMPLING.options(), "timeout_seconds": GROUNDING_VERIFIER_TIMEOUT_SECONDS,
+        "output_tokens": GROUNDING_OUTPUT_TOKENS,
         "grounding_sha256": grounding_fingerprint(), "results": [],
         "methodology": f"{len(fixtures)} assistant-authored synthetic controls, one run each; not proof of verifier accuracy.",
     }

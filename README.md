@@ -247,8 +247,11 @@ Set these environment variables before starting the API or evaluation process:
 | `RAG_GENERATOR_MODEL` | `qwen3:8b` | Plain generation in local evaluation scripts |
 | `RAG_GROUNDING_MODEL` | `gpt-oss:20b` | Verified drafting and verification |
 | `RAG_JUDGE_MODEL` | `qwen3:8b` | Evaluation and judge calibration |
-| `RAG_DRAFT_THINK` | `low` | Verified draft reasoning |
-| `RAG_VERIFIER_THINK` | `medium` | Verified reasoning |
+| `RAG_DRAFT_THINK` | `true` for Qwen3/Qwen3.5; otherwise `low` | Verified draft reasoning |
+| `RAG_VERIFIER_THINK` | `true` for Qwen3/Qwen3.5; otherwise `medium` | Verified reasoning |
+| `RAG_GROUNDING_SAMPLING` | `{}` (automatic profile below) | JSON sampling overrides shared by verified drafting, repair and verification |
+| `RAG_GROUNDING_TIMEOUT_SECONDS` | 120 without explicit thinking; 300 with thinking | Per-call HTTP timeout override, greater than 0 and at most 600 seconds |
+| `RAG_GROUNDING_OUTPUT_TOKENS` | `4096` | Per-call output budget, including reasoning; 1–8192 tokens |
 | `RAG_DB_PASSWORD` | Required by Compose | Local PostgreSQL password |
 | `RAG_DATABASE_URL` | No usable password by default; set via private `.env` | Index connection |
 
@@ -260,6 +263,28 @@ or require reindexing. Models must already be installed in Ollama; there is no
 automatic download or fallback. Blank settings fail at startup. Restart the process
 after changing settings. Model comparisons should keep the judge fixed and inspect
 actual evidence, not rely only on aggregate model grades.
+
+With Qwen3 or Qwen3.5, thinking flags must be Boolean. If either stage thinks,
+the shared sampling profile uses temperature 0.6 for Qwen3 or 1.0 for Qwen3.5,
+top_p 0.95, top_k 20, min_p 0, repeat_penalty 1, and presence_penalty 0 for
+Qwen3 or 1.5 for Qwen3.5. These follow their general-thinking guidance.
+When both stages disable thinking, temperature stays at the previously tested
+zero baseline. Other grounding models retain temperature zero. Selecting Qwen
+alone enables its thinking profile; use both `THINK=false` variables for the
+faster non-thinking configuration.
+
+Sampling accepts numeric `temperature` (0–2), `top_p` (greater than 0, at most 1),
+integer `top_k` (1–1000), `min_p` (0–1), `presence_penalty` (0–2), and
+`repeat_penalty` (greater than 0, at most 2). Explicit values override the selected
+profile; omitted values inherit it, including when the JSON is `{}` or specifies
+only a filter. Outside Qwen thinking profiles, omitted filters retain the installed
+model's defaults. Explicit temperature zero is available for controlled
+experiments, but is discouraged for Qwen thinking. Unknown keys, invalid
+types, non-finite numbers, and out-of-range values fail at startup.
+These overrides affect verified calls only; the evaluation judge stays at
+temperature zero with thinking disabled. Context remains 12,288 tokens.
+For tested settings, commands, and limitations, see the
+[inference-settings follow-up](docs/ollama-inference-settings.md).
 
 ## Verified answer mode (experimental)
 
@@ -313,8 +338,8 @@ records paired controls for a population qualifier in a two-duration answer.
 Verified mode uses `gpt-oss:20b` with low reasoning for drafting, medium reasoning
 for verification, and temperature zero. Install it with `ollama pull gpt-oss:20b` before trying this
 mode. Plain evaluation and the evaluation judge continue to use `qwen3:8b`.
-Verified requests use a 12,288-token context window, a 4,096-token output limit
-(including reasoning), and a 300-second timeout per call. Evaluation records the answer mode, both
+Verified requests default to a 12,288-token context window, a 4,096-token output limit
+(including reasoning), and a 300-second timeout per call. Evaluation records the answer mode, sampling overrides, effective per-stage timeouts, both
 model configurations, and the grounding prompt/schema contract fingerprint. Resume
 requires matching settings; older reports require a fresh run. See the
 [verified-claims evaluation](docs/verified-claims-evaluation.md) for observed results
@@ -614,8 +639,10 @@ Ollama model weights: keep the installed models unchanged between attempts.
 Reports from the old schema (version 1), or older evaluations without recorded
 thinking settings or the generator prompt fingerprint, cannot be resumed; start
 a new run for them. Changing either prompt or thinking settings also requires a
-fresh evaluation. Requests without explicit reasoning retain the 120-second timeout;
-explicit reasoning uses 300 seconds. Disabling judge thinking is not a guarantee
+fresh evaluation. Without a grounding timeout override, requests without explicit reasoning retain the 120-second timeout;
+explicit reasoning uses 300 seconds. Changed sampling, output budgets, or timeouts also require fresh evaluation.
+An exhausted output budget fails the call; it is not counted as an evidence refusal or silently retried.
+Disabling judge thinking is not a guarantee
 against timeouts on every machine.
 
 The canonical application refusal and a small explicit set of fact-free refusal

@@ -10,8 +10,10 @@ from app.grounding import (
     GROUNDING_OUTPUT_TOKENS, MAX_QUOTE_CHARS, VERIFIER_THINK, GroundedDraft,
     INSUFFICIENT_EVIDENCE, _bounded_draft_schema, _evidence_spans,
     _normalize_whitespace, build_draft_prompt, build_verifier_prompt,
-    generate_draft_json, generate_verification_json, grounded_answer, verify_draft,
+    generate_draft_json, generate_verification_json, grounded_answer, grounding_fingerprint, verify_draft,
 )
+from app.config import GroundingSampling
+from app.llm.ollama import OllamaOutputLimitError
 from app.types import ChunkData
 
 
@@ -37,6 +39,41 @@ def first_citation(draft: dict[str, object]) -> dict[str, object]:
 
 
 class GroundingTests(unittest.TestCase):
+    def test_inference_settings_change_grounding_fingerprint(self) -> None:
+        original = grounding_fingerprint()
+        for setting, value in [
+            ("GROUNDING_SAMPLING", GroundingSampling(temperature=0.6, top_k=20)),
+            ("GROUNDING_DRAFT_TIMEOUT_SECONDS", 450.0),
+            ("GROUNDING_VERIFIER_TIMEOUT_SECONDS", 450.0),
+            ("GROUNDING_OUTPUT_TOKENS", 2048),
+        ]:
+            with self.subTest(setting=setting), patch(f"app.grounding.{setting}", value):
+                self.assertNotEqual(grounding_fingerprint(), original)
+
+    def test_budget_exhaustion_propagates_without_repair_or_safe_refusal(self) -> None:
+        for responses, expected_calls in [
+            ([OllamaOutputLimitError("budget exhausted")], 1),
+            ([DRAFT, OllamaOutputLimitError("budget exhausted")], 2),
+        ]:
+            with self.subTest(expected_calls=expected_calls), patch(
+                "app.grounding.generate_json", side_effect=responses,
+            ) as model, self.assertRaises(OllamaOutputLimitError):
+                grounded_answer("What did the cited study report?", [SOURCE])
+            self.assertEqual(model.call_count, expected_calls)
+
+    def test_repair_and_verification_share_explicit_sampling_and_timeouts(self) -> None:
+        with patch("app.grounding.GROUNDING_SAMPLING", GroundingSampling(temperature=0.6, top_k=20)), patch(
+            "app.grounding.GROUNDING_DRAFT_TIMEOUT_SECONDS", 450.0,
+        ), patch("app.grounding.GROUNDING_VERIFIER_TIMEOUT_SECONDS", 240.0), patch(
+            "app.grounding.generate_json", side_effect=[{}, DRAFT, APPROVED],
+        ) as model:
+            result = grounded_answer("What did the cited study report?", [SOURCE])
+        self.assertIn("delayed weight loss", result)
+        self.assertEqual(model.call_count, 3)
+        self.assertEqual([call.kwargs["timeout_seconds"] for call in model.call_args_list], [450.0, 450.0, 240.0])
+        for call in model.call_args_list:
+            self.assertEqual(call.kwargs["sampling"], {"temperature": 0.6, "top_k": 20})
+
     def test_grounding_calls_use_explicit_model_and_reasoning_settings(self) -> None:
         with patch("app.grounding.generate_json", return_value={}) as model:
             generate_draft_json("Draft", {})
@@ -45,10 +82,12 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(model.call_args_list[0].kwargs, {
             "think": DRAFT_THINK, "model": GROUNDING_MODEL,
             "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
+            "sampling": {"temperature": 0.0}, "timeout_seconds": 300.0,
         })
         self.assertEqual(model.call_args_list[1].kwargs, {
             "think": VERIFIER_THINK, "model": GROUNDING_MODEL,
             "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
+            "sampling": {"temperature": 0.0}, "timeout_seconds": 300.0,
         })
 
     def test_supported_cited_claim_gets_application_owned_page(self) -> None:

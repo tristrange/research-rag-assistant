@@ -1,10 +1,32 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from app.llm.ollama import generate, generate_json
+from app.llm.ollama import OllamaOutputLimitError, generate, generate_json
 
 
 class OllamaTests(unittest.TestCase):
+    @patch("app.llm.ollama.httpx.post")
+    def test_sampling_and_timeout_are_request_specific(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content": "{}"}}
+        generate_json("Verify", {}, think=True, sampling={"temperature": 0.6, "top_p": 0.95, "top_k": 20},
+                      timeout_seconds=450.0, num_predict=2048)
+        self.assertEqual(post.call_args.kwargs["timeout"], 450.0)
+        self.assertEqual(post.call_args.kwargs["json"]["options"],
+                         {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "num_predict": 2048})
+        generate_json("Judge", {})
+        self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
+        self.assertEqual(post.call_args.kwargs["json"]["options"], {"temperature": 0.0})
+        generate("Plain")
+        self.assertNotIn("options", post.call_args.kwargs["json"])
+        self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
+
+    @patch("app.llm.ollama.httpx.post")
+    def test_exhausted_output_budget_is_not_accepted_even_with_valid_json(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content": '{"answerable": false}'}, "done_reason": "length"}
+        with self.assertRaisesRegex(OllamaOutputLimitError, "output token budget"):
+            generate_json("Verify", {})
+        post.assert_called_once()
+
     @patch("app.llm.ollama.httpx.post")
     def test_generate_preserves_plain_text_behavior(self, post: Mock) -> None:
         post.return_value.json.return_value = {"message": {"content": "Answer"}}

@@ -1,6 +1,7 @@
 """Generate one frozen candidate arm and record replay digests at completion."""
 
 import argparse
+import json
 from datetime import datetime, timezone
 from hashlib import sha256
 import os
@@ -67,6 +68,16 @@ def record_arm(manifest: ReviewManifest, root: Path, protocol: ComparisonProtoco
         "RAG_DRAFT_THINK": str(candidate.draft_think).lower(),
         "RAG_VERIFIER_THINK": str(candidate.verifier_think).lower(),
     }
+    if protocol.schema_version == 3:
+        assert candidate.sampling is not None
+        environment.update({"RAG_GROUNDING_SAMPLING": json.dumps(candidate.sampling.options()),
+                            "RAG_GROUNDING_OUTPUT_TOKENS": str(candidate.output_tokens)})
+        if candidate.draft_timeout_seconds == candidate.verifier_timeout_seconds:
+            environment["RAG_GROUNDING_TIMEOUT_SECONDS"] = str(candidate.draft_timeout_seconds)
+        else:
+            # Different stage timeouts can only come from the legacy thinking defaults;
+            # validate_candidate_settings above already checked the effective values.
+            environment.pop("RAG_GROUNDING_TIMEOUT_SECONDS", None)
     output.mkdir(parents=True, exist_ok=False)
     steps: list[dict[str, object]] = []
     record: dict[str, object] = {

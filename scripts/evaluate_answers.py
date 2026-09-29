@@ -26,6 +26,7 @@ from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
 from app.grounding import (
     DRAFT_THINK, VERIFIER_THINK, GROUNDING_MODEL, GROUNDING_CONTEXT_TOKENS, GROUNDING_OUTPUT_TOKENS,
+    GROUNDING_SAMPLING, GROUNDING_DRAFT_TIMEOUT_SECONDS, GROUNDING_VERIFIER_TIMEOUT_SECONDS,
     grounding_fingerprint,
 )
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
@@ -175,6 +176,9 @@ class SettingsModel(StrictModel):
     verifier_think: Thinking | None
     grounding_context_tokens: int | None = Field(default=None, ge=1)
     grounding_output_tokens: int | None = Field(default=None, ge=1)
+    grounding_sampling: dict[str, float | int] | None = None
+    grounding_draft_timeout_seconds: float | None = Field(default=None, gt=0, le=600)
+    grounding_verifier_timeout_seconds: float | None = Field(default=None, gt=0, le=600)
     generator_prompt_sha256: str
     generator_temperature: str
     generator_think: str
@@ -376,15 +380,18 @@ def settings_for(strategy: str, answer_mode: str = "plain", top_k: int | None = 
         "strategy": strategy, "top_k": top_k,
         "answer_mode": answer_mode,
         "verifier_model": GROUNDING_MODEL if answer_mode == "verified" else None,
-        "verifier_temperature": 0.0 if answer_mode == "verified" else None,
+        "verifier_temperature": GROUNDING_SAMPLING.temperature if answer_mode == "verified" else None,
         "verifier_think": VERIFIER_THINK if answer_mode == "verified" else None,
         "grounding_context_tokens": GROUNDING_CONTEXT_TOKENS if answer_mode == "verified" else None,
         "grounding_output_tokens": GROUNDING_OUTPUT_TOKENS if answer_mode == "verified" else None,
+        "grounding_sampling": GROUNDING_SAMPLING.options() if answer_mode == "verified" else None,
+        "grounding_draft_timeout_seconds": GROUNDING_DRAFT_TIMEOUT_SECONDS if answer_mode == "verified" else None,
+        "grounding_verifier_timeout_seconds": GROUNDING_VERIFIER_TIMEOUT_SECONDS if answer_mode == "verified" else None,
         "candidate_count": top_k if strategy == "vector" else max(CANDIDATE_COUNT, top_k),
         "generator_prompt_sha256": grounding_fingerprint() if answer_mode == "verified" else sha256(answer_prompt("Question?", render_context([ChunkData(
             document="paper.pdf", page=1, chunk_index=0, text="Evidence.", section="references",
         )])).encode()).hexdigest(),
-        "generator_temperature": "0.0" if answer_mode == "verified" else "model default",
+        "generator_temperature": str(GROUNDING_SAMPLING.temperature) if answer_mode == "verified" else "model default",
         "generator_think": str(DRAFT_THINK).lower() if answer_mode == "verified" else "model default",
         "judge_temperature": 0.0, "judge_think": JUDGE_THINK,
         "neighbor_radius": NEIGHBOR_RADIUS if strategy == "expanded" else 0,
