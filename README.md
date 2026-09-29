@@ -307,8 +307,8 @@ curl -X POST http://127.0.0.1:8000/query \
 The model drafts concise claims and selects exact excerpts from a source-specific
 quote catalogue. Code rejects invalid IDs, quotes outside that catalogue, and current-study claims citing a references section.
 A second model call checks each claim's full support, attribution, and relevance.
-It must assess the full original question and explicitly mark each qualifier category
-as supported, unsupported, or not requested. Supported checks and claim verdicts
+It must assess the full original question separately from its list of essential
+requested findings and qualifiers. Supported checks and claim verdicts
 must reference application-owned exact excerpts from their cited passages. Code
 validates question excerpts, evidence IDs, and claim ownership before accepting the
 answer. Unasked study attributes are not required. A supported negative answer
@@ -327,7 +327,7 @@ use `verified`; `answer_mode: "plain"` is rejected by the API. Local evaluation
 scripts retain plain generation for controlled comparisons. Neighbor expansion
 also remains opt-in through the evaluation CLI. The
 [question coverage contract](docs/question-coverage-evidence.md) explains the fixed
-checks and their limits. The
+whole-question and exact-evidence checks, control results, and their limits. The
 [refusal diagnostics](docs/grounding-refusal-diagnostics.md) distinguish initial
 draft refusals from verifier errors and record the targeted checks.
 
