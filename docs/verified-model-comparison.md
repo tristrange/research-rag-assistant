@@ -57,3 +57,64 @@ per question do not support steady-state speed or statistical superiority claims
 Report exact counts, paired outcomes and limits. No default changes in this PR.
 The 16-case human packet stays intact and pending; this run does not complete
 human review, independent validation, or local v1.
+
+## Reproduction
+
+The protocol was committed before live controls as `d7d8a05`; per-candidate
+fingerprints and weights were committed before paper generation as `78276b0` in
+`benchmarks/verified-model-comparison.json`. These fingerprints include model and
+thinking settings, so they intentionally differ while the grounding code stays
+unchanged. The original selection manifest continues to identify the saved
+passages and development labels.
+
+From the repository root with the original ignored source reports present, run
+one model at a time. For example, the sample-paper Qwen3.5 replay is:
+
+```bash
+RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=true RAG_VERIFIER_THINK=true \
+uv run python -m scripts.check_grounding \
+  --output evaluation-results/qwen35-controls-new.json
+
+RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=true RAG_VERIFIER_THINK=true \
+uv run python -m scripts.replay_grounding \
+  evaluation-results/v1-review-sample-20260928.json \
+  --case c26-body-mass-loss --case glucose-tolerance-protocol \
+  --case cited-rosiglitazone --case own-rosiglitazone-dose \
+  --output evaluation-results/qwen35-sample-new.json
+```
+
+Repeat the replay for the other three papers using the matching source paths and
+four case IDs from the selection manifest. Use `qwen3:8b` with `true`/`true`, or
+`gpt-oss:20b` with `low`/`medium`, for the other arms. Verify local weight digests
+against the protocol before and after each arm. Never overwrite a source or replay.
+
+The generation commands above repeat individual trials. For grading the retained
+Qwen3.5 arm from this comparison, use its completed replays and orchestration
+record together:
+
+```bash
+RAG_JUDGE_MODEL=qwen3:8b uv run python -m scripts.evaluate_grounding_replays \
+  evaluation-results/compare-qwen35-9b-sample-20260929.json \
+  evaluation-results/compare-qwen35-9b-housing-20260929.json \
+  evaluation-results/compare-qwen35-9b-mitochondrial-20260929.json \
+  evaluation-results/compare-qwen35-9b-activin-20260929.json \
+  --generation-record evaluation-results/verified-model-comparison-20260929-run.json \
+  --output evaluation-results/qwen35-judged-new.json
+```
+
+The grader rejects modified source-report bytes, questions, labels, passages,
+budgets, candidate settings or prompt fingerprints, and incomplete/duplicate
+paper sets. It checks source hashes rather than connecting to a database.
+`--source-root` can point to the checkout holding the original ignored reports.
+Each grading attempt uses a fresh output path; grading failures preserve saved
+answers. A new grading attempt is not a new generation trial and must still be
+reported rather than selectively replacing an unfavorable grade.
+
+Generation identities are attested by the retained local orchestration record:
+its runner checks each model digest before every paper replay and after each arm.
+The grader binds that record by hash, requires its successful replay entries and
+matching model/runtime, and verifies the installed judge digest/runtime before
+and after grading. Replay JSON alone does not attest model weights. New complete
+comparisons need a corresponding identity-checked orchestration record; individual
+manual replays should not be presented as weight-pinned comparisons without it.
+The exact local runner and logs are retained beside the ignored raw reports.

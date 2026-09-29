@@ -3,9 +3,11 @@
 import argparse
 from datetime import datetime, timezone
 from hashlib import sha256
+import json
 from pathlib import Path
 from typing import Literal, cast
 
+import httpx
 from pydantic import Field, model_validator
 
 from app.answer_evaluation import (
@@ -54,6 +56,7 @@ class ComparisonProtocol(StrictModel):
     review_set_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     ollama_version: str
     judge_model: str
+    judge_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     candidates: list[CandidateConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -62,6 +65,46 @@ class ComparisonProtocol(StrictModel):
         if len(names) != len(set(names)):
             raise ValueError("candidate models must be unique")
         return self
+
+
+def validate_run_metadata(
+    path: Path, protocol: ComparisonProtocol, settings: SettingsModel,
+    provenance: list[dict[str, object]],
+) -> dict[str, object]:
+    """Bind scoring to the retained generation orchestrator's identity checks."""
+    raw = path.read_bytes()
+    record = json.loads(raw)
+    candidate = next(item for item in protocol.candidates if item.model == settings.verifier_model)
+    if (record.get("status") != "complete"
+            or record.get("server_version", {}).get("version") != protocol.ollama_version
+            or not any(item.get("name") == candidate.model and item.get("digest") == candidate.digest
+                       for item in record.get("models", []))):
+        raise ValueError("generation record does not attest the frozen model/runtime")
+    grounding_path = Path(__file__).resolve().parents[1] / "app/grounding.py"
+    if record.get("grounding_code_sha256") != sha256(grounding_path.read_bytes()).hexdigest():
+        raise ValueError("generation record used a different grounding implementation")
+    for item in provenance:
+        matches = [step for step in record.get("steps", [])
+                   if Path(step.get("report", "")).resolve() == Path(str(item["replay"])).resolve()]
+        if len(matches) != 1 or matches[0].get("returncode") != 0:
+            raise ValueError("generation record does not contain this successful replay")
+    return {"path": str(path), "sha256": sha256(raw).hexdigest(),
+            "methodology": "Orchestrator recorded identities and checked digest before each replay "
+                           "and after each arm; replay bytes are separately hashed in inputs."}
+
+
+def judge_runtime(protocol: ComparisonProtocol) -> dict[str, str]:
+    """Check the installed judge identity and runtime before making grading calls."""
+    version = httpx.get("http://localhost:11434/api/version", timeout=10.0)
+    version.raise_for_status()
+    tags = httpx.get("http://localhost:11434/api/tags", timeout=10.0)
+    tags.raise_for_status()
+    if version.json().get("version") != protocol.ollama_version or not any(
+        item.get("name") == protocol.judge_model and item.get("digest") == protocol.judge_digest
+        for item in tags.json().get("models", [])
+    ):
+        raise ValueError("installed judge/runtime differs from the frozen protocol")
+    return {"ollama_version": protocol.ollama_version, "judge_digest": protocol.judge_digest}
 
 
 def load_inputs(
@@ -142,16 +185,19 @@ def load_inputs(
 
 def evaluate(
     manifest: ReviewManifest, root: Path, paths: list[Path], output: Path,
-    *, protocol: ComparisonProtocol,
+    *, protocol: ComparisonProtocol, generation_record: Path,
 ) -> None:
     if JUDGE_MODEL != protocol.judge_model or JUDGE_THINK is not False:
         raise ValueError("judge differs from the frozen comparison protocol")
     generated, provenance, settings = load_inputs(manifest, root, paths, protocol=protocol)
+    attestation = validate_run_metadata(generation_record, protocol, settings, provenance)
+    runtime = judge_runtime(protocol)
     reserve_output(output)
     results: list[CaseEvaluation] = []
     report: dict[str, object] = {
         "status": "running", "error": None, "started_at": datetime.now(timezone.utc).isoformat(),
         "protocol": protocol.model_dump(),
+        "generation_record": attestation, "judge_runtime": runtime,
         "review_set_sha256": review_set_hash(manifest), "inputs": provenance,
         "settings": settings.model_dump(), "judge_model": JUDGE_MODEL,
         "judge_think": JUDGE_THINK, "judge_temperature": 0.0,
@@ -176,6 +222,8 @@ def evaluate(
             results.append(result)
             save_report(output, report)
             print(f"Judged {item['case']['id']}: abstained={result['abstained']}", flush=True)
+        if judge_runtime(protocol) != runtime:
+            raise ValueError("judge/runtime changed while grading")
         report["metrics"] = summarize(results)
         report["status"] = "complete"
     except (Exception, KeyboardInterrupt) as error:
@@ -193,11 +241,14 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, default=Path("benchmarks/v1-development-review.json"))
     parser.add_argument("--protocol", type=Path, default=Path("benchmarks/verified-model-comparison.json"))
     parser.add_argument("--source-root", type=Path, default=Path.cwd())
+    parser.add_argument("--generation-record", type=Path, required=True,
+                        help="retained generation orchestration record with identity checks")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     manifest = ReviewManifest.model_validate_json(args.manifest.read_bytes())
     protocol = ComparisonProtocol.model_validate_json(args.protocol.read_bytes())
-    evaluate(manifest, args.source_root, args.replays, args.output, protocol=protocol)
+    evaluate(manifest, args.source_root, args.replays, args.output, protocol=protocol,
+             generation_record=args.generation_record)
 
 
 if __name__ == "__main__":

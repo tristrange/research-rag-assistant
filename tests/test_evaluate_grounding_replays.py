@@ -53,10 +53,18 @@ class EvaluateReplayTests(unittest.TestCase):
         self.path = self.root / "evaluation-results/replay.json"
         self.output = self.root / "evaluation-results/judged.json"
         self.write()
+        runtime_patch = patch("scripts.evaluate_grounding_replays.judge_runtime", return_value={"ollama_version": "test"})
+        runtime_patch.start()
+        self.addCleanup(runtime_patch.stop)
+        self.record = self.root / "run.json"
+        record = dict(status="complete", server_version={"version": "test"}, models=[dict(name="gpt-oss:20b", digest="a" * 64)],
+                      grounding_code_sha256=sha256(Path("app/grounding.py").read_bytes()).hexdigest(),
+                      steps=[dict(report=str(self.path), returncode=0)])
+        self.record.write_text(json.dumps(record))
         settings = cast(dict[str, object], report["settings"])
         self.protocol = ComparisonProtocol.model_validate(dict(
             schema_version=1, review_set_sha256=review_set_hash(self.manifest),
-            ollama_version="test", judge_model="qwen3:8b", candidates=[dict(
+            ollama_version="test", judge_model="qwen3:8b", judge_digest="c" * 64, candidates=[dict(
                 model=settings["verifier_model"], digest="a" * 64,
                 draft_think="low", verifier_think="medium",
                 grounding_sha256=settings["generator_prompt_sha256"],
@@ -108,7 +116,7 @@ class EvaluateReplayTests(unittest.TestCase):
     def test_existing_output_is_preserved_without_judging(self) -> None:
         self.output.write_text("preserve")
         with patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate, self.assertRaises(ValueError):
-            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol, generation_record=self.record)
         calibrate.assert_not_called()
         self.assertEqual(self.output.read_text(), "preserve")
 
@@ -117,7 +125,7 @@ class EvaluateReplayTests(unittest.TestCase):
         with (patch("scripts.evaluate_grounding_replays.run_calibration", return_value=calibration),
               patch("scripts.evaluate_grounding_replays.judge_case_answer") as judge,
               self.assertRaises(SystemExit)):
-            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol, generation_record=self.record)
         judge.assert_not_called()
         saved = json.loads(self.output.read_text())
         self.assertEqual(saved["status"], "calibration_failed")
@@ -130,7 +138,7 @@ class EvaluateReplayTests(unittest.TestCase):
         with (patch("scripts.evaluate_grounding_replays.run_calibration", return_value=calibration),
               patch("scripts.evaluate_grounding_replays.judge_case_answer", side_effect=RuntimeError("judge failed")),
               self.assertRaisesRegex(RuntimeError, "judge failed")):
-            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol, generation_record=self.record)
         saved = json.loads(self.output.read_text())
         self.assertEqual(saved["status"], "failed")
         self.assertIsNone(saved["metrics"])
@@ -161,6 +169,17 @@ class EvaluateReplayTests(unittest.TestCase):
         with (patch("scripts.evaluate_grounding_replays.JUDGE_MODEL", "other-judge"),
               patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
               self.assertRaisesRegex(ValueError, "judge differs")):
-            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol)
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol, generation_record=self.record)
+        calibrate.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_wrong_generation_identity_is_rejected_before_judging(self) -> None:
+        record = json.loads(self.record.read_text())
+        record["models"][0]["digest"] = "b" * 64
+        self.record.write_text(json.dumps(record))
+        with (patch("scripts.evaluate_grounding_replays.run_calibration") as calibrate,
+              self.assertRaisesRegex(ValueError, "attest the frozen model")):
+            evaluate(self.manifest, self.root, [self.path], self.output, protocol=self.protocol,
+                     generation_record=self.record)
         calibrate.assert_not_called()
         self.assertFalse(self.output.exists())

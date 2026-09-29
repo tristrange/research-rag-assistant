@@ -25,5 +25,6 @@
       "verifier_think": "medium",
       "grounding_sha256": "9808eeca3e7f1cbc8c2bef56b01d11869eb20f67ff97e49c11376a57ff494646"
     }
-  ]
+  ],
+  "judge_digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41"
 }
