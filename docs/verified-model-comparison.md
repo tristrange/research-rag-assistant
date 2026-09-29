@@ -1,6 +1,6 @@
 # Three-model verified-answer comparison
 
-## Frozen protocol
+## Initial frozen protocol
 
 Compare `qwen3:8b`, `qwen3.5:9b`, and `gpt-oss:20b` in that order, using
 application baseline `96264a7`. Reuse the 16 inspected development questions and
@@ -68,14 +68,15 @@ unchanged. The original selection manifest continues to identify the saved
 passages and development labels.
 
 From the repository root with the original ignored source reports present, run
-one model at a time. For example, the sample-paper Qwen3.5 replay is:
+one model at a time. The revised practical configuration disables Qwen thinking.
+For example, the sample-paper Qwen3.5 replay is:
 
 ```bash
-RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=true RAG_VERIFIER_THINK=true \
+RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=false RAG_VERIFIER_THINK=false \
 uv run python -m scripts.check_grounding \
   --output evaluation-results/qwen35-controls-new.json
 
-RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=true RAG_VERIFIER_THINK=true \
+RAG_GROUNDING_MODEL=qwen3.5:9b RAG_DRAFT_THINK=false RAG_VERIFIER_THINK=false \
 uv run python -m scripts.replay_grounding \
   evaluation-results/v1-review-sample-20260928.json \
   --case c26-body-mass-loss --case glucose-tolerance-protocol \
@@ -84,7 +85,7 @@ uv run python -m scripts.replay_grounding \
 ```
 
 Repeat the replay for the other three papers using the matching source paths and
-four case IDs from the selection manifest. Use `qwen3:8b` with `true`/`true`, or
+four case IDs from the selection manifest. Use `qwen3:8b` with `false`/`false`, or
 `gpt-oss:20b` with `low`/`medium`, for the other arms. Verify local weight digests
 against the protocol before and after each arm. Never overwrite a source or replay.
 
@@ -94,11 +95,12 @@ record together:
 
 ```bash
 RAG_JUDGE_MODEL=qwen3:8b uv run python -m scripts.evaluate_grounding_replays \
-  evaluation-results/compare-qwen35-9b-sample-20260929.json \
-  evaluation-results/compare-qwen35-9b-housing-20260929.json \
-  evaluation-results/compare-qwen35-9b-mitochondrial-20260929.json \
-  evaluation-results/compare-qwen35-9b-activin-20260929.json \
-  --generation-record evaluation-results/verified-model-comparison-20260929-run.json \
+  evaluation-results/compare-qwen35-9b-direct-sample-20260929.json \
+  evaluation-results/compare-qwen35-9b-direct-housing-20260929.json \
+  evaluation-results/compare-qwen35-9b-direct-mitochondrial-20260929.json \
+  evaluation-results/compare-qwen35-9b-direct-activin-20260929.json \
+  --protocol benchmarks/verified-model-comparison-direct.json \
+  --generation-record evaluation-results/verified-model-comparison-direct-20260929-run.json \
   --output evaluation-results/qwen35-judged-new.json
 ```
 
@@ -146,3 +148,30 @@ default promotion. There are no repeated completed paper questions within an arm
 Generation order differs from the original plan, further limiting latency claims.
 Use the revised protocol explicitly when grading these configurations:
 `--protocol benchmarks/verified-model-comparison-direct.json`.
+
+
+## Passage audit before candidate answer inspection
+
+A separate assistant audit checked all 16 original question/passages bundles before
+inspecting the new candidate answers. This is a development diagnostic, not paper-wide
+verification or the pending human review. Keep original labels unchanged for paired
+machine scores, and report these interpretation limits alongside them:
+
+- `housing-grip-runs` splits the two requested facts across passages;
+  `activin-long-regimen` has equivalent evidence outside the exact labeled quote.
+  Their exact-evidence misses do not establish missing support.
+- `housing-bat-atp` lacks the requested ATP concentration finding; SERCA ATPase
+  activity is a different outcome. A refusal is safe relative to this bundle but
+  fails an answerable end-to-end question.
+- `cytosolic-mtdna` supports the Fis1/Drp1 finding but lacks the requested Mfn1/Mfn2
+  comparison. A full refusal loses usable evidence; a complete reference-matching
+  answer would include an unsupported clause.
+- `activin-liver-tg-duration` contains both numeric effects, but does not establish
+  every treatment-duration and chow-fed qualifier linking them. Exact quote hits
+  alone do not establish the full reference answer.
+- The four unanswerable cases support evidence-relative refusal. Their returned
+  passages do not independently prove every paper-wide absence or male-only
+  population explanation contained in the assistant-authored reference labels.
+
+The other nine answerable bundles establish their requested facts, including the
+rosiglitazone result as the title of a cited publication, with appropriate attribution.
