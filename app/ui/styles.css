@@ -144,6 +144,12 @@ button:disabled { cursor: not-allowed; opacity: 0.48; box-shadow: none; }
   border-radius: 0.75rem;
   background: var(--soft);
 }
+.answer-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
+.answer-heading h3 { margin: 0; }
+#copy-answer-button { width: auto; min-height: 2.25rem; margin: 0; padding: 0.4rem 0.65rem; border: 1px solid var(--line); background: #fff; color: var(--accent-dark); font-size: 0.8rem; box-shadow: none; }
+#copy-answer-button:hover:not(:disabled) { background: #edf5ef; }
+.copy-status { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.8rem; }
+.copy-status:empty { margin: 0; }
 #answer-text { margin: 0; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 #answer-text a { color: var(--accent-dark); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
 #answer-text a:hover { text-decoration-thickness: 2px; }

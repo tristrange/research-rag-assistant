@@ -22,12 +22,12 @@ class Element {
     this.children = [];
   }
   append(...children) { this.children.push(...children); }
-  replaceChildren(...children) { this.children = children; }
+  replaceChildren(...children) { this._textContent = null; this.children = children; }
   addEventListener(name, callback) { this.listeners.set(name, callback); }
-  click() { this.listeners.get("click")?.(); }
+  click() { return this.listeners.get("click")?.(); }
 }
 
-function loadUi() {
+function loadUi(options = {}) {
   const elements = new Map();
   const document = {
     getElementById(id) {
@@ -39,7 +39,8 @@ function loadUi() {
   };
   const context = vm.createContext({
     document,
-    fetch: async () => ({ ok: true, json: async () => [] }),
+    fetch: options.fetch ?? (async () => ({ ok: true, json: async () => [] })),
+    ...(options.navigator ? { navigator: options.navigator } : {}),
   });
   const script = fs.readFileSync(path.join(__dirname, "../app/ui/app.js"), "utf8");
   vm.runInContext(`${script}\nglobalThis.testUi = { showSources, renderAnswer };`, context);
@@ -119,4 +120,109 @@ test("source and answer text are inserted as text, never interpreted as markup",
   assert.equal(elements.get("source-list").children[0].children[1].textContent, "<img src=x>");
   assert.equal(elements.get("answer-text").children[0].textContent, "<script>alert(1)</script> ");
   assert.equal(elements.get("answer-text").children.some((node) => node.tagName === "SCRIPT"), false);
+});
+
+test("copy includes rendered emphasis, line breaks and citations without HTML or source excerpts", async () => {
+  const copied = [];
+  const { showSources, renderAnswer, elements } = loadUi({
+    navigator: { clipboard: { writeText: async (text) => { copied.push(text); } } },
+  });
+  const button = elements.get("copy-answer-button");
+  assert.equal(button.disabled, true);
+  const pages = showSources([
+    { document: "study.pdf", page: 4, section: "Results", text: "Source excerpt" },
+  ]);
+  renderAnswer("**Result**: *improved*.\nSee study.pdf, page 4. <img src=x>", pages);
+  const copying = button.click();
+  assert.equal(button.disabled, true);
+  await copying;
+  assert.deepEqual(copied, ["Result: improved.\nSee study.pdf, page 4. <img src=x>"]);
+  assert.equal(elements.get("copy-status").textContent, "Answer copied.");
+  assert.equal(button.disabled, false);
+  const link = elements.get("answer-text").children.find((node) => node.tagName === "A");
+  link.click();
+  assert.equal(elements.get("source-list").children[0].open, true);
+});
+
+test("clipboard rejection preserves the answer and allows a retry", async () => {
+  let attempts = 0;
+  const { renderAnswer, elements } = loadUi({
+    navigator: { clipboard: { writeText: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("permission denied");
+    } } },
+  });
+  renderAnswer("**Keep this answer**", new Map());
+  const button = elements.get("copy-answer-button");
+  await button.click();
+  assert.match(elements.get("copy-status").textContent, /Could not copy/);
+  assert.equal(elements.get("answer-text").textContent, "Keep this answer");
+  assert.equal(button.disabled, false);
+  await button.click();
+  assert.equal(elements.get("copy-status").textContent, "Answer copied.");
+});
+
+test("unavailable clipboard APIs report a manual-copy fallback", async () => {
+  for (const navigator of [undefined, {}, { clipboard: {} }]) {
+    const { renderAnswer, elements } = loadUi({ navigator });
+    renderAnswer("Answer", new Map());
+    await elements.get("copy-answer-button").click();
+    assert.match(elements.get("copy-status").textContent, /copy it manually/);
+    assert.equal(elements.get("answer-text").textContent, "Answer");
+    assert.equal(elements.get("copy-answer-button").disabled, false);
+  }
+});
+
+test("a new question clears copy feedback and ignores an old copy completion", async () => {
+  let finishCopy;
+  let finishQuery;
+  const { elements, renderAnswer } = loadUi({
+    navigator: { clipboard: { writeText: () => new Promise((resolve) => { finishCopy = resolve; }) } },
+    fetch: async (url) => {
+      if (url === "/documents") return { ok: true, json: async () => ["study.pdf"] };
+      return new Promise((resolve) => { finishQuery = resolve; });
+    },
+  });
+  await new Promise(setImmediate);
+  renderAnswer("Old answer", new Map());
+  elements.get("copy-status").textContent = "Previous copy feedback";
+  const copying = elements.get("copy-answer-button").click();
+  elements.get("question").value = "Next question";
+  const submitting = elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(elements.get("copy-status").textContent, "");
+  assert.equal(elements.get("copy-answer-button").disabled, true);
+  assert.equal(elements.get("answer-panel").hidden, true);
+  finishCopy();
+  await copying;
+  assert.equal(elements.get("copy-status").textContent, "");
+  assert.equal(elements.get("copy-answer-button").disabled, true);
+  finishQuery({ ok: true, json: async () => ({ answer: "New answer", sources: [] }) });
+  await submitting;
+  assert.equal(elements.get("answer-text").textContent, "New answer");
+  assert.equal(elements.get("copy-status").textContent, "");
+  assert.equal(elements.get("copy-answer-button").disabled, false);
+});
+
+test("a replacement answer ignores an old copy rejection and resets success feedback", async () => {
+  let rejectCopy;
+  let firstCopy = true;
+  const { renderAnswer, elements } = loadUi({
+    navigator: { clipboard: { writeText: () => {
+      if (!firstCopy) return Promise.resolve();
+      firstCopy = false;
+      return new Promise((resolve, reject) => { rejectCopy = reject; });
+    } } },
+  });
+  renderAnswer("Old answer", new Map());
+  const copying = elements.get("copy-answer-button").click();
+  renderAnswer("New answer", new Map());
+  rejectCopy(new Error("permission denied"));
+  await copying;
+  assert.equal(elements.get("copy-status").textContent, "");
+  assert.equal(elements.get("copy-answer-button").disabled, false);
+  await elements.get("copy-answer-button").click();
+  assert.equal(elements.get("copy-status").textContent, "Answer copied.");
+  renderAnswer("", new Map());
+  assert.equal(elements.get("copy-status").textContent, "");
+  assert.equal(elements.get("copy-answer-button").disabled, true);
 });
