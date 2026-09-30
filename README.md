@@ -336,6 +336,11 @@ The [v21 local-model comparison](docs/verified-model-comparison-v21.md) compares
 Qwen3, Qwen3.5 and GPT-OSS on the same 16 saved question-and-passage bundles.
 It records citation audits, control failures and remaining evidence gaps;
 these development results do not change the default model or complete human review.
+The [shared-evidence follow-up](docs/shared-evidence-verification.md) gives each
+cited source excerpt one verifier ID that can be used by every claim citing that
+source. Both the schema and runtime keep evidence restricted to each claim's
+cited sources. It also adds controls for numerical effects attached to a different
+measurement; exact quotes and valid IDs alone do not establish semantic support.
 
 ```bash
 uv run python -m scripts.check_grounding --output evaluation-results/grounding-controls.json

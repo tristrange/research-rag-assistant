@@ -24,7 +24,7 @@ from app.types import ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v21"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v24"
 GROUNDING_CONTEXT_TOKENS = 12288
 GROUNDING_DRAFT_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(DRAFT_THINK)
 GROUNDING_VERIFIER_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(VERIFIER_THINK)
@@ -125,7 +125,7 @@ VERIFIER_SCHEMA: dict[str, object] = VerificationResult.model_json_schema()
 
 class VerifierEvidence(TypedDict):
     evidence_id: int
-    claim_index: int
+    claim_indexes: list[int]
     source_id: int
     quote: str
 
@@ -172,6 +172,10 @@ Preserve all question qualifiers: population, sex, species, study, intervention,
 dose, comparison and time period. Evidence for a different or unspecified target
 cannot establish a specifically requested target, even if the measured outcome is
 similar. Do not silently omit these qualifiers from the answer.
+Keep each numerical effect attached to its exact measured outcome. Regional tissue
+weight is not total body fat mass, and enzyme activity is not a concentration of its
+substrate. Do not substitute these related measurements unless the cited evidence
+explicitly establishes the requested measurement.
 
 Set answerable=false with no claims when the catalogue does not establish what the
 question asks. Do not substitute a related background fact for a missing requested
@@ -220,6 +224,15 @@ short-term measurements do not establish long-term effects. A fact about a diffe
 population, study or time period does not answer the requested question. Every
 requirement must be supported for answers_question=true.
 
+Check the measured outcome separately from the numerical value. A percentage for
+regional tissue weight cannot establish a change in total fat mass. ATPase activity
+cannot establish ATP concentration. Adjacency in a passage does not transfer a
+number to a different measurement. If a claim attaches a value to the wrong outcome,
+set supported=false. If a claim accurately states a different measurement but does
+not answer the requested one, set relevant=false and answers_question=false; the
+requested_answer is unsupported. Accept an explicitly supported requested outcome
+without demanding additional related measurements that were not asked for.
+
 Give a short reason for the overall decision and each claim verdict, pointing to
 the supporting passage or the specific unsupported or missing fact.
 Return exactly one verdict for every claim_index. Set supported=true only when the cited
@@ -243,15 +256,21 @@ title can support a concise statement limited to that title.
 
 Also assess requested_answer against the ENTIRE original question, including all requested
 qualifiers. Copy that entire question into question_excerpt unchanged apart from whitespace.
-Do not substitute a narrower requirement. Set its status to supported only when the supplied
-evidence establishes an answer to the whole question; a supported negative answer counts.
+Do not substitute a narrower requirement. Set its status to supported only when
+the claims themselves answer the whole question; a supported negative answer counts.
+A source containing the requested result is not enough when the claims omit it or
+answer a different measurement. For supported requested_answer coverage, cite only
+evidence IDs also used to support approved claim verdicts. Do not answer the
+question from an extra excerpt that is absent from the supported claims.
 Missing evidence is unsupported. Every listed requirement, requested_answer, and claim must
 pass before the answer can be accepted.
 
 Evidence IDs in evidence_catalogue are application-owned pointers to exact cited excerpts.
 For requested_answer and every claim verdict, return supporting_evidence_ids using only
-those IDs. A supported assessment must have at least one. For a claim, use only IDs whose
-claim_index matches that claim. Unsupported assessments may use empty IDs or point to
+those IDs. A supported assessment must have at least one. Each excerpt has one ID,
+even when multiple claims cite its source. For a claim, use only its eligible_evidence_ids;
+the catalogue's claim_indexes lists every claim allowed to use that excerpt. Sharing
+an ID is valid when both claims cite its source. Unsupported assessments may use empty IDs or point to
 nearby or conflicting evidence to explain the gap. An ID alone does not establish support;
 assess the passage's exact facts, target, and attribution as instructed above."""
 
@@ -274,8 +293,8 @@ def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
 def build_verifier_evidence(
     claims: list[GroundedClaim], sources: list[ChunkData],
 ) -> list[VerifierEvidence]:
-    """Assign stable IDs to every exact span in sources cited by each claim."""
-    catalogue: list[VerifierEvidence] = []
+    """Give each cited source span one ID and retain its eligible claim indexes."""
+    claims_by_source: dict[int, list[int]] = {}
     for claim_index, claim in enumerate(claims, start=1):
         seen_sources: set[int] = set()
         for citation in claim.citations:
@@ -285,13 +304,16 @@ def build_verifier_evidence(
             if source_id in seen_sources:
                 continue
             seen_sources.add(source_id)
-            for quote in _evidence_spans(sources[source_id - 1]["text"]):
-                catalogue.append({
-                    "evidence_id": len(catalogue) + 1,
-                    "claim_index": claim_index,
-                    "source_id": source_id,
-                    "quote": quote,
-                })
+            claims_by_source.setdefault(source_id, []).append(claim_index)
+    catalogue: list[VerifierEvidence] = []
+    for source_id in sorted(claims_by_source):
+        for quote in _evidence_spans(sources[source_id - 1]["text"]):
+            catalogue.append({
+                "evidence_id": len(catalogue) + 1,
+                "claim_indexes": claims_by_source[source_id],
+                "source_id": source_id,
+                "quote": quote,
+            })
     return catalogue
 
 
@@ -345,6 +367,8 @@ def build_verifier_prompt(
             })
         verification_claims.append({
             "claim_index": claim_index,
+            "eligible_evidence_ids": [entry["evidence_id"] for entry in evidence_catalogue
+                                      if claim_index in entry["claim_indexes"]],
             "text": claim.text,
             "attribution": claim.attribution,
             "evidence_quotes": [citation.model_dump() for citation in claim.citations],
@@ -355,7 +379,11 @@ def build_verifier_prompt(
         "evidence_catalogue": evidence_catalogue,
         "claims": verification_claims,
     }
-    return f"{_VERIFIER_INSTRUCTIONS}\n\nVerification input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
+    return (
+        f"{_VERIFIER_INSTRUCTIONS}\n\nResponse shape JSON schema:\n"
+        f"{json.dumps(_bounded_verifier_schema(question, claims, sources), ensure_ascii=False, separators=(',', ':'))}\n\n"
+        f"Verification input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
+    )
 
 
 def _normalize_whitespace(text: str) -> str:
@@ -431,11 +459,6 @@ def _bounded_verifier_schema(
         raise ValueError("a bounded verifier schema requires a nonempty question")
     definitions = cast(dict[str, object], schema["$defs"])
     evidence_ids = [entry["evidence_id"] for entry in evidence]
-    for definition_name in ("ClaimVerdict", "RequestedAnswerCoverage"):
-        definition = cast(dict[str, object], definitions[definition_name])
-        properties = cast(dict[str, object], definition["properties"])
-        evidence_property = cast(dict[str, object], properties["supporting_evidence_ids"])
-        evidence_property["items"] = {"type": "integer", "enum": evidence_ids}
     # Pydantic's model validators are not represented in JSON Schema. Encode
     # their status/evidence/excerpt combinations for constrained generation too.
     for definition_name, discriminator, states in (
@@ -444,16 +467,26 @@ def _bounded_verifier_schema(
     ):
         definition = cast(dict[str, object], definitions[definition_name])
         variants: list[dict[str, object]] = []
-        for state in states:
-            variant = deepcopy(definition)
-            variant_properties = cast(dict[str, dict[str, object]], variant["properties"])
-            variant_properties[discriminator] = {"const": state}
-            variant_evidence = variant_properties["supporting_evidence_ids"]
-            if state is True or state == "supported":
-                variant_evidence["minItems"] = 1
-            if definition_name == "RequestedAnswerCoverage":
-                variant_properties["question_excerpt"] = {"type": "string", "const": normalized_question}
-            variants.append(variant)
+        indexes = range(1, len(claims) + 1) if definition_name == "ClaimVerdict" else [None]
+        for claim_index in indexes:
+            allowed_ids = evidence_ids if claim_index is None else [
+                entry["evidence_id"] for entry in evidence if claim_index in entry["claim_indexes"]
+            ]
+            if not allowed_ids:
+                raise ValueError("every claim requires exact evidence from its cited sources")
+            for state in states:
+                variant = deepcopy(definition)
+                variant_properties = cast(dict[str, dict[str, object]], variant["properties"])
+                variant_properties[discriminator] = {"const": state}
+                variant_evidence = variant_properties["supporting_evidence_ids"]
+                variant_evidence["items"] = {"type": "integer", "enum": allowed_ids}
+                if state is True or state == "supported":
+                    variant_evidence["minItems"] = 1
+                if claim_index is None:
+                    variant_properties["question_excerpt"] = {"type": "string", "const": normalized_question}
+                else:
+                    variant_properties["claim_index"] = {"type": "integer", "const": claim_index}
+                variants.append(variant)
         definitions[definition_name] = {"anyOf": variants}
     return schema
 
@@ -512,8 +545,8 @@ def validate_verification_structure(
             entry = evidence_by_id.get(evidence_id)
             if entry is None:
                 raise ValueError("verifier cited an unknown evidence ID")
-            if claim_index is not None and entry["claim_index"] != claim_index:
-                raise ValueError("claim verdict cited evidence owned by another claim")
+            if claim_index is not None and claim_index not in entry["claim_indexes"]:
+                raise ValueError("claim verdict cited evidence from a source it did not cite")
 
     normalized_question = _normalize_whitespace(question)
     requested_answer = result.requested_answer
@@ -546,6 +579,12 @@ def _validate_verification(
         for verdict in result.verdicts
     ):
         raise ValueError("verifier rejected at least one claim")
+    claim_evidence_ids = {
+        evidence_id for verdict in result.verdicts
+        for evidence_id in verdict.supporting_evidence_ids
+    }
+    if not set(result.requested_answer.supporting_evidence_ids).issubset(claim_evidence_ids):
+        raise ValueError("whole-question coverage cites evidence absent from approved claims")
 
 
 def _render_claims(claims: list[GroundedClaim], sources: list[ChunkData]) -> str:
@@ -707,7 +746,9 @@ def grounding_fingerprint() -> str:
         ),
         "dynamic_verifier_schema": (
             "Claim and full-question evidence IDs are restricted to application-owned IDs "
-            "built from all exact spans in each source cited by the corresponding claim; "
+            "built once per cited source span in source catalogue order; shared sources have "
+            "shared IDs and explicit eligible claim indexes; per-claim schema variants bind "
+            "claim_index and evidence IDs to that claim's cited sources; "
             "supported variants require nonempty evidence IDs; requested_answer quotes the "
             "entire whitespace-normalized original question"
         ),
@@ -715,7 +756,9 @@ def grounding_fingerprint() -> str:
             "whitespace-normalize, split on (?<=[.!?])\\s+, hard-split spans every "
             f"{MAX_QUOTE_CHARS} characters, discard empty spans, preserve order and deduplicate"
         ),
+        "coverage_claim_binding": "Supported full-question evidence IDs must be used by approved claim verdicts",
         "verifier_schema": VERIFIER_SCHEMA,
+        "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
         "insufficient_evidence": INSUFFICIENT_EVIDENCE,
         "render_labels": {
             "this_document_authors": "",

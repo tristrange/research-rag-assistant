@@ -1,6 +1,7 @@
 """Live adversarial sanity checks for the claim verifier (not a benchmark)."""
 
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -123,6 +124,147 @@ FIXTURES = [
      "external_publication", "Treatment delayed weight loss in mice.", False),
 ]
 
+# Paired measurement controls keep the observed analyte and population fixed
+# while varying only the answer's requested measurement or target.
+TOTAL_AND_REGIONAL_FAT = ChunkData(
+    document="synthetic.pdf", page=20, chunk_index=0, section="results", text=(
+        "Compared with controls, total fat mass in C26 mice decreased by 35%. "
+        "Gonadal and subcutaneous white adipose tissue weights decreased by 24%."
+    ),
+)
+BAT_ACTIVITY = ChunkData(
+    document="synthetic.pdf", page=21, chunk_index=0, section="results", text=(
+        "At standard temperature, BAT SERCA ATPase activity was 29% lower in "
+        "C26 mice than in controls. The figure caption labels a panel BAT ATP concentration."
+    ),
+)
+BAT_ATP_CONCENTRATION = ChunkData(
+    document="synthetic.pdf", page=22, chunk_index=0, section="results", text=(
+        "At standard temperature, BAT ATP concentration in C26 mice was "
+        "4.8 nmol/mg protein, unchanged from controls."
+    ),
+)
+
+MEASUREMENT_FIXTURES = [
+    ("supported_total_fat_mass_35_percent",
+     "By what percentage did total fat mass decrease in C26 mice compared with controls?",
+     TOTAL_AND_REGIONAL_FAT,
+     "Total fat mass in C26 mice decreased by 35% compared with controls.",
+     "this_document_authors",
+     "Compared with controls, total fat mass in C26 mice decreased by 35%.", True),
+    ("unsupported_total_fat_mass_24_percent",
+     "By what percentage did total fat mass decrease in C26 mice compared with controls?",
+     TOTAL_AND_REGIONAL_FAT,
+     "Total fat mass in C26 mice decreased by 24% compared with controls.",
+     "this_document_authors",
+     "Gonadal and subcutaneous white adipose tissue weights decreased by 24%.", False),
+    ("off_target_regional_fat_24_for_total_question",
+     "By what percentage did total fat mass decrease in C26 mice compared with controls?",
+     TOTAL_AND_REGIONAL_FAT,
+     "Gonadal and subcutaneous white adipose tissue weights decreased by 24%.",
+     "this_document_authors",
+     "Gonadal and subcutaneous white adipose tissue weights decreased by 24%.", False),
+    ("unsupported_atp_concentration_from_atpase_activity",
+     "How did BAT ATP concentration change in C26 mice at standard temperature compared with controls?",
+     BAT_ACTIVITY,
+     "BAT ATP concentration was 29% lower in C26 mice than in controls.",
+     "this_document_authors",
+     "At standard temperature, BAT SERCA ATPase activity was 29% lower in C26 mice than in controls.", False),
+    ("off_target_atpase_activity_for_atp_concentration_question",
+     "How did BAT ATP concentration change in C26 mice at standard temperature compared with controls?",
+     BAT_ACTIVITY,
+     "BAT SERCA ATPase activity was 29% lower in C26 mice than in controls.",
+     "this_document_authors",
+     "At standard temperature, BAT SERCA ATPase activity was 29% lower in C26 mice than in controls.", False),
+    ("supported_atpase_activity_29_percent",
+     "How did BAT SERCA ATPase activity change in C26 mice at standard temperature compared with controls?",
+     BAT_ACTIVITY,
+     "BAT SERCA ATPase activity was 29% lower in C26 mice than in controls.",
+     "this_document_authors",
+     "At standard temperature, BAT SERCA ATPase activity was 29% lower in C26 mice than in controls.", True),
+    ("supported_atp_concentration_4_8_nmole",
+     "What was the BAT ATP concentration in C26 mice at standard temperature compared with controls?",
+     BAT_ATP_CONCENTRATION,
+     "BAT ATP concentration was 4.8 nmol/mg protein in C26 mice, unchanged from controls.",
+     "this_document_authors",
+     "At standard temperature, BAT ATP concentration in C26 mice was 4.8 nmol/mg protein, unchanged from controls.", True),
+]
+
+GTT_METHODS = ChunkData(
+    document="synthetic.pdf", page=23, chunk_index=0, section="methods", text=(
+        "Mice were fasted for six hours. Glucose was measured at 0, 15 and 30 minutes."
+    ),
+)
+CITED_TITLE_REFERENCE = ChunkData(
+    document="synthetic.pdf", page=24, chunk_index=0, section="references", text=(
+        "Smith AB and Jones CD (2024). Treatment delayed weight loss and anorexia in mice."
+    ),
+)
+
+@dataclass(frozen=True)
+class ControlFixture:
+    identifier: str
+    question: str
+    source: ChunkData
+    claims: tuple[tuple[str, str, str], ...]
+    expected: bool
+
+
+MULTI_CLAIM_FIXTURES = [
+    ControlFixture(
+        "supported_multiclaim_gtt_methods",
+        "How long were the mice fasted and when was glucose measured?",
+        GTT_METHODS,
+        (
+            ("Mice were fasted for six hours.",
+             "this_document_authors", "Mice were fasted for six hours."),
+            ("Glucose was measured at 0, 15 and 30 minutes.",
+             "this_document_authors", "Glucose was measured at 0, 15 and 30 minutes."),
+        ),
+        True,
+    ),
+    ControlFixture(
+        "supported_multiclaim_cited_title",
+        "Who authored the cited Smith study and when, and what effect does its title describe?",
+        CITED_TITLE_REFERENCE,
+        (
+            ("The cited external publication is by Smith AB and Jones CD and dates to 2024.",
+             "external_publication", "Smith AB and Jones CD (2024)."),
+            ("Its title reports that treatment delayed weight loss and anorexia in mice.",
+             "external_publication", "Treatment delayed weight loss and anorexia in mice."),
+        ),
+        True,
+    ),
+]
+
+
+def all_control_fixtures() -> list[ControlFixture]:
+    """Normalize legacy one-claim tuples and new controls without changing FIXTURES."""
+    controls = [
+        ControlFixture(identifier, question, source, ((text, attribution, quote),), expected)
+        for identifier, question, source, text, attribution, quote, expected
+        in (*FIXTURES, *MEASUREMENT_FIXTURES)
+    ]
+    return [*controls, *MULTI_CLAIM_FIXTURES]
+
+
+def select_control_fixtures(case_ids: list[str] | None) -> list[ControlFixture]:
+    """Apply CLI case filtering consistently across legacy and added controls."""
+    return [fixture for fixture in all_control_fixtures()
+            if case_ids is None or fixture.identifier in case_ids]
+
+
+def draft_for_fixture(fixture: ControlFixture) -> GroundedDraft:
+    """Create the positive-evidence draft submitted for one control case."""
+    return GroundedDraft.model_validate({
+        "answerable": True,
+        "claims": [{
+            "text": text,
+            "attribution": attribution,
+            "citations": [{"source_id": 1, "quote": quote}],
+        } for text, attribution, quote in fixture.claims],
+    })
+
 # This one control is intentionally rejected by deterministic validation because
 # a current-study claim cites a reference entry. All others test the verifier.
 DETERMINISTIC_CONTROLS = frozenset({"reference_as_current_study"})
@@ -153,8 +295,8 @@ def main() -> None:
     parser.add_argument("--case", dest="case_ids", action="append",
                         help="run just this control (repeat to select more)")
     args = parser.parse_args()
-    fixtures = [fixture for fixture in FIXTURES if args.case_ids is None or fixture[0] in args.case_ids]
-    if not fixtures or (args.case_ids and set(args.case_ids) != {fixture[0] for fixture in fixtures}):
+    fixtures = select_control_fixtures(args.case_ids)
+    if not fixtures or (args.case_ids and set(args.case_ids) != {fixture.identifier for fixture in fixtures}):
         parser.error("Selected control IDs must exist")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Reserve first; preserve each completed check even if a model call fails later.
@@ -170,13 +312,13 @@ def main() -> None:
     }
     results: list[dict[str, object]] = []
     try:
-        for identifier, question, source, text, attribution, quote, expected in fixtures:
-            draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-                "text": text, "attribution": attribution,
-                "citations": [{"source_id": 1, "quote": quote}],
-            }]})
+        for fixture in fixtures:
+            identifier = fixture.identifier
+            question = fixture.question
+            sources = [fixture.source]
+            draft = draft_for_fixture(fixture)
             outputs: list[dict[str, object]] = []
-            verifier_evidence = build_verifier_evidence(draft.claims, [source])
+            verifier_evidence = build_verifier_evidence(draft.claims, sources)
 
             def record(prompt: str, schema: dict[str, object]) -> dict[str, object]:
                 response = generate_verification_json(prompt, schema)
@@ -184,13 +326,13 @@ def main() -> None:
                 return response
 
             start = perf_counter()
-            accepted = verify_draft(question, draft, [source], verifier=record)
-            verdict_complete = complete_verifier_verdict(question, outputs, draft.claims, [source])
-            passed = control_passed(identifier, expected, accepted, verdict_complete)
-            results.append({"id": identifier, "expected": expected, "accepted": accepted,
+            accepted = verify_draft(question, draft, sources, verifier=record)
+            verdict_complete = complete_verifier_verdict(question, outputs, draft.claims, sources)
+            passed = control_passed(identifier, fixture.expected, accepted, verdict_complete)
+            results.append({"id": identifier, "expected": fixture.expected, "accepted": accepted,
                             "passed": passed, "verifier_called": bool(outputs),
                             "verifier_verdict_complete": verdict_complete, "question": question,
-                            "draft": draft.model_dump(), "sources": [source],
+                            "draft": draft.model_dump(), "sources": sources,
                             "verifier_evidence": verifier_evidence,
                             "verifier_outputs": outputs, "elapsed_ms": (perf_counter()-start)*1000})
             report["results"] = results

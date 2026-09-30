@@ -1,3 +1,4 @@
+import json
 import unittest
 from copy import deepcopy
 from typing import cast
@@ -320,6 +321,30 @@ class GroundingTests(unittest.TestCase):
                 self.assertFalse(verify_draft(question, GroundedDraft.model_validate(DRAFT), [SOURCE],
                                             verifier=lambda _prompt, _schema: verdict))
 
+    def test_full_question_cannot_borrow_an_unclaimed_measurement(self) -> None:
+        question = "By what percentage did total fat mass decrease?"
+        source = ChunkData(document="paper.pdf", page=1, chunk_index=0,
+                           text="Total fat mass decreased by 35%. Regional tissue weight decreased by 24%.")
+        draft_data = {
+            "answerable": True,
+            "claims": [{"text": "Regional tissue weight decreased by 24%.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1,
+                                       "quote": "Regional tissue weight decreased by 24%."}]}],
+        }
+        verdict = approved(question)
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1]
+        draft = GroundedDraft.model_validate(draft_data)
+        # Both IDs exist in the cited source, but coverage must come from the answer's claims.
+        validate_verification_structure(question, VerificationResult.model_validate(verdict),
+                                        draft.claims, [source])
+        self.assertFalse(verify_draft(question, draft, [source],
+                                     verifier=lambda _p, _s: verdict))
+        with patch("app.grounding.generate_json",
+                   side_effect=[draft_data, verdict, draft_data, verdict]) as model:
+            self.assertEqual(grounded_answer(question, [source]), INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 4)
+
     def test_full_question_gate_rejects_when_sparse_requirements_omit_a_requested_detail(self) -> None:
         question = "At what dose did treatment delay weight loss?"
         verdict = approved(question)
@@ -354,8 +379,8 @@ class GroundingTests(unittest.TestCase):
         }]})
         evidence = build_verifier_evidence(draft.claims, [source, extra])
         self.assertEqual(evidence, [
-            {"evidence_id": 1, "claim_index": 1, "source_id": 1, "quote": "We studied male mice."},
-            {"evidence_id": 2, "claim_index": 1, "source_id": 1, "quote": "Uptake increased."},
+            {"evidence_id": 1, "claim_indexes": [1], "source_id": 1, "quote": "We studied male mice."},
+            {"evidence_id": 2, "claim_indexes": [1], "source_id": 1, "quote": "Uptake increased."},
         ])
         question = "How did uptake change in male mice?"
         verdict = approved(question)
@@ -365,17 +390,78 @@ class GroundingTests(unittest.TestCase):
         })
         self.assertTrue(verify_draft(question, draft, [source, extra], verifier=lambda _p, _s: verdict))
 
-    def test_claim_cannot_borrow_another_claims_evidence_id(self) -> None:
+    def test_claims_citing_the_same_source_share_evidence_ids(self) -> None:
         draft = GroundedDraft.model_validate(DRAFT)
         draft.claims.append(draft.claims[0].model_copy())
         verdict = approved("Question")
         cast(list[dict[str, object]], verdict["verdicts"]).append({
             "claim_index": 2, "supported": True, "correct_attribution": True, "relevant": True,
-            "supporting_evidence_ids": [2], "reason": "Borrowed first claim evidence.",
+            "supporting_evidence_ids": [2], "reason": "Both claims cite the same source.",
         })
-        self.assertFalse(verify_draft("Question", draft, [SOURCE], verifier=lambda _p, _s: verdict))
-        cast(list[dict[str, object]], verdict["verdicts"])[1]["supporting_evidence_ids"] = [4]
         self.assertTrue(verify_draft("Question", draft, [SOURCE], verifier=lambda _p, _s: verdict))
+        evidence = build_verifier_evidence(draft.claims, [SOURCE])
+        self.assertEqual(len(evidence), 2)
+        self.assertTrue(all(entry["claim_indexes"] == [1, 2] for entry in evidence))
+
+    def test_identical_quotes_from_other_sources_cannot_be_borrowed(self) -> None:
+        other = ChunkData(document="another.pdf", page=7, chunk_index=0,
+                          section="references", text=SOURCE["text"])
+        draft = GroundedDraft.model_validate(DRAFT)
+        second = draft.claims[0].model_copy(deep=True)
+        second.citations[0].source_id = 2
+        draft.claims.append(second)
+        verdict = approved("Question")
+        cast(list[dict[str, object]], verdict["verdicts"]).append({
+            "claim_index": 2, "supported": True, "correct_attribution": True, "relevant": True,
+            "supporting_evidence_ids": [2], "reason": "Wrong source despite identical wording.",
+        })
+        self.assertFalse(verify_draft("Question", draft, [SOURCE, other], verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["verdicts"])[1]["supporting_evidence_ids"] = [4]
+        self.assertTrue(verify_draft("Question", draft, [SOURCE, other], verifier=lambda _p, _s: verdict))
+        evidence = build_verifier_evidence(draft.claims, [SOURCE, other])
+        self.assertEqual([entry["source_id"] for entry in evidence], [1, 1, 2, 2])
+        self.assertEqual(evidence[1]["quote"], evidence[3]["quote"])
+        self.assertNotEqual(evidence[1]["evidence_id"], evidence[3]["evidence_id"])
+
+    def test_multiclaim_methods_answer_accepts_shared_ids_without_repair(self) -> None:
+        question = "How long were mice fasted, and when was glucose measured?"
+        source = ChunkData(document="methods.pdf", page=2, chunk_index=0, section="methods",
+                           text="Mice were fasted for six hours. Glucose was measured at 0, 15 and 30 minutes.")
+        draft = {"answerable": True, "claims": [
+            {"text": "Mice were fasted for six hours.", "attribution": "this_document_authors",
+             "citations": [{"source_id": 1, "quote": "Mice were fasted for six hours."}]},
+            {"text": "Glucose was measured at 0, 15 and 30 minutes.", "attribution": "this_document_authors",
+             "citations": [{"source_id": 1, "quote": "Glucose was measured at 0, 15 and 30 minutes."}]},
+        ]}
+        verdict = approved(question)
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1, 2]
+        verdicts = cast(list[dict[str, object]], verdict["verdicts"])
+        verdicts[0]["supporting_evidence_ids"] = [1]
+        verdicts.append({"claim_index": 2, "supported": True, "correct_attribution": True,
+                         "relevant": True, "supporting_evidence_ids": [2], "reason": "Source specifies timing."})
+        trace: list[dict[str, object]] = []
+        with patch("app.grounding.generate_json", side_effect=[draft, verdict]) as model:
+            answer = grounded_answer(question, [source], trace=trace)
+        self.assertEqual(model.call_count, 2)
+        self.assertIn("six hours", answer)
+        self.assertIn("0, 15 and 30", answer)
+        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification"])
+
+    def test_shared_source_ids_are_stable_across_claim_and_citation_order(self) -> None:
+        other = ChunkData(document="other.pdf", page=1, chunk_index=0, section="results", text="Uptake increased.")
+        draft = GroundedDraft.model_validate(DRAFT)
+        second = draft.claims[0].model_copy(deep=True)
+        second.citations[0].source_id = 2
+        second.citations[0].quote = other["text"]
+        draft.claims.append(second)
+        first = build_verifier_evidence(draft.claims, [SOURCE, other])
+        reordered = build_verifier_evidence(list(reversed(draft.claims)), [SOURCE, other])
+        def identities(entries: list[dict[str, object]]) -> list[tuple[object, object, object]]:
+            return [(entry["evidence_id"], entry["source_id"], entry["quote"]) for entry in entries]
+        self.assertEqual(identities(cast(list[dict[str, object]], first)),
+                         identities(cast(list[dict[str, object]], reordered)))
+        draft.claims[0].citations.append(draft.claims[0].citations[0].model_copy())
+        self.assertEqual(build_verifier_evidence(draft.claims, [SOURCE, other]), first)
 
     def test_whole_question_anchor_allows_normalized_whitespace(self) -> None:
         verdict = approved("What did the cited study report?")
@@ -546,6 +632,43 @@ class GroundingTests(unittest.TestCase):
             _bounded_verifier_schema("Question", [], [])
         with self.assertRaises(ValueError):
             _bounded_verifier_schema(" \n", draft.claims, [SOURCE])
+
+    def test_verifier_prompt_exposes_response_shape_before_input(self) -> None:
+        draft = GroundedDraft.model_validate(DRAFT)
+        prompt = build_verifier_prompt("Question", draft.claims, [SOURCE])
+        schema_text = prompt.split("Response shape JSON schema:\n", 1)[1].split(
+            "\n\nVerification input JSON:", 1)[0]
+        self.assertEqual(json.loads(schema_text),
+                         _bounded_verifier_schema("Question", draft.claims, [SOURCE]))
+        payload = json.loads(prompt.split("Verification input JSON:\n", 1)[1])
+        self.assertEqual(payload["question"], "Question")
+        self.assertEqual(payload["claims"][0]["eligible_evidence_ids"], [1, 2])
+
+    def test_verifier_schema_binds_each_claim_to_only_its_cited_sources(self) -> None:
+        other = ChunkData(document="other.pdf", page=1, chunk_index=0,
+                          section="references", text="A separate study reported improved uptake.")
+        draft = GroundedDraft.model_validate(DRAFT)
+        second = draft.claims[0].model_copy(deep=True)
+        second.citations[0].source_id = 2
+        second.citations[0].quote = other["text"]
+        draft.claims.append(second)
+        schema = _bounded_verifier_schema("Question", draft.claims, [SOURCE, other])
+        definitions = cast(dict[str, dict[str, object]], schema["$defs"])
+        variants = cast(list[dict[str, object]], definitions["ClaimVerdict"]["anyOf"])
+        self.assertEqual(len(variants), 4)
+        for variant in variants:
+            props = cast(dict[str, dict[str, object]], variant["properties"])
+            index = props["claim_index"]["const"]
+            self.assertEqual(props["supporting_evidence_ids"]["items"],
+                             {"type": "integer", "enum": [1, 2] if index == 1 else [3]})
+        prompt = build_verifier_prompt("Question", draft.claims, [SOURCE, other])
+        self.assertIn('"eligible_evidence_ids": [1, 2]', prompt)
+        self.assertIn('"eligible_evidence_ids": [3]', prompt)
+        # A supported full-question assessment can combine evidence across claims.
+        for variant in cast(list[dict[str, object]], definitions["RequestedAnswerCoverage"]["anyOf"]):
+            props = cast(dict[str, dict[str, object]], variant["properties"])
+            self.assertEqual(props["supporting_evidence_ids"]["items"],
+                             {"type": "integer", "enum": [1, 2, 3]})
 
     def test_verifier_preserves_original_reasoning_shape_and_appends_full_question_check(self) -> None:
         draft = GroundedDraft.model_validate(DRAFT)

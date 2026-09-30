@@ -1,9 +1,11 @@
 from typing import Any
 import unittest
 
-from app.grounding import GroundedClaim
+from app.grounding import GroundedClaim, _validate_draft, build_verifier_evidence
 from scripts.check_grounding import (
-    DETERMINISTIC_CONTROLS, FIXTURES, RESULT, complete_verifier_verdict, control_passed,
+    DETERMINISTIC_CONTROLS, FIXTURES, MEASUREMENT_FIXTURES, MULTI_CLAIM_FIXTURES,
+    RESULT, all_control_fixtures, complete_verifier_verdict, control_passed,
+    draft_for_fixture, select_control_fixtures,
 )
 
 
@@ -31,8 +33,8 @@ def valid_verdict() -> dict[str, Any]:
 class GroundingControlTests(unittest.TestCase):
     def test_every_non_deterministic_control_requires_valid_complete_verdict(self) -> None:
         self.assertEqual(DETERMINISTIC_CONTROLS, {"reference_as_current_study"})
-        for fixture in FIXTURES:
-            identifier, expected = fixture[0], bool(fixture[-1])
+        for fixture in all_control_fixtures():
+            identifier, expected = fixture.identifier, fixture.expected
             if identifier in DETERMINISTIC_CONTROLS:
                 continue
             with self.subTest(identifier=identifier):
@@ -81,3 +83,80 @@ class GroundingControlTests(unittest.TestCase):
         self.assertTrue({"supported_requested_dose", "title_with_requested_missing_dose",
                          "supported_requested_duration", "title_with_requested_missing_duration"}
                         <= identifiers)
+
+    def test_measurement_controls_pair_requested_targets_and_expected_outcomes(self) -> None:
+        controls = {fixture.identifier: fixture for fixture in all_control_fixtures()}
+        expected = {
+            "supported_total_fat_mass_35_percent": True,
+            "unsupported_total_fat_mass_24_percent": False,
+            "off_target_regional_fat_24_for_total_question": False,
+            "unsupported_atp_concentration_from_atpase_activity": False,
+            "off_target_atpase_activity_for_atp_concentration_question": False,
+            "supported_atpase_activity_29_percent": True,
+            "supported_atp_concentration_4_8_nmole": True,
+        }
+        self.assertEqual(len(MEASUREMENT_FIXTURES), len(expected))
+        for identifier, should_accept in expected.items():
+            with self.subTest(identifier=identifier):
+                self.assertEqual(controls[identifier].expected, should_accept)
+        self.assertIn("35%", controls["supported_total_fat_mass_35_percent"].claims[0][0])
+        self.assertIn("24%", controls["off_target_regional_fat_24_for_total_question"].claims[0][0])
+        self.assertIn("ATPase activity", controls["supported_atpase_activity_29_percent"].claims[0][0])
+        self.assertIn("ATP concentration", controls["supported_atp_concentration_4_8_nmole"].claims[0][0])
+
+    def test_multiclaim_controls_dedupe_shared_evidence_and_require_each_verdict(self) -> None:
+        self.assertEqual(len(MULTI_CLAIM_FIXTURES), 2)
+        for fixture in MULTI_CLAIM_FIXTURES:
+            with self.subTest(identifier=fixture.identifier):
+                self.assertEqual(fixture.expected, True)
+                self.assertEqual(len(fixture.claims), 2)
+                self.assertEqual(
+                    [selected.identifier for selected in select_control_fixtures([fixture.identifier])],
+                    [fixture.identifier],
+                )
+                draft = draft_for_fixture(fixture)
+                claims = draft.claims
+                self.assertEqual(len(claims), 2)
+                evidence = build_verifier_evidence(claims, [fixture.source])
+                self.assertGreaterEqual(len(evidence), 2)
+                evidence_ids_by_quote = {entry["quote"]: entry["evidence_id"] for entry in evidence}
+                self.assertEqual(len(evidence_ids_by_quote), len(evidence))
+                for entry in evidence:
+                    self.assertEqual(entry["claim_indexes"], [1, 2])
+                claim_evidence_ids = [
+                    evidence_ids_by_quote[claim_fixture[2]] for claim_fixture in fixture.claims
+                ]
+
+                verdict = valid_verdict()
+                verdict["requested_answer"]["question_excerpt"] = fixture.question
+                verdict["requested_answer"]["supporting_evidence_ids"] = claim_evidence_ids
+                verdict["verdicts"] = [
+                    {"claim_index": index, "supported": True, "correct_attribution": True,
+                     "relevant": True, "reason": "Shared passage supports this claim.",
+                     "supporting_evidence_ids": [claim_evidence_ids[index - 1]]}
+                    for index in (1, 2)
+                ]
+                self.assertTrue(complete_verifier_verdict(fixture.question, [verdict], claims, [fixture.source]))
+
+                missing_claim_verdict = valid_verdict()
+                missing_claim_verdict["requested_answer"]["question_excerpt"] = fixture.question
+                missing_claim_verdict["requested_answer"]["supporting_evidence_ids"] = claim_evidence_ids
+                missing_claim_verdict["verdicts"] = verdict["verdicts"][:1]
+                self.assertFalse(
+                    complete_verifier_verdict(fixture.question, [missing_claim_verdict], claims, [fixture.source])
+                )
+
+    def test_all_control_ids_are_unique_and_legacy_fixture_tuples_are_preserved(self) -> None:
+        controls = all_control_fixtures()
+        identifiers = [fixture.identifier for fixture in controls]
+        self.assertEqual(len(identifiers), len(set(identifiers)))
+        self.assertEqual(len(FIXTURES), 21)
+        self.assertEqual(len(controls), 30)
+        self.assertTrue(all(isinstance(fixture, tuple) and len(fixture) == 7 for fixture in FIXTURES))
+
+    def test_all_verifier_fixtures_use_exact_source_quotes(self) -> None:
+        for fixture in all_control_fixtures():
+            if fixture.identifier in DETERMINISTIC_CONTROLS:
+                continue
+            with self.subTest(identifier=fixture.identifier):
+                _validate_draft(draft_for_fixture(fixture), [fixture.source])
