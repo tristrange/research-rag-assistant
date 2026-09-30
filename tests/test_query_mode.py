@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
 
+from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.main import QueryRequest, _query_gate, app, query
 
@@ -18,6 +19,35 @@ def local_client(*, raise_server_exceptions: bool = True) -> TestClient:
 
 
 class QueryModeTests(unittest.TestCase):
+    def test_real_query_embedding_failures_receive_endpoint_specific_guidance(self) -> None:
+        request = httpx.Request("POST", OLLAMA_EMBED_URL)
+        cases: list[tuple[Exception, int, str]] = [
+            (httpx.ConnectError("private connection data", request=request), 503, "model_unavailable"),
+            (httpx.ReadTimeout("private timeout data", request=request), 504, "model_timeout"),
+            (httpx.HTTPStatusError("private model body", request=request, response=httpx.Response(404, request=request)),
+             503, "embedding_model_not_found"),
+            (httpx.HTTPStatusError("private model body", request=request, response=httpx.Response(500, request=request)),
+             502, "model_service_error"),
+        ]
+        for error, status, code in cases:
+            with self.subTest(code=code), patch("app.embeddings.httpx.post", side_effect=error) as embedding, \
+                    patch("app.grounding.generate_draft_json") as draft:
+                response = local_client().post("/query", json={"question": "Question?"})
+            self.assertEqual(response.status_code, status)
+            detail = response.json()["detail"]
+            self.assertEqual(detail["code"], code)
+            self.assertEqual(embedding.call_args.args[0], OLLAMA_EMBED_URL)
+            draft.assert_not_called()
+            self.assertNotIn("private", response.text)
+            self.assertNotIn("RAG_GROUNDING_MODEL", detail["message"])
+            self.assertNotIn("RAG_GROUNDING_TIMEOUT_SECONDS", detail["message"])
+            if code == "embedding_model_not_found":
+                self.assertIn(f"ollama pull {EMBEDDING_MODEL}", detail["message"])
+            if code == "model_timeout":
+                self.assertIn("embedding the question", detail["message"])
+            self.assertTrue(_query_gate.acquire(blocking=False))
+            _query_gate.release()
+
     def test_service_failures_return_safe_errors_and_allow_another_question(self) -> None:
         request = httpx.Request("POST", OLLAMA_URL)
         cases: list[tuple[Exception, int, str]] = [

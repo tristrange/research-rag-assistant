@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
@@ -45,17 +46,23 @@ async def output_limit_error(request: Request, error: OllamaOutputLimitError) ->
 @app.exception_handler(httpx.HTTPError)
 async def dependency_error(request: Request, error: httpx.HTTPError) -> JSONResponse:
     ollama_request = False
+    embedding_request = False
     if isinstance(error, (httpx.RequestError, httpx.HTTPStatusError)):
         try:
-            ollama_request = error.request.url == httpx.URL(OLLAMA_URL)
+            embedding_request = error.request.url == httpx.URL(OLLAMA_EMBED_URL)
+            ollama_request = embedding_request or error.request.url == httpx.URL(OLLAMA_URL)
         except RuntimeError:
             pass
     if not ollama_request:
         return service_error(503, "dependency_error", "A required dependency request failed. Check local services and model downloads, then try again.")
     if isinstance(error, httpx.TimeoutException):
+        if embedding_request:
+            return service_error(504, "model_timeout", "Ollama did not finish embedding the question within the time limit. Check Ollama's activity and available memory, then try again. The grounding timeout setting does not control embeddings.")
         return service_error(504, "model_timeout", "Ollama did not finish within the time limit. Wait for any model activity to finish, then try a narrower question. If this repeats, review RAG_GROUNDING_TIMEOUT_SECONDS.")
     if isinstance(error, httpx.HTTPStatusError):
         if error.response.status_code == 404:
+            if embedding_request:
+                return service_error(503, "embedding_model_not_found", f"Ollama could not find the embedding model. Install it with ollama pull {EMBEDDING_MODEL}, then try again.")
             return service_error(503, "model_not_found", "Ollama could not find the configured answer model. Check RAG_GROUNDING_MODEL and install that model with ollama pull.")
         return service_error(502, "model_service_error", "Ollama could not complete the model request. Check Ollama's logs and available memory, then try again.")
     return service_error(503, "model_unavailable", "Could not communicate with Ollama. Open the Ollama app or start ollama serve, then try again.")
