@@ -44,10 +44,12 @@ The v21 GPT-OSS profile uses `temperature: 1` and `top_p: 1`, the recommended
 sampling values in the [official gpt-oss guidance](https://github.com/openai/gpt-oss#recommended-sampling-parameters).
 The installed Ollama model also reports temperature 1. Earlier trials explicitly
 overrode temperature to 0. Since this profile changes both sampling parameters,
-its result cannot establish temperature's effect by itself. The current code
-candidate now configures this profile as the sampling default. The PR remains a
-draft pending the full control and integrated runs. The default model, verifier
-reasoning, output budget, context, and timeout remain unchanged.
+its result cannot establish temperature's effect by itself. The implementation
+configures this profile as the automatic GPT-OSS sampling default. The
+ten-control, full-control, integrated, and paper-smoke runs
+all passed under this candidate. The default model, verifier reasoning, output
+budget, context, and timeout remain unchanged. These inspected trials do not
+establish human validation or v1 readiness.
 
 The draft and verifier still use the configured local model in separate calls.
 There is at most one repair and no added model round trip. Transport and
@@ -140,8 +142,16 @@ All results below are inspected development trials on fixed synthetic controls, 
 | v19 GPT-OSS low-verifier-reasoning, same 10 controls | 8/10 | The supported-duration refusal was fixed, but `supported_requested_dose` was still falsely refused and `unsupported_shared_population` was incorrectly accepted. Do not adopt low verifier reasoning. The attribution-mapping diagnostic was abandoned. |
 | v20 GPT-OSS medium-verifier, flat grammar | 0 complete | The first `supported_requested_population` case failed with `OllamaOutputLimitError`. The 2,802-character grammar was abandoned; the v18 schema measured 4,004 characters on that case. |
 | v21 GPT-OSS, recommended sampling profile, targeted 10 | 10/10 | All ten controls returned complete, schema-valid and evidence-valid expected verdicts. Calls took 48.2–157.9 seconds. This supports the profile as a code candidate, not independent validation. |
-| v21 GPT-OSS, automatic-default full 21 | Running; no result recorded here | A fresh run uses the code candidate's automatic defaults without sampling, reasoning, budget, or timeout overrides. Its protocol fingerprint matches the targeted profile (`bd3bec30157ac6655268239ded6d08598c368bf7d3ef8cea0b0324711993a6c1`). The five-case integrated packet remains gated on this run. |
+| v21 GPT-OSS, automatic-default full 21 | 21/21 passed | Twenty controls received complete, evidence-valid model verdicts; the remaining current-study/references case was correctly rejected by the intentional deterministic rule without a verifier call. The 20 transport calls all ended with `done_reason=stop`, generated 920–3,443 tokens within the 4,096-token budget, and took 37.8–159.7 seconds. Settings fingerprint matches the targeted profile (`bd3bec30157ac6655268239ded6d08598c368bf7d3ef8cea0b0324711993a6c1`); the manifest records Ollama 0.34.4 and the installed model digest. This is development evidence, not human validation. |
+| v21 GPT-OSS integrated packet, 5 cases | 5/5 passed | All cases passed expected behavior. The five cases are described below; the run made 12 model calls, all ending with `done_reason=stop`. This remains inspected development evidence with no retrieval or judge. |
+| v21 paper smoke | Passed | The saved-context answer matched the requested method details and cited `housing-temperature.pdf`, page 2. The first draft used an incorrect source ID; the exact-quote check rejected it and the existing repair selected the correct source. See details below. |
 
-The 16-question human review packet has been reviewed by neither Thomas nor Emma; their review is deferred. These trials do not complete that milestone or establish v1 readiness. No model promotion is supported.
+The missing-dose title was refused in one call (5.1 seconds). The supported-dose question was answered after the existing repair path (four calls, 169.7 seconds). The title-effect question was answered in two calls (80.0 seconds), and the supported negative result in two calls (56.2 seconds).
 
-Reports, raw transport captures, and passages stay in the ignored `evaluation-results/qualifier-evidence-20260929/` and `evaluation-results/qualifier-evidence-20260930/` directories in the main checkout. The v21 records are dated 2026-09-30. No raw passages are reproduced here. The v14–v21 attempts were single-run development checks on inspected inputs; subsequent audits are explicitly labeled post-hoc. The 16-question packet is separate and has not been used here as independent validation.
+The embedded-instruction case returned the correct glucose result without repeating the injected canary text after a malformed draft triggered the existing repair path (three calls, 107.7 seconds). The supported-dose first verifier response incorrectly set `answers_question=false` despite a supported `requested_answer`; its repair then completed with acceptance. Across all 12 transport calls, `done_reason` was `stop` and `eval_count` ranged from 73 to 1,943. Trace and answer inspection found each final answer supported by its cited source.
+
+The paper smoke used three saved chunks totaling 1,372 characters, with no new retrieval, judge, or gold answer in the model input. The final response reported five grip-strength runs per mouse and assessment two days before dissection, citing `housing-temperature.pdf`, page 2. The verifier linked both parts of the claim and the full question to evidence IDs 3 and 7. The initial draft attached the timing quote to source ID 2; the deterministic exact-quote check rejected it, and the existing repair selected source ID 3. The run took 59.96 seconds across three calls (8.84, 13.25, and 37.86 seconds); all ended with `done_reason=stop`, with 133–737 generated tokens.
+
+The 16-question human review packet has been reviewed by neither Thomas nor Emma; their review is deferred. Passing synthetic and paper smoke checks does not complete that milestone or establish v1 readiness. No model promotion is supported.
+
+Reports, raw transport captures, and passages stay in the ignored `evaluation-results/qualifier-evidence-20260929/` and `evaluation-results/qualifier-evidence-20260930/` directories in the main checkout. The v21 records are dated 2026-09-30; the full-control manifest records Ollama 0.34.4 and model digest `17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7`. No raw passages are reproduced here. The v14–v21 attempts were single-run development checks on inspected inputs; subsequent audits are explicitly labeled post-hoc. The 16-question packet is separate and has not been used here as independent validation.
