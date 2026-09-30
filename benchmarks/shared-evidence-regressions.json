@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "purpose": "development",
+  "configuration_sha256": "7851218bd54bbee9fe17a63f4aec70125d637596547e3272554948c12b31308e",
+  "selections": [
+    {
+      "id": "sample",
+      "report": "evaluation-results/v1-review-sample-20260928.json",
+      "sha256": "5b4d9810552c0ee9dfe20c829e6cb2fb8fbeafc058aa9f2135c5208ec4c18d9a",
+      "case_ids": [
+        "glucose-tolerance-protocol",
+        "cited-rosiglitazone"
+      ]
+    },
+    {
+      "id": "housing",
+      "report": "evaluation-results/v1-review-housing-20260928.json",
+      "sha256": "011e6bc33065eb7e2046bc1b9279674af4d7bac094887bae24209aee872f87d0",
+      "case_ids": [
+        "housing-fat-loss",
+        "housing-bat-atp"
+      ]
+    }
+  ]
+}
