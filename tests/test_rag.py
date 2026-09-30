@@ -16,7 +16,7 @@ class RagTests(unittest.TestCase):
                 patch("app.rag.grounded_answer", return_value="Checked answer") as grounded, \
                 patch("app.rag.generate") as generate:
             result = answer_question("Question", answer_mode="verified")
-        grounded.assert_called_once_with("Question", result["sources"])
+        grounded.assert_called_once_with("Question", result["sources"], claim_evidence=[])
         generate.assert_not_called()
         self.assertEqual(result["answer"], "Checked answer")
 
@@ -82,7 +82,7 @@ class RagTests(unittest.TestCase):
         search.assert_called_once_with("Question", limit=10, document=None)
         rerank.assert_called_once_with("Question", candidates, limit=3)
         self.assertEqual([source["chunk_index"] for source in result["sources"]], [2, 0, 4, 1])
-        grounded.assert_called_once_with("Question", result["sources"])
+        grounded.assert_called_once_with("Question", result["sources"], claim_evidence=[])
 
     def test_vector_reserve_rejects_incompatible_modes_before_search(self) -> None:
         with patch("app.rag.search_chunks") as search:
@@ -220,6 +220,9 @@ class RagTests(unittest.TestCase):
             return {"answer": f"Finding for {document}", "sources": [{
                 "document": document, "page": 1, "chunk_index": 0,
                 "text": f"Evidence for {document}",
+            }], "claim_evidence": [{
+                "text": f"Finding for {document}", "attribution": "this_document_authors",
+                "citations": [{"source_index": 0, "quote": f"Evidence for {document}"}],
             }]}
 
         for overview in (True, False):
@@ -236,6 +239,7 @@ class RagTests(unittest.TestCase):
             self.assertIn("a.pdf:\nFinding for a.pdf", result["answer"])
             self.assertIn("b.pdf:\nFinding for b.pdf", result["answer"])
             self.assertEqual([source["document"] for source in result["sources"]], ["a.pdf", "b.pdf"])
+            self.assertEqual([claim["citations"][0]["source_index"] for claim in result["claim_evidence"]], [0, 1])
 
 
 if __name__ == "__main__":

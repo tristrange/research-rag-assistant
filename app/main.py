@@ -71,9 +71,21 @@ class Source(BaseModel):
     section: str = "unknown"
 
 
+class EvidenceQuote(BaseModel):
+    source_index: int = Field(ge=0)
+    quote: str
+
+
+class AnswerClaimEvidence(BaseModel):
+    text: str
+    attribution: Literal["this_document_authors", "external_publication", "non_study_context"]
+    citations: list[EvidenceQuote]
+
+
 class QueryResponse(BaseModel):
     answer: str
     sources: list[Source]
+    claim_evidence: list[AnswerClaimEvidence] = Field(default_factory=list)
 
 
 @app.get("/", response_class=FileResponse)
@@ -111,6 +123,7 @@ def query(request: QueryRequest) -> QueryResponse:
         return QueryResponse(
             answer=result["answer"],
             sources=[Source(**source) for source in result["sources"]],
+            claim_evidence=[AnswerClaimEvidence.model_validate(claim) for claim in result.get("claim_evidence", [])],
         )
     finally:
         _query_gate.release()

@@ -16,7 +16,7 @@ from app.grounding import (
 )
 from app.config import GroundingSampling
 from app.llm.ollama import OllamaOutputLimitError
-from app.types import ChunkData
+from app.types import AnswerClaim, ChunkData
 
 
 SOURCE = ChunkData(document="paper.pdf", page=10, chunk_index=2,
@@ -53,6 +53,70 @@ def first_citation(draft: dict[str, object]) -> dict[str, object]:
 
 
 class GroundingTests(unittest.TestCase):
+    def test_display_evidence_uses_verifier_selections_and_exact_source_indexes(self) -> None:
+        source = ChunkData(document="study.pdf", page=2, chunk_index=7, section="results",
+                           text="Ten mice received treatment. Treatment delayed weight loss.")
+        draft = deepcopy(DRAFT)
+        first_citation(draft)["source_id"] = 2
+        verdict = approved()
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [2]
+        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [2, 1]
+        evidence: list[AnswerClaim] = []
+        with patch("app.grounding.generate_json", side_effect=[draft, verdict]) as model:
+            answer = grounded_answer("What did the cited study report?", [SOURCE, source], claim_evidence=evidence)
+        self.assertIn("study.pdf, page 2", answer)
+        self.assertEqual(model.call_count, 2)
+        self.assertEqual(evidence, [{
+            "text": "The cited treatment delayed weight loss.", "attribution": "external_publication",
+            "citations": [
+                {"source_index": 1, "quote": "Treatment delayed weight loss."},
+                {"source_index": 1, "quote": "Ten mice received treatment."},
+            ],
+        }])
+
+    def test_only_accepted_repair_exposes_evidence(self) -> None:
+        evidence: list[AnswerClaim] = []
+        with patch("app.grounding.generate_json", side_effect=[{}, DRAFT, APPROVED]):
+            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+        self.assertNotEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(evidence[0]["citations"], [{"source_index": 0, "quote": "Treatment delayed weight loss."}])
+
+    def test_display_evidence_binds_reordered_verdicts_to_their_claims(self) -> None:
+        source = ChunkData(document="study.pdf", page=2, chunk_index=0,
+                           text="Treatment reduced body mass. Glucose uptake was unchanged.")
+        draft = {"answerable": True, "claims": [
+            {"text": "Treatment reduced body mass.", "attribution": "this_document_authors",
+             "citations": [{"source_id": 1, "quote": "Treatment reduced body mass."}]},
+            {"text": "Glucose uptake was unchanged.", "attribution": "this_document_authors",
+             "citations": [{"source_id": 1, "quote": "Glucose uptake was unchanged."}]},
+        ]}
+        question = "What happened to body mass and glucose uptake?"
+        verdict = approved(question)
+        first = cast(list[dict[str, object]], verdict["verdicts"])[0]
+        verdict["verdicts"] = [
+            {**first, "claim_index": 2, "supporting_evidence_ids": [2]},
+            {**first, "claim_index": 1, "supporting_evidence_ids": [1]},
+        ]
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1, 2]
+        evidence: list[AnswerClaim] = []
+        with patch("app.grounding.generate_json", side_effect=[draft, verdict]):
+            grounded_answer(question, [source], claim_evidence=evidence)
+        self.assertEqual([claim["citations"][0]["quote"] for claim in evidence],
+                         ["Treatment reduced body mass.", "Glucose uptake was unchanged."])
+
+    def test_refusals_and_rejected_drafts_never_expose_claim_evidence(self) -> None:
+        rejected = deepcopy(APPROVED)
+        rejected["answers_question"] = False
+        for responses in [
+            [{"answerable": False, "claims": []}],
+            [DRAFT, rejected, {"answerable": False, "claims": []}],
+            [{}, {},],
+        ]:
+            evidence: list[AnswerClaim] = [{"text": "Old claim", "attribution": "this_document_authors", "citations": []}]
+            with self.subTest(responses=responses), patch("app.grounding.generate_json", side_effect=responses):
+                self.assertEqual(grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence), INSUFFICIENT_EVIDENCE)
+            self.assertEqual(evidence, [])
+
     @staticmethod
     def approval_for_single_span(question: str) -> dict[str, object]:
         result = approved(question)

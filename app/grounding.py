@@ -18,7 +18,7 @@ from app.config import (
     GROUNDING_OUTPUT_TOKENS as GROUNDING_OUTPUT_TOKENS,
 )
 from app.llm.ollama import default_timeout, generate_json
-from app.types import ChunkData
+from app.types import AnswerClaim, ChunkData
 
 
 INSUFFICIENT_EVIDENCE = (
@@ -669,10 +669,34 @@ def verify_draft(
     return accepted
 
 
+def _record_accepted_evidence(
+    draft: GroundedDraft, sources: list[ChunkData], feedback: list[dict[str, object]],
+    claim_evidence: list[AnswerClaim] | None,
+) -> None:
+    """Expose only the final approved verifier's source-bound evidence selections."""
+    if claim_evidence is None:
+        return
+    verification = VerificationResult.model_validate(feedback[0]["output"])
+    catalogue = {entry["evidence_id"]: entry for entry in build_verifier_evidence(draft.claims, sources)}
+    verdicts = {verdict.claim_index: verdict for verdict in verification.verdicts}
+    for index, claim in enumerate(draft.claims, start=1):
+        claim_evidence.append({
+            "text": claim.text,
+            "attribution": claim.attribution,
+            "citations": [{
+                "source_index": catalogue[evidence_id]["source_id"] - 1,
+                "quote": catalogue[evidence_id]["quote"],
+            } for evidence_id in verdicts[index].supporting_evidence_ids],
+        })
+
+
 def grounded_answer(
     question: str, sources: list[ChunkData], *, trace: list[dict[str, object]] | None = None,
+    claim_evidence: list[AnswerClaim] | None = None,
 ) -> str:
     """Render only wholly approved claims; propagate model transport errors."""
+    if claim_evidence is not None:
+        claim_evidence.clear()
     if not sources or not any(_evidence_spans(source["text"]) for source in sources):
         return INSUFFICIENT_EVIDENCE
     draft_schema = _bounded_draft_schema(sources)
@@ -694,6 +718,7 @@ def grounded_answer(
             question, draft, sources, trace=trace,
         )
         if accepted:
+            _record_accepted_evidence(draft, sources, feedback, claim_evidence)
             return _render_claims(draft.claims, sources)
 
     try:
@@ -715,12 +740,13 @@ def grounded_answer(
         if trace is not None:
             trace.append({"stage": "repair_rejected", "reason": str(error)})
         return INSUFFICIENT_EVIDENCE
-    accepted, _ = _verify_draft_with_feedback(
+    accepted, feedback = _verify_draft_with_feedback(
         question, repaired_draft, sources, trace=trace,
         verification_stage="repair_verification", rejection_stage="repair_rejected",
     )
     if not accepted:
         return INSUFFICIENT_EVIDENCE
+    _record_accepted_evidence(repaired_draft, sources, feedback, claim_evidence)
     return _render_claims(repaired_draft.claims, sources)
 
 

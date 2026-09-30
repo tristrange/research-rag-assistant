@@ -43,7 +43,7 @@ function loadUi(options = {}) {
     ...(options.navigator ? { navigator: options.navigator } : {}),
   });
   const script = fs.readFileSync(path.join(__dirname, "../app/ui/app.js"), "utf8");
-  vm.runInContext(`${script}\nglobalThis.testUi = { showSources, renderAnswer };`, context);
+  vm.runInContext(`${script}\nglobalThis.testUi = { showSources, renderAnswer, showEvidence, validEvidence };`, context);
   return { ...context.testUi, elements };
 }
 
@@ -225,4 +225,69 @@ test("a replacement answer ignores an old copy rejection and resets success feed
   renderAnswer("", new Map());
   assert.equal(elements.get("copy-status").textContent, "");
   assert.equal(elements.get("copy-answer-button").disabled, true);
+});
+
+test("claim evidence shows exact excerpts and attribution separately from all retrieved text", () => {
+  const { showSources, showEvidence, elements } = loadUi();
+  const sources = [
+    { document: "a.pdf", page: 2, section: "results", text: "Selected excerpt plus other context." },
+    { document: "a.pdf", page: 2, section: "discussion", text: "Second chunk on the same page." },
+    { document: "b.pdf", page: 2, section: "references", text: "<img src=x> Cited study." },
+  ];
+  const pages = showSources(sources);
+  showEvidence([
+    { text: "First finding", attribution: "this_document_authors", citations: [{ source_index: 1, quote: "Second chunk" }] },
+    { text: "<script>Claim</script>", attribution: "external_publication", citations: [{ source_index: 2, quote: "<img src=x>" }] },
+  ], sources, pages);
+  const cards = elements.get("evidence-list").children;
+  assert.equal(elements.get("evidence-panel").hidden, false);
+  assert.equal(cards[0].children[0].textContent, "This paper's authorsFirst finding");
+  assert.equal(cards[0].children[2].textContent, "Second chunk");
+  assert.equal(cards[1].children[0].textContent, "Cited literature<script>Claim</script>");
+  assert.equal(cards[1].children[2].textContent, "<img src=x>");
+  assert.equal(cards[1].children[2].tagName, "BLOCKQUOTE");
+  const link = cards[1].children[1].children[0];
+  assert.equal(link.href, "#source-page-2");
+  link.click();
+  assert.equal(elements.get("source-list").children[1].open, true);
+  assert.equal(elements.get("source-count").textContent, "3");
+  showEvidence([], sources, pages);
+  assert.equal(elements.get("evidence-panel").hidden, true);
+  assert.equal(elements.get("evidence-list").children.length, 0);
+});
+
+test("evidence payloads reject invalid source indexes and unknown attribution", () => {
+  const { validEvidence } = loadUi();
+  const sources = [{ document: "study.pdf", page: 2, text: "Evidence" }];
+  const claim = { text: "Finding", attribution: "this_document_authors", citations: [{ source_index: 0, quote: "Evidence" }] };
+  assert.equal(validEvidence([claim], sources), true);
+  for (const source_index of [-1, 1, 0.5, "0", null]) {
+    assert.equal(validEvidence([{ ...claim, citations: [{ source_index, quote: "Evidence" }] }], sources), false);
+  }
+  assert.equal(validEvidence([{ ...claim, attribution: "verified fact" }], sources), false);
+  assert.equal(validEvidence([{ ...claim, citations: [] }], sources), false);
+  assert.equal(validEvidence(null, sources), false);
+});
+
+test("query submission clears previous evidence and displays the new API selections", async () => {
+  let finishQuery;
+  const { showSources, showEvidence, elements } = loadUi({
+    fetch: async (url) => url === "/documents"
+      ? { ok: true, json: async () => ["study.pdf"] }
+      : new Promise((resolve) => { finishQuery = resolve; }),
+  });
+  await new Promise(setImmediate);
+  const sources = [{ document: "study.pdf", page: 2, section: "results", text: "First. Second." }];
+  const old = [{ text: "Old", attribution: "this_document_authors", citations: [{ source_index: 0, quote: "First." }] }];
+  showEvidence(old, sources, showSources(sources));
+  elements.get("question").value = "Next question";
+  const submitting = elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(elements.get("evidence-panel").hidden, true);
+  assert.equal(elements.get("evidence-list").children.length, 0);
+  const claims = [{ ...old[0], text: "New", citations: [{ source_index: 0, quote: "Second." }] }];
+  finishQuery({ ok: true, json: async () => ({ answer: "New", sources, claim_evidence: claims }) });
+  await submitting;
+  assert.equal(elements.get("evidence-panel").hidden, false);
+  assert.equal(elements.get("evidence-list").children[0].children[2].textContent, "Second.");
+  assert.equal(elements.get("answer-text").textContent, "New");
 });
