@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from copy import deepcopy
 import hashlib
 import json
 import re
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal, TypedDict, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
@@ -23,7 +24,7 @@ from app.types import ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v13"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v21"
 GROUNDING_CONTEXT_TOKENS = 12288
 GROUNDING_DRAFT_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(DRAFT_THINK)
 GROUNDING_VERIFIER_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(VERIFIER_THINK)
@@ -71,6 +72,13 @@ class ClaimVerdict(StrictModel):
     correct_attribution: bool
     relevant: bool
     reason: str = Field(min_length=1, max_length=300)
+    supporting_evidence_ids: list[Annotated[StrictInt, Field(ge=1)]] = Field(max_length=12)
+
+    @model_validator(mode="after")
+    def supported_claim_has_evidence(self) -> ClaimVerdict:
+        if self.supported and not self.supporting_evidence_ids:
+            raise ValueError("a supported claim verdict must cite exact evidence")
+        return self
 
 
 class QuestionRequirement(StrictModel):
@@ -84,6 +92,22 @@ class QuestionRequirement(StrictModel):
     reason: str = Field(min_length=1, max_length=300)
 
 
+class RequestedAnswerCoverage(StrictModel):
+    status: Literal["supported", "unsupported"]
+    question_excerpt: str = Field(
+        min_length=1, max_length=2000,
+        description="The entire original question, copied exactly apart from whitespace.",
+    )
+    supporting_evidence_ids: list[Annotated[StrictInt, Field(ge=1)]] = Field(max_length=12)
+    reason: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def supported_answer_has_evidence(self) -> RequestedAnswerCoverage:
+        if self.status == "supported" and not self.supporting_evidence_ids:
+            raise ValueError("a supported requested answer must cite exact evidence")
+        return self
+
+
 class VerificationResult(StrictModel):
     requirements: list[QuestionRequirement] = Field(
         min_length=1, max_length=8,
@@ -92,10 +116,18 @@ class VerificationResult(StrictModel):
     answers_question: bool
     reason: str = Field(min_length=1, max_length=300)
     verdicts: list[ClaimVerdict] = Field(max_length=MAX_CLAIMS)
+    requested_answer: RequestedAnswerCoverage
 
 
 DRAFT_SCHEMA: dict[str, object] = GroundedDraft.model_json_schema()
 VERIFIER_SCHEMA: dict[str, object] = VerificationResult.model_json_schema()
+
+
+class VerifierEvidence(TypedDict):
+    evidence_id: int
+    claim_index: int
+    source_id: int
+    quote: str
 
 
 _DRAFT_INSTRUCTIONS = """You are drafting a research answer from an evidence catalogue.
@@ -207,7 +239,21 @@ answer the exact question. Set answers_question=true only when the claims togeth
 directly answer what was asked; related context without the requested result is false. A title from an external
 publication does not answer whether this document authors performed that experiment.
 When the question explicitly asks what a cited publication reports, its reference
-title can support a concise statement limited to that title."""
+title can support a concise statement limited to that title.
+
+Also assess requested_answer against the ENTIRE original question, including all requested
+qualifiers. Copy that entire question into question_excerpt unchanged apart from whitespace.
+Do not substitute a narrower requirement. Set its status to supported only when the supplied
+evidence establishes an answer to the whole question; a supported negative answer counts.
+Missing evidence is unsupported. Every listed requirement, requested_answer, and claim must
+pass before the answer can be accepted.
+
+Evidence IDs in evidence_catalogue are application-owned pointers to exact cited excerpts.
+For requested_answer and every claim verdict, return supporting_evidence_ids using only
+those IDs. A supported assessment must have at least one. For a claim, use only IDs whose
+claim_index matches that claim. Unsupported assessments may use empty IDs or point to
+nearby or conflicting evidence to explain the gap. An ID alone does not establish support;
+assess the passage's exact facts, target, and attribution as instructed above."""
 
 
 def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
@@ -223,6 +269,30 @@ def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
         }
         for index, source in enumerate(sources, start=1)
     ]
+
+
+def build_verifier_evidence(
+    claims: list[GroundedClaim], sources: list[ChunkData],
+) -> list[VerifierEvidence]:
+    """Assign stable IDs to every exact span in sources cited by each claim."""
+    catalogue: list[VerifierEvidence] = []
+    for claim_index, claim in enumerate(claims, start=1):
+        seen_sources: set[int] = set()
+        for citation in claim.citations:
+            source_id = citation.source_id
+            if source_id > len(sources):
+                raise ValueError("citation source ID is outside the source catalogue")
+            if source_id in seen_sources:
+                continue
+            seen_sources.add(source_id)
+            for quote in _evidence_spans(sources[source_id - 1]["text"]):
+                catalogue.append({
+                    "evidence_id": len(catalogue) + 1,
+                    "claim_index": claim_index,
+                    "source_id": source_id,
+                    "quote": quote,
+                })
+    return catalogue
 
 
 def build_draft_prompt(question: str, sources: list[ChunkData]) -> str:
@@ -256,10 +326,15 @@ def build_verifier_prompt(
     sources: list[ChunkData],
 ) -> str:
     """Build a verification prompt containing only sources cited by each claim."""
+    evidence_catalogue = build_verifier_evidence(claims, sources)
     verification_claims: list[dict[str, object]] = []
     for claim_index, claim in enumerate(claims, start=1):
         cited_passages = []
+        seen_sources: set[int] = set()
         for citation in claim.citations:
+            if citation.source_id in seen_sources:
+                continue
+            seen_sources.add(citation.source_id)
             source = sources[citation.source_id - 1]
             cited_passages.append({
                 "source_id": citation.source_id,
@@ -275,7 +350,11 @@ def build_verifier_prompt(
             "evidence_quotes": [citation.model_dump() for citation in claim.citations],
             "cited_passages": cited_passages,
         })
-    payload = {"question": question, "claims": verification_claims}
+    payload = {
+        "question": question,
+        "evidence_catalogue": evidence_catalogue,
+        "claims": verification_claims,
+    }
     return f"{_VERIFIER_INSTRUCTIONS}\n\nVerification input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
 
 
@@ -339,6 +418,46 @@ def _bounded_draft_schema(sources: list[ChunkData]) -> dict[str, object]:
     return schema
 
 
+def _bounded_verifier_schema(
+    question: str, claims: list[GroundedClaim], sources: list[ChunkData],
+) -> dict[str, object]:
+    """Return a fresh schema limiting support pointers to application-owned IDs."""
+    evidence = build_verifier_evidence(claims, sources)
+    if not evidence:
+        raise ValueError("a bounded verifier schema requires exact evidence excerpts")
+    schema = deepcopy(VERIFIER_SCHEMA)
+    normalized_question = _normalize_whitespace(question)
+    if not normalized_question:
+        raise ValueError("a bounded verifier schema requires a nonempty question")
+    definitions = cast(dict[str, object], schema["$defs"])
+    evidence_ids = [entry["evidence_id"] for entry in evidence]
+    for definition_name in ("ClaimVerdict", "RequestedAnswerCoverage"):
+        definition = cast(dict[str, object], definitions[definition_name])
+        properties = cast(dict[str, object], definition["properties"])
+        evidence_property = cast(dict[str, object], properties["supporting_evidence_ids"])
+        evidence_property["items"] = {"type": "integer", "enum": evidence_ids}
+    # Pydantic's model validators are not represented in JSON Schema. Encode
+    # their status/evidence/excerpt combinations for constrained generation too.
+    for definition_name, discriminator, states in (
+        ("RequestedAnswerCoverage", "status", ("supported", "unsupported")),
+        ("ClaimVerdict", "supported", (True, False)),
+    ):
+        definition = cast(dict[str, object], definitions[definition_name])
+        variants: list[dict[str, object]] = []
+        for state in states:
+            variant = deepcopy(definition)
+            variant_properties = cast(dict[str, dict[str, object]], variant["properties"])
+            variant_properties[discriminator] = {"const": state}
+            variant_evidence = variant_properties["supporting_evidence_ids"]
+            if state is True or state == "supported":
+                variant_evidence["minItems"] = 1
+            if definition_name == "RequestedAnswerCoverage":
+                variant_properties["question_excerpt"] = {"type": "string", "const": normalized_question}
+            variants.append(variant)
+        definitions[definition_name] = {"anyOf": variants}
+    return schema
+
+
 def _validate_draft(draft: GroundedDraft, sources: list[ChunkData]) -> None:
     for claim in draft.claims:
         if not claim.text.strip():
@@ -367,10 +486,57 @@ def _validate_draft(draft: GroundedDraft, sources: list[ChunkData]) -> None:
                 raise ValueError("a current-study claim cites a reference entry")
 
 
-def _validate_verification(result: VerificationResult, claim_count: int) -> None:
+def validate_verification_structure(
+    question: str,
+    result: VerificationResult,
+    claims: list[GroundedClaim],
+    sources: list[ChunkData],
+) -> None:
+    """Validate exact question/evidence bindings without requiring approval.
+
+    Explicit unsupported coverage, rejected claims, and answers_question=false are
+    complete negative verdicts and therefore pass this structural validation.
+    """
+    claim_count = len(claims)
     indexes = [verdict.claim_index for verdict in result.verdicts]
     if len(indexes) != claim_count or set(indexes) != set(range(1, claim_count + 1)):
         raise ValueError("verifier must return one unique verdict for each claim")
+
+    evidence = build_verifier_evidence(claims, sources)
+    evidence_by_id = {entry["evidence_id"]: entry for entry in evidence}
+
+    def validate_evidence_ids(ids: list[int], *, claim_index: int | None = None) -> None:
+        if len(ids) != len(set(ids)):
+            raise ValueError("supporting evidence IDs must be unique")
+        for evidence_id in ids:
+            entry = evidence_by_id.get(evidence_id)
+            if entry is None:
+                raise ValueError("verifier cited an unknown evidence ID")
+            if claim_index is not None and entry["claim_index"] != claim_index:
+                raise ValueError("claim verdict cited evidence owned by another claim")
+
+    normalized_question = _normalize_whitespace(question)
+    requested_answer = result.requested_answer
+    if _normalize_whitespace(requested_answer.question_excerpt) != normalized_question:
+        raise ValueError("requested_answer must quote the entire question")
+    validate_evidence_ids(requested_answer.supporting_evidence_ids)
+
+    for verdict in result.verdicts:
+        validate_evidence_ids(
+            verdict.supporting_evidence_ids,
+            claim_index=verdict.claim_index,
+        )
+
+
+def _validate_verification(
+    question: str,
+    result: VerificationResult,
+    claims: list[GroundedClaim],
+    sources: list[ChunkData],
+) -> None:
+    validate_verification_structure(question, result, claims, sources)
+    if result.requested_answer.status != "supported":
+        raise ValueError("cited evidence does not establish an answer to the whole question")
     if any(not requirement.supported for requirement in result.requirements):
         raise ValueError("cited evidence does not establish every question requirement")
     if not result.answers_question:
@@ -422,17 +588,21 @@ def _verify_draft_with_feedback(
         _validate_draft(draft, sources)
         if not draft.answerable:
             return False, feedback
+        evidence_catalogue = build_verifier_evidence(draft.claims, sources)
         verification_data = (verifier or generate_verification_json)(
-            build_verifier_prompt(question, draft.claims, sources), VERIFIER_SCHEMA,
+            build_verifier_prompt(question, draft.claims, sources),
+            _bounded_verifier_schema(question, draft.claims, sources),
         )
         verification_entry: dict[str, object] = {
-            "stage": verification_stage, "output": verification_data,
+            "stage": verification_stage,
+            "output": verification_data,
+            "evidence_catalogue": evidence_catalogue,
         }
         feedback.append(verification_entry)
         if trace is not None:
             trace.append(verification_entry)
         verification = VerificationResult.model_validate(verification_data)
-        _validate_verification(verification, len(draft.claims))
+        _validate_verification(question, verification, draft.claims, sources)
         return True, feedback
     except ValueError as error:
         rejection_entry: dict[str, object] = {
@@ -534,6 +704,12 @@ def grounding_fingerprint() -> str:
         "dynamic_citation_schema": (
             "ClaimCitation is anyOf one object per nonempty source; source_id is const and "
             "quote is an enum of that source's evidence spans"
+        ),
+        "dynamic_verifier_schema": (
+            "Claim and full-question evidence IDs are restricted to application-owned IDs "
+            "built from all exact spans in each source cited by the corresponding claim; "
+            "supported variants require nonempty evidence IDs; requested_answer quotes the "
+            "entire whitespace-normalized original question"
         ),
         "evidence_span_rule": (
             "whitespace-normalize, split on (?<=[.!?])\\s+, hard-split spans every "

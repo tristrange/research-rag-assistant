@@ -269,7 +269,9 @@ the shared sampling profile uses temperature 0.6 for Qwen3 or 1.0 for Qwen3.5,
 top_p 0.95, top_k 20, min_p 0, repeat_penalty 1, and presence_penalty 0 for
 Qwen3 or 1.5 for Qwen3.5. These follow their general-thinking guidance.
 When both stages disable thinking, temperature stays at the previously tested
-zero baseline. Other grounding models retain temperature zero. Selecting Qwen
+zero baseline. GPT-OSS uses temperature 1.0 and top_p 1.0, following its
+[recommended sampling](https://github.com/openai/gpt-oss#recommended-sampling-parameters).
+Other grounding models retain temperature zero. Selecting Qwen
 alone enables its thinking profile; use both `THINK=false` variables for the
 faster non-thinking configuration.
 
@@ -277,9 +279,9 @@ Sampling accepts numeric `temperature` (0–2), `top_p` (greater than 0, at most
 integer `top_k` (1–1000), `min_p` (0–1), `presence_penalty` (0–2), and
 `repeat_penalty` (greater than 0, at most 2). Explicit values override the selected
 profile; omitted values inherit it, including when the JSON is `{}` or specifies
-only a filter. Outside Qwen thinking profiles, omitted filters retain the installed
+only a filter. Filters omitted from the selected profile retain the installed
 model's defaults. Explicit temperature zero is available for controlled
-experiments, but is discouraged for Qwen thinking. Unknown keys, invalid
+experiments; it overrides the recommended Qwen thinking and GPT-OSS profiles. Unknown keys, invalid
 types, non-finite numbers, and out-of-range values fail at startup.
 These overrides affect verified calls only; the evaluation judge stays at
 temperature zero with thinking disabled. Context remains 12,288 tokens.
@@ -307,9 +309,13 @@ curl -X POST http://127.0.0.1:8000/query \
 The model drafts concise claims and selects exact excerpts from a source-specific
 quote catalogue. Code rejects invalid IDs, quotes outside that catalogue, and current-study claims citing a references section.
 A second model call checks each claim's full support, attribution, and relevance.
-It checks the question's actual requirements rather than demanding unasked study
-attributes. A supported negative answer can satisfy a yes/no question; missing
-outcome evidence cannot establish a negative result.
+It must assess the full original question separately from its list of essential
+requested findings and qualifiers. Supported checks and claim verdicts
+must reference application-owned exact excerpts from their cited passages. Code
+validates question excerpts, evidence IDs, and claim ownership before accepting the
+answer. Unasked study attributes are not required. A supported negative answer
+can satisfy a yes/no question; missing outcome evidence cannot establish a
+negative result.
 A rejected draft may be corrected once using validation feedback; the corrected
 draft must pass all the same checks. Only an entirely approved answer is rendered; document/page labels come from stored
 source metadata. Invalid or rejected output becomes a fixed insufficient-evidence
@@ -322,6 +328,8 @@ can reject valid answers or miss subtle unsupported claims. The API and browser
 use `verified`; `answer_mode: "plain"` is rejected by the API. Local evaluation
 scripts retain plain generation for controlled comparisons. Neighbor expansion
 also remains opt-in through the evaluation CLI. The
+[question coverage contract](docs/question-coverage-evidence.md) explains the fixed
+whole-question and exact-evidence checks, control results, and their limits. The
 [refusal diagnostics](docs/grounding-refusal-diagnostics.md) distinguish initial
 draft refusals from verifier errors and record the targeted checks.
 
@@ -336,7 +344,7 @@ specific verifier controls; each run needs a fresh output path. The
 records paired controls for a population qualifier in a two-duration answer.
 
 Verified mode uses `gpt-oss:20b` with low reasoning for drafting, medium reasoning
-for verification, and temperature zero. Install it with `ollama pull gpt-oss:20b` before trying this
+for verification, temperature 1.0 and top_p 1.0. Install it with `ollama pull gpt-oss:20b` before trying this
 mode. Plain evaluation and the evaluation judge continue to use `qwen3:8b`.
 Verified requests default to a 12,288-token context window, a 4,096-token output limit
 (including reasoning), and a 300-second timeout per call. Evaluation records the answer mode, sampling overrides, effective per-stage timeouts, both

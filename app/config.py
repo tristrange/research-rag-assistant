@@ -29,8 +29,12 @@ def reasoning_setting(name: str, default: str) -> bool | Literal["low", "medium"
     raise ValueError(f"{name} must be true, false, low, medium, or high")
 
 
+def model_family(model: str) -> str:
+    return model.rsplit("/", 1)[-1].split(":", 1)[0].lower()
+
+
 def qwen_family(model: str) -> str | None:
-    family = model.rsplit("/", 1)[-1].split(":", 1)[0].lower()
+    family = model_family(model)
     return family if family in {"qwen3", "qwen3.5"} else None
 
 
@@ -59,10 +63,12 @@ def resolve_grounding_sampling(
     model: str, draft_think: bool | str, verifier_think: bool | str,
     overrides: GroundingSampling,
 ) -> GroundingSampling:
-    """Use Qwen's general-thinking profile when either shared-sampling stage thinks."""
+    """Select the model family's profile, then overlay explicit sampling values."""
     defaults: dict[str, float | int] = {"temperature": 0.0}
     family = qwen_family(model)
-    if family and (draft_think is True or verifier_think is True):
+    if model_family(model) == "gpt-oss":
+        defaults.update(temperature=1.0, top_p=1.0)
+    elif family and (draft_think is True or verifier_think is True):
         defaults.update(temperature=0.6 if family == "qwen3" else 1.0,
                         top_p=0.95, top_k=20, min_p=0.0,
                         presence_penalty=0.0 if family == "qwen3" else 1.5, repeat_penalty=1.0)

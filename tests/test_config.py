@@ -19,10 +19,54 @@ class ConfigTests(unittest.TestCase):
                                      {"temperature": temperature, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
                                       "presence_penalty": presence, "repeat_penalty": 1.0})
 
+    def test_gpt_oss_sampling_profile_and_explicit_overrides(self) -> None:
+        for model in ["gpt-oss:20b", "registry.example/library/gpt-oss:20b", "GPT-OSS:120b"]:
+            with self.subTest(model=model):
+                self.assertEqual(resolve_grounding_sampling(model, "low", "medium", GroundingSampling()).options(),
+                                 {"temperature": 1.0, "top_p": 1.0})
+                self.assertEqual(resolve_grounding_sampling(model, "low", "medium", GroundingSampling(top_k=10)).options(),
+                                 {"temperature": 1.0, "top_p": 1.0, "top_k": 10})
+                self.assertEqual(resolve_grounding_sampling(model, "low", "medium", GroundingSampling(temperature=0, top_p=0.8)).options(),
+                                 {"temperature": 0.0, "top_p": 0.8})
+        self.assertEqual(resolve_grounding_sampling("custom:gpt-oss", "low", "medium", GroundingSampling()).options(),
+                         {"temperature": 0.0})
+
+    def test_gpt_oss_automatic_sampling_reaches_stages_and_keeps_judge_settings(self) -> None:
+        environment = {k: v for k, v in os.environ.items() if not k.startswith("RAG_")}
+        code = """
+import json
+from unittest.mock import patch
+from app.grounding import generate_draft_json, generate_verification_json
+from app.llm.ollama import generate_json
+with patch('app.llm.ollama.httpx.post') as post:
+    post.return_value.json.return_value = {'message': {'content': '{}'}, 'done_reason': 'stop'}
+    generate_draft_json('Draft', {})
+    generate_verification_json('Verify', {})
+    generate_json('Judge', {})
+    print(json.dumps([call.kwargs['json'] for call in post.call_args_list]))
+"""
+        for overrides, temperature, top_k in [("{}", 1.0, None), ('{"top_k":10}', 1.0, 10),
+                                              ('{"temperature":0}', 0.0, None)]:
+            with self.subTest(overrides=overrides):
+                result = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
+                                        env=environment | {"RAG_GROUNDING_MODEL": "gpt-oss:20b", "RAG_GROUNDING_SAMPLING": overrides},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                draft, verifier, judge = json.loads(result.stdout)
+                for request in [draft, verifier]:
+                    self.assertEqual(request["model"], "gpt-oss:20b")
+                    self.assertEqual(request["options"]["temperature"], temperature)
+                    self.assertEqual(request["options"]["top_p"], 1.0)
+                    self.assertEqual(request["options"].get("top_k"), top_k)
+                self.assertEqual(draft["think"], "low")
+                self.assertEqual(verifier["think"], "medium")
+                self.assertEqual(judge["options"], {"temperature": 0.0})
+                self.assertIs(judge["think"], False)
+
     def test_nonthinking_and_other_models_keep_existing_sampling(self) -> None:
         cases: list[tuple[str, bool | str, bool | str]] = [
             ("qwen3:8b", False, False), ("qwen3.5:9b", False, False),
-            ("gpt-oss:20b", "low", "medium"), ("qwen3-coder:30b", True, True), ("custom:qwen3", True, True),
+            ("qwen3-coder:30b", True, True), ("custom:qwen3", True, True),
         ]
         for model, draft, verifier in cases:
             with self.subTest(model=model):

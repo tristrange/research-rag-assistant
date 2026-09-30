@@ -308,7 +308,7 @@ class EvaluateReplayTests(unittest.TestCase):
         value = self.protocol.model_dump()
         value["schema_version"] = 3
         candidates = cast(list[dict[str, object]], value["candidates"])
-        candidates[0].update(sampling={"temperature": 0.0}, draft_timeout_seconds=300.0,
+        candidates[0].update(sampling={"temperature": 1.0, "top_p": 1.0}, draft_timeout_seconds=300.0,
                              verifier_timeout_seconds=300.0, output_tokens=4096)
         self.protocol = ComparisonProtocol.model_validate(value)
         with (patch("scripts.record_grounding_replays.model_identity", return_value={"name": "gpt-oss:20b", "digest": "a" * 64}),
