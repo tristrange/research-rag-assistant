@@ -291,3 +291,66 @@ test("query submission clears previous evidence and displays the new API selecti
   assert.equal(elements.get("evidence-list").children[0].children[2].textContent, "Second.");
   assert.equal(elements.get("answer-text").textContent, "New");
 });
+
+test("service errors show API guidance as text and allow a successful retry", async () => {
+  const message = "Ollama could not complete the request. <img src=x>";
+  let attempts = 0;
+  const { elements } = loadUi({
+    fetch: async (url) => {
+      if (url === "/documents") return { ok: true, json: async () => ["study.pdf"] };
+      attempts += 1;
+      if (attempts === 1) return { ok: false, status: 503, json: async () => ({ detail: { code: "model_unavailable", message } }) };
+      return { ok: true, json: async () => ({ answer: "Recovered", sources: [] }) };
+    },
+  });
+  await new Promise(setImmediate);
+  elements.get("question").value = "Question";
+  const submit = elements.get("query-form").listeners.get("submit");
+  await submit({ preventDefault() {} });
+  assert.equal(elements.get("request-error").hidden, false);
+  assert.equal(elements.get("request-error").textContent, message);
+  assert.equal(elements.get("request-error").children.length, 0);
+  assert.equal(elements.get("request-status").textContent, "The request did not complete.");
+  assert.equal(elements.get("answer-panel").hidden, true);
+  assert.equal(elements.get("evidence-panel").hidden, true);
+  assert.equal(elements.get("ask-button").disabled, false);
+  await submit({ preventDefault() {} });
+  assert.equal(elements.get("request-error").hidden, true);
+  assert.equal(elements.get("answer-text").textContent, "Recovered");
+  assert.equal(elements.get("ask-button").disabled, false);
+});
+
+test("paper-list failures show service guidance and keep querying disabled", async () => {
+  const { elements } = loadUi({
+    fetch: async () => ({ ok: false, status: 503, json: async () => ({
+      detail: { code: "database_error", message: "Check PostgreSQL and initialize the database." },
+    }) }),
+  });
+  await new Promise(setImmediate);
+  assert.match(elements.get("library-status").textContent, /Check PostgreSQL/);
+  assert.match(elements.get("library-status").textContent, /Reload this page/);
+  assert.equal(elements.get("ask-button").disabled, true);
+});
+
+test("busy, legacy and non-JSON API errors have useful fallbacks", async () => {
+  const responses = [
+    { ok: false, status: 429, json: async () => ({ detail: "Busy" }) },
+    { ok: false, status: 500, json: async () => { throw new SyntaxError("private upstream body"); } },
+    { ok: false, status: 500, json: async () => ({ detail: "private upstream body" }) },
+    { ok: false, status: 500, json: async () => ({ detail: { code: "bad", message: 123 } }) },
+  ];
+  for (const response of responses) {
+    const { elements } = loadUi({
+      fetch: async (url) => url === "/documents"
+        ? { ok: true, json: async () => ["study.pdf"] }
+        : response,
+    });
+    await new Promise(setImmediate);
+    elements.get("question").value = "Question";
+    await elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+    const error = elements.get("request-error").textContent;
+    assert.match(error, response.status === 429 ? /Another question is still running/ : /API request failed/);
+    assert.doesNotMatch(error, /private upstream/);
+    assert.equal(elements.get("ask-button").disabled, false);
+  }
+});

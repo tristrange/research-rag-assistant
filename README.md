@@ -219,6 +219,29 @@ the retrieved context; they are not necessarily passages the answer cited. The
 page uses the same `/documents` and `/query` endpoints as the command-line
 examples below, and needs no separate frontend install or build step.
 
+### Service failures
+
+The browser displays recovery guidance when the paper list or a question fails.
+The API returns service failures as `{"detail":{"code":"…","message":"…"}}`.
+They are failed requests, not insufficient-evidence answers; no answer or claim
+evidence is returned. A failed question releases the request lock so you can retry.
+If loading the paper list fails, fix the issue and reload the page.
+
+| HTTP status | Error code | Next action |
+| --- | --- | --- |
+| 503 | `database_error` | Start PostgreSQL, load `.env`, and run `uv run python -m scripts.init_db`. |
+| 503 | `model_unavailable` | Open Ollama or run `ollama serve`. |
+| 503 | `model_not_found` | Check `RAG_GROUNDING_MODEL` and install that model with `ollama pull`. |
+| 503 | `embedding_model_not_found` | Run `ollama pull nomic-embed-text`. |
+| 504 | `model_timeout` | For answer generation, try a narrower question and review `RAG_GROUNDING_TIMEOUT_SECONDS`. For embeddings, check Ollama's activity and memory; the grounding timeout does not apply. |
+| 502 | `model_output_limit` | Try a narrower question; review `RAG_GROUNDING_OUTPUT_TOKENS` if it repeats. |
+| 502 | `model_service_error` | Check Ollama's logs and available memory. |
+| 503 | `dependency_error` | Check other dependency requests, including model downloads. |
+
+Responses and service-error log messages omit exception text, SQL, credentials,
+and upstream response bodies. Errors outside these service categories still fail normally;
+they are not converted into an answer or automatically retried.
+
 ## Local security boundary
 
 PDF text is untrusted. A paper can contain instructions directed at an assistant;

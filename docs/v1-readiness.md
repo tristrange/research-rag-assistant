@@ -18,6 +18,11 @@ the corresponding page's context. Refused and rejected drafts expose no claim
 evidence. This completes the evidence-display implementation; it does not
 complete the deferred human quality review or establish answer reliability.
 
+Service-error guidance is implemented for the paper list and questions, including
+database failures, unavailable or missing Ollama models, timeouts and output-budget
+exhaustion. Failed queries permit another attempt. Library management, proactive
+service checks and more detailed progress remain separate usability follow-ups.
+
 ## Development review protocol (frozen before new generation)
 
 Run these 16 inspected cases once each with the normal unexpanded reranked top
