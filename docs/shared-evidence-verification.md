@@ -1,7 +1,7 @@
 # Shared evidence and measurement checks, v22–v24
 
-Status: v22 and v23 findings preserved; v24 evidence-link follow-up prespecified
-below.
+Status: bounded implementation complete and ready for review; v24 GPT-OSS paper
+validation is incomplete. Model promotion and v1 acceptance remain deferred.
 
 ## Change
 
@@ -24,8 +24,8 @@ fat mass; ATPase activity cannot establish ATP concentration. An accurate statem
 about a different outcome must still fail question relevance and coverage.
 No outcome is inferred by keyword matching or numerical postprocessing.
 
-The single bounded repair, whole-question check, exact quote matching, attribution
-rules, model defaults, retrieval and evaluation judge remain unchanged. No reindex
+The single bounded repair, exact quote matching, attribution rules, model defaults,
+retrieval and evaluation judge remain unchanged. No reindex
 is needed. The new grounding fingerprint prevents resuming old reports under this
 contract. Historical v21 protocols and artifacts are preserved.
 
@@ -223,5 +223,74 @@ Settings are unchanged; no retries, promotion, new retrieval or judge calls.
 The frozen local directory is `shared-evidence-v24-20260930/`. This is another
 known-case diagnostic follow-up, not independent validation or a full-suite run.
 
-Offline suite passed 279 tests and strict mypy passed 61 files. Live results
-remain pending.
+Offline suite passed 279 tests and strict mypy passed 61 files. Both disjoint
+preflights passed. Qwen completed 11 structurally/evidence-ID valid verdicts and
+matched 10/11 expected outcomes; its shared-population false acceptance remains.
+GPT attempted all 11 controls and matched 10/11 outcomes. Its misbound-ATP
+rejection omitted the required `requested_answer.supporting_evidence_ids` field,
+although both the embedded prompt schema and API format require it. The runtime
+rejected that response, and the harness correctly counted an incomplete verdict
+rather than a successful semantic refusal. The prespecified gate skipped GPT's
+four paper cases. Overall v24 validation is therefore incomplete, not fully green.
+There were no timeout or output-limit failures in this final run.
+
+Qwen's paper audit again found three complete supported answers and one safe ATP
+refusal against incomplete context, with no repair or structural failure. Every
+accepted answer's coverage IDs stayed within the approved claim-verdict union.
+The cited-work/current-methods answer used coverage `[4,9,10,11]`, matching its
+claim evidence union and avoiding the anticipated extra-coverage refusal in this
+known case. GPT's fresh off-target regional-fat control was rejected. Independently,
+deterministic replay of the preserved unsafe v23 verdict was rejected by the new
+coverage gate; this is a runtime regression check, not another model trial.
+
+| Development run | Qwen3.5 control outcomes | GPT-OSS control outcomes | GPT-OSS paper arm |
+| --- | --- | --- | --- |
+| v22, full 30 controls | 27/30; three semantic mismatches | 25 complete expected outcomes, then output-limit failure | Skipped |
+| v23, selected 11 controls | 10/11; shared-population false acceptance | 10/11; off-target regional-fat false acceptance | Diagnostic; two supported, one incomplete distinction, one context-limited refusal |
+| v24, same selected 11 | 10/11; shared-population false acceptance | 10/11; one incomplete but safely rejected verdict | Skipped |
+
+The safety changes are reviewable, with no implementation blocker found in static
+reviews. These findings do not establish general verifier reliability. Default
+GPT paper validation remains a follow-up, Qwen is not promoted, and Thomas and
+Emma's review plus independent v1 validation remain outstanding. The stricter
+coverage contract may refuse valid answers if a verifier fails to attach all
+coverage excerpts to its claim verdicts.
+
+The final protocol and code were committed before calls at `c928865`. Its local
+freeze pins 49 files, with SHA-256
+`596735846bb5f1f96a48af863827711e0a97a6cb0c91103a618deb1e90d45ced`.
+The ignored v24 directory retains controls, raw HTTP calls, skipped-arm reason,
+Qwen replay completion digests and citation audit, deterministic v23-rejection
+replay and `reconciliation.json`. Reconciliation checks frozen revisions,
+source-report inputs, completion hashes and audit bindings without altering
+historical reports. The v23 freeze is retained separately with SHA-256
+`f37e8efd1eb263d7cec02a1ddaabc8d3de11b4dba49e0a74bb5d87f6a007f9d0`.
+
+### Reproduce the final targeted selection
+
+At the v24 application revision, use fresh output paths. For GPT-OSS, the exact
+11-control selection is:
+
+```bash
+RAG_GROUNDING_MODEL=gpt-oss:20b RAG_DRAFT_THINK=low RAG_VERIFIER_THINK=medium \
+RAG_GROUNDING_SAMPLING='{"temperature":1,"top_p":1}' \
+RAG_GROUNDING_TIMEOUT_SECONDS=300 RAG_GROUNDING_OUTPUT_TOKENS=4096 \
+uv run python -m scripts.check_grounding \
+  --output evaluation-results/shared-evidence-v24-gpt-new.json \
+  --case supported_requested_duration \
+  --case unsupported_shared_population \
+  --case supported_total_fat_mass_35_percent \
+  --case unsupported_total_fat_mass_24_percent \
+  --case off_target_regional_fat_24_for_total_question \
+  --case unsupported_atp_concentration_from_atpase_activity \
+  --case off_target_atpase_activity_for_atp_concentration_question \
+  --case supported_atpase_activity_29_percent \
+  --case supported_atp_concentration_4_8_nmole \
+  --case supported_multiclaim_gtt_methods \
+  --case supported_multiclaim_cited_title
+```
+
+For Qwen3.5, use the same case flags and a fresh output path with the Qwen settings
+above. The same paper recorder command applies using the v24 protocol instead
+of v22 and a fresh output directory, subject to the completeness gate. The exact
+local disjoint preflight and observer still require access to ignored artifacts.
