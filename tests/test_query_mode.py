@@ -1,9 +1,12 @@
 import unittest
 from unittest.mock import patch
 
+import httpx
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from sqlalchemy.exc import OperationalError
 
+from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.main import QueryRequest, _query_gate, app, query
 
 
@@ -15,6 +18,60 @@ def local_client(*, raise_server_exceptions: bool = True) -> TestClient:
 
 
 class QueryModeTests(unittest.TestCase):
+    def test_service_failures_return_safe_errors_and_allow_another_question(self) -> None:
+        request = httpx.Request("POST", OLLAMA_URL)
+        cases: list[tuple[Exception, int, str]] = [
+            (OperationalError("private SQL", {}, Exception("secret-password")), 503, "database_error"),
+            (httpx.ConnectError("secret-password", request=request), 503, "model_unavailable"),
+            (httpx.ReadTimeout("secret-password", request=request), 504, "model_timeout"),
+            (httpx.HTTPStatusError("secret-password", request=request,
+                                   response=httpx.Response(404, request=request, json={"error": "private model output"})),
+             503, "model_not_found"),
+            (httpx.HTTPStatusError("secret-password", request=request,
+                                   response=httpx.Response(500, request=request, text="private model output")),
+             502, "model_service_error"),
+            (OllamaOutputLimitError("private model output"), 502, "model_output_limit"),
+        ]
+        client = local_client()
+        for error, status, code in cases:
+            with self.subTest(code=code), self.assertLogs("app.main", level="WARNING") as logs:
+                with patch("app.main.answer_question", side_effect=error):
+                    response = client.post("/query", json={"question": "Question?"})
+                self.assertEqual(response.status_code, status)
+                self.assertEqual(response.json()["detail"]["code"], code)
+                self.assertNotIn("answer", response.json())
+                for secret in ("secret-password", "private model output", "private SQL"):
+                    self.assertNotIn(secret, response.text)
+                    self.assertNotIn(secret, " ".join(logs.output))
+                with patch("app.main.answer_question", return_value={"answer": "Recovered", "sources": []}):
+                    retry = client.post("/query", json={"question": "Question?"})
+                self.assertEqual(retry.status_code, 200)
+
+    def test_paper_list_database_failure_uses_the_same_safe_error(self) -> None:
+        with patch("app.main.list_documents", side_effect=OperationalError("private SQL", {}, Exception("secret-password"))):
+            response = local_client().get("/documents")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"]["code"], "database_error")
+        self.assertIn("scripts.init_db", response.json()["detail"]["message"])
+        self.assertNotIn("secret-password", response.text)
+
+    def test_non_ollama_dependency_errors_are_not_reported_as_missing_answer_models(self) -> None:
+        request = httpx.Request("GET", "https://example.invalid/model-download")
+        error = httpx.HTTPStatusError("private dependency data", request=request,
+                                      response=httpx.Response(404, request=request))
+        with patch("app.main.answer_question", side_effect=error):
+            response = local_client().post("/query", json={"question": "Question?"})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"]["code"], "dependency_error")
+        self.assertNotIn("private dependency data", response.text)
+
+    def test_service_errors_work_for_both_each_paper_scopes(self) -> None:
+        for scope in ("each", "each_query"):
+            with self.subTest(scope=scope), patch("app.main.answer_each_document", side_effect=OllamaOutputLimitError("private output")):
+                response = local_client().post("/query", json={"question": "Question?", "scope": scope})
+            self.assertEqual(response.status_code, 502)
+            self.assertEqual(response.json()["detail"]["code"], "model_output_limit")
+
     def test_query_returns_claim_evidence_bound_to_response_sources(self) -> None:
         result = {"answer": "Finding (study.pdf, page 2)", "sources": [{
             "document": "study.pdf", "page": 2, "chunk_index": 7, "text": "Finding.", "section": "results",

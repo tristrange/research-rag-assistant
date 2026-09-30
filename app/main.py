@@ -1,3 +1,4 @@
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from ipaddress import ip_address
@@ -5,11 +6,14 @@ from pathlib import Path
 from threading import Lock
 from typing import Literal, Self
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
 
@@ -19,6 +23,42 @@ _query_gate = Lock()
 _LOCAL_HOST = re.compile(r"(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?", re.IGNORECASE)
 UI_DIR = Path(__file__).resolve().parent / "ui"
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
+logger = logging.getLogger(__name__)
+
+
+def service_error(status: int, code: str, message: str) -> JSONResponse:
+    # Do not include exception text, upstream bodies, SQL or connection credentials.
+    logger.warning("Service request failed: %s", code)
+    return JSONResponse(status_code=status, content={"detail": {"code": code, "message": message}})
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
+    return service_error(503, "database_error", "The database request failed. Check that PostgreSQL is running, load your .env settings, and run uv run python -m scripts.init_db.")
+
+
+@app.exception_handler(OllamaOutputLimitError)
+async def output_limit_error(request: Request, error: OllamaOutputLimitError) -> JSONResponse:
+    return service_error(502, "model_output_limit", "The model exhausted its output budget before completing the answer check. Try a narrower question; if this repeats, review RAG_GROUNDING_OUTPUT_TOKENS.")
+
+
+@app.exception_handler(httpx.HTTPError)
+async def dependency_error(request: Request, error: httpx.HTTPError) -> JSONResponse:
+    ollama_request = False
+    if isinstance(error, (httpx.RequestError, httpx.HTTPStatusError)):
+        try:
+            ollama_request = error.request.url == httpx.URL(OLLAMA_URL)
+        except RuntimeError:
+            pass
+    if not ollama_request:
+        return service_error(503, "dependency_error", "A required dependency request failed. Check local services and model downloads, then try again.")
+    if isinstance(error, httpx.TimeoutException):
+        return service_error(504, "model_timeout", "Ollama did not finish within the time limit. Wait for any model activity to finish, then try a narrower question. If this repeats, review RAG_GROUNDING_TIMEOUT_SECONDS.")
+    if isinstance(error, httpx.HTTPStatusError):
+        if error.response.status_code == 404:
+            return service_error(503, "model_not_found", "Ollama could not find the configured answer model. Check RAG_GROUNDING_MODEL and install that model with ollama pull.")
+        return service_error(502, "model_service_error", "Ollama could not complete the model request. Check Ollama's logs and available memory, then try again.")
+    return service_error(503, "model_unavailable", "Could not communicate with Ollama. Open the Ollama app or start ollama serve, then try again.")
 
 
 @app.middleware("http")

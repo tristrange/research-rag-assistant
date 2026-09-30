@@ -19,6 +19,21 @@ let hasDocuments = false;
 let isSubmitting = false;
 let copyRevision = 0;
 
+class ApiRequestError extends Error {}
+
+async function checkResponse(response) {
+  if (response.ok) return;
+  if (response.status === 429) {
+    throw new ApiRequestError("Another question is still running. Wait for it to finish, then try again.");
+  }
+  let detail;
+  try { detail = (await response.json())?.detail; } catch {}
+  if (detail && typeof detail.code === "string" && typeof detail.message === "string") {
+    throw new ApiRequestError(detail.message);
+  }
+  throw new ApiRequestError("The API request failed. Check the API logs and local services, then try again.");
+}
+
 function resetCopyState() {
   copyRevision += 1;
   copyStatus.textContent = "";
@@ -101,7 +116,7 @@ function renderAnswer(answer, sourcePages) {
 async function loadDocuments() {
   try {
     const response = await fetch("/documents");
-    if (!response.ok) throw new Error("document request failed");
+    await checkResponse(response);
     const filenames = await response.json();
     if (!Array.isArray(filenames) || !filenames.every((name) => typeof name === "string")) {
       throw new Error("invalid document response");
@@ -118,8 +133,10 @@ async function loadDocuments() {
     libraryStatus.textContent = hasDocuments
       ? `${filenames.length} indexed ${filenames.length === 1 ? "paper" : "papers"} available.`
       : "No PDFs are indexed yet. Index a PDF, then reload this page.";
-  } catch {
-    libraryStatus.textContent = "Could not load the paper list. Check the database and reload this page.";
+  } catch (error) {
+    libraryStatus.textContent = error instanceof ApiRequestError
+      ? `${error.message} Reload this page after fixing the issue.`
+      : "Could not load the paper list. Check the database and reload this page.";
   } finally {
     updateSubmitState();
   }
@@ -241,7 +258,7 @@ async function submitQuestion(event) {
         document: eachPaper ? null : documentSelect.value || null,
       }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await checkResponse(response);
     const result = await response.json();
     if (typeof result.answer !== "string" || !Array.isArray(result.sources)) {
       throw new Error("invalid answer response");
@@ -256,10 +273,10 @@ async function submitQuestion(event) {
     requestStatus.textContent = "Answer ready.";
   } catch (error) {
     requestStatus.textContent = "The request did not complete.";
-    if (error instanceof TypeError) {
+    if (error instanceof ApiRequestError) {
+      requestError.textContent = error.message;
+    } else if (error instanceof TypeError) {
       requestError.textContent = "Could not connect to the API. Check that the server is running.";
-    } else if (error instanceof Error && error.message === "HTTP 429") {
-      requestError.textContent = "Another question is still running. Wait for it to finish, then try again.";
     } else {
       requestError.textContent = "The query failed. Check the API logs and local services, then try again.";
     }
