@@ -7,12 +7,42 @@ const requestStatus = document.getElementById("request-status");
 const requestError = document.getElementById("request-error");
 const answerPanel = document.getElementById("answer-panel");
 const answerText = document.getElementById("answer-text");
+const copyAnswerButton = document.getElementById("copy-answer-button");
+const copyStatus = document.getElementById("copy-status");
 const sourcesPanel = document.getElementById("sources-panel");
 const sourceCount = document.getElementById("source-count");
 const sourceList = document.getElementById("source-list");
 
 let hasDocuments = false;
 let isSubmitting = false;
+let copyRevision = 0;
+
+function resetCopyState() {
+  copyRevision += 1;
+  copyStatus.textContent = "";
+  copyAnswerButton.disabled = !answerText.textContent.trim();
+}
+
+async function copyAnswer() {
+  if (copyAnswerButton.disabled) return;
+  const revision = copyRevision;
+  copyStatus.textContent = "";
+  copyAnswerButton.disabled = true;
+  try {
+    if (typeof navigator === "undefined" || typeof navigator.clipboard?.writeText !== "function") {
+      throw new Error("clipboard unavailable");
+    }
+    await navigator.clipboard.writeText(answerText.textContent);
+    if (revision === copyRevision) copyStatus.textContent = "Answer copied.";
+  } catch {
+    if (revision === copyRevision) {
+      copyStatus.textContent = "Could not copy. Select the answer and copy it manually.";
+    }
+  } finally {
+    // A previous copy may finish after a new question or answer has arrived.
+    if (revision === copyRevision) copyAnswerButton.disabled = false;
+  }
+}
 
 function updateSubmitState() {
   askButton.disabled = !hasDocuments || isSubmitting || !questionInput.value.trim();
@@ -63,6 +93,7 @@ function renderAnswer(answer, sourcePages) {
   }
   appendLinkedText(nodes, answer.slice(position), sourcePages, references);
   answerText.replaceChildren(...nodes);
+  resetCopyState();
 }
 
 async function loadDocuments() {
@@ -135,6 +166,8 @@ async function submitQuestion(event) {
   updateSubmitState();
   requestError.hidden = true;
   answerPanel.hidden = true;
+  answerText.replaceChildren();
+  resetCopyState();
   sourcesPanel.hidden = true;
   sourceList.replaceChildren();
   requestStatus.classList.remove("is-idle");
@@ -185,4 +218,6 @@ async function submitQuestion(event) {
 
 questionInput.addEventListener("input", updateSubmitState);
 form.addEventListener("submit", submitQuestion);
+copyAnswerButton.addEventListener("click", copyAnswer);
+resetCopyState();
 loadDocuments();

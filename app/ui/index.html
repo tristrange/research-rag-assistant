@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css?v=3">
-    <script src="/static/app.js?v=7" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=4">
+    <script src="/static/app.js?v=8" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -55,8 +55,12 @@
           <p id="request-error" class="request-error" role="alert" hidden></p>
 
           <section id="answer-panel" class="answer-panel" aria-labelledby="answer-heading" hidden>
-            <h3 id="answer-heading">Answer</h3>
+            <div class="answer-heading">
+              <h3 id="answer-heading">Answer</h3>
+              <button id="copy-answer-button" type="button" aria-describedby="copy-status" disabled>Copy answer</button>
+            </div>
             <p id="answer-text"></p>
+            <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
           </section>
 
           <section id="sources-panel" class="sources-panel" aria-labelledby="sources-heading" hidden>

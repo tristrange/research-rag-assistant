@@ -17,7 +17,10 @@ class BrowserUiTests(unittest.TestCase):
             '<label for="question">',
             'id="request-error" class="request-error" role="alert"',
             'id="source-list"',
-            'src="/static/app.js?v=7"',
+            'src="/static/app.js?v=8"',
+            'href="/static/styles.css?v=4"',
+            'id="copy-answer-button" type="button" aria-describedby="copy-status" disabled',
+            'id="copy-status" class="copy-status" role="status" aria-live="polite"',
             'Each paper (overview)',
             'Each paper (targeted search)',
         ]:
@@ -27,8 +30,8 @@ class BrowserUiTests(unittest.TestCase):
 
     def test_browser_assets_and_local_api_docs_are_served(self) -> None:
         client = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000))
-        script = client.get("/static/app.js?v=7")
-        stylesheet = client.get("/static/styles.css?v=3")
+        script = client.get("/static/app.js?v=8")
+        stylesheet = client.get("/static/styles.css?v=4")
         docs = client.get("/docs")
         self.assertEqual(script.status_code, 200)
         self.assertIn("javascript", script.headers["content-type"])
