@@ -24,7 +24,7 @@ from app.types import ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v22"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v23"
 GROUNDING_CONTEXT_TOKENS = 12288
 GROUNDING_DRAFT_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(DRAFT_THINK)
 GROUNDING_VERIFIER_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(VERIFIER_THINK)
@@ -375,7 +375,11 @@ def build_verifier_prompt(
         "evidence_catalogue": evidence_catalogue,
         "claims": verification_claims,
     }
-    return f"{_VERIFIER_INSTRUCTIONS}\n\nVerification input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
+    return (
+        f"{_VERIFIER_INSTRUCTIONS}\n\nResponse shape JSON schema:\n"
+        f"{json.dumps(_bounded_verifier_schema(question, claims, sources), ensure_ascii=False, separators=(',', ':'))}\n\n"
+        f"Verification input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
+    )
 
 
 def _normalize_whitespace(text: str) -> str:
@@ -743,6 +747,7 @@ def grounding_fingerprint() -> str:
             f"{MAX_QUOTE_CHARS} characters, discard empty spans, preserve order and deduplicate"
         ),
         "verifier_schema": VERIFIER_SCHEMA,
+        "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
         "insufficient_evidence": INSUFFICIENT_EVIDENCE,
         "render_labels": {
             "this_document_authors": "",

@@ -1,3 +1,4 @@
+import json
 import unittest
 from copy import deepcopy
 from typing import cast
@@ -607,6 +608,17 @@ class GroundingTests(unittest.TestCase):
             _bounded_verifier_schema("Question", [], [])
         with self.assertRaises(ValueError):
             _bounded_verifier_schema(" \n", draft.claims, [SOURCE])
+
+    def test_verifier_prompt_exposes_response_shape_before_input(self) -> None:
+        draft = GroundedDraft.model_validate(DRAFT)
+        prompt = build_verifier_prompt("Question", draft.claims, [SOURCE])
+        schema_text = prompt.split("Response shape JSON schema:\n", 1)[1].split(
+            "\n\nVerification input JSON:", 1)[0]
+        self.assertEqual(json.loads(schema_text),
+                         _bounded_verifier_schema("Question", draft.claims, [SOURCE]))
+        payload = json.loads(prompt.split("Verification input JSON:\n", 1)[1])
+        self.assertEqual(payload["question"], "Question")
+        self.assertEqual(payload["claims"][0]["eligible_evidence_ids"], [1, 2])
 
     def test_verifier_schema_binds_each_claim_to_only_its_cited_sources(self) -> None:
         other = ChunkData(document="other.pdf", page=1, chunk_index=0,
