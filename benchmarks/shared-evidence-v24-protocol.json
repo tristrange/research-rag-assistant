@@ -1,0 +1,38 @@
+{
+  "schema_version": 3,
+  "review_set_sha256": "ac2d289b3693a5ac1db17b116e7cac05a7f1651609d63933dff2e2654e2b9336",
+  "ollama_version": "0.34.4",
+  "judge_model": "qwen3:8b",
+  "judge_digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "grounding_code_sha256": "d46fea951ffa64cf6a81175738f9a7af3544335f6b01b315a1fe0e63bd2c2254",
+  "evaluator_prompt_sha256": "b9c68934238f422d44debca5ab4cc7f1668e961edbad49f93cbfe0a2ec0a3e73",
+  "candidates": [
+    {
+      "model": "qwen3.5:9b",
+      "draft_think": false,
+      "verifier_think": false,
+      "sampling": {
+        "temperature": 0.0
+      },
+      "draft_timeout_seconds": 120.0,
+      "verifier_timeout_seconds": 120.0,
+      "output_tokens": 4096,
+      "digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+      "grounding_sha256": "12daffca30d9628473fb7c811093f1666e8ba2843b505d2ef86dfdc5d45d6448"
+    },
+    {
+      "model": "gpt-oss:20b",
+      "draft_think": "low",
+      "verifier_think": "medium",
+      "sampling": {
+        "temperature": 1.0,
+        "top_p": 1.0
+      },
+      "draft_timeout_seconds": 300.0,
+      "verifier_timeout_seconds": 300.0,
+      "output_tokens": 4096,
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "grounding_sha256": "78fde4f4b1fea915eec9136f9572d85e4226ffc0f85d76220cf6c46d5e807106"
+    }
+  ]
+}

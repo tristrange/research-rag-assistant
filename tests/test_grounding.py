@@ -321,6 +321,30 @@ class GroundingTests(unittest.TestCase):
                 self.assertFalse(verify_draft(question, GroundedDraft.model_validate(DRAFT), [SOURCE],
                                             verifier=lambda _prompt, _schema: verdict))
 
+    def test_full_question_cannot_borrow_an_unclaimed_measurement(self) -> None:
+        question = "By what percentage did total fat mass decrease?"
+        source = ChunkData(document="paper.pdf", page=1, chunk_index=0,
+                           text="Total fat mass decreased by 35%. Regional tissue weight decreased by 24%.")
+        draft_data = {
+            "answerable": True,
+            "claims": [{"text": "Regional tissue weight decreased by 24%.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1,
+                                       "quote": "Regional tissue weight decreased by 24%."}]}],
+        }
+        verdict = approved(question)
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1]
+        draft = GroundedDraft.model_validate(draft_data)
+        # Both IDs exist in the cited source, but coverage must come from the answer's claims.
+        validate_verification_structure(question, VerificationResult.model_validate(verdict),
+                                        draft.claims, [source])
+        self.assertFalse(verify_draft(question, draft, [source],
+                                     verifier=lambda _p, _s: verdict))
+        with patch("app.grounding.generate_json",
+                   side_effect=[draft_data, verdict, draft_data, verdict]) as model:
+            self.assertEqual(grounded_answer(question, [source]), INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 4)
+
     def test_full_question_gate_rejects_when_sparse_requirements_omit_a_requested_detail(self) -> None:
         question = "At what dose did treatment delay weight loss?"
         verdict = approved(question)

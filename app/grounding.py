@@ -24,7 +24,7 @@ from app.types import ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v23"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v24"
 GROUNDING_CONTEXT_TOKENS = 12288
 GROUNDING_DRAFT_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(DRAFT_THINK)
 GROUNDING_VERIFIER_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(VERIFIER_THINK)
@@ -256,8 +256,12 @@ title can support a concise statement limited to that title.
 
 Also assess requested_answer against the ENTIRE original question, including all requested
 qualifiers. Copy that entire question into question_excerpt unchanged apart from whitespace.
-Do not substitute a narrower requirement. Set its status to supported only when the supplied
-evidence establishes an answer to the whole question; a supported negative answer counts.
+Do not substitute a narrower requirement. Set its status to supported only when
+the claims themselves answer the whole question; a supported negative answer counts.
+A source containing the requested result is not enough when the claims omit it or
+answer a different measurement. For supported requested_answer coverage, cite only
+evidence IDs also used to support approved claim verdicts. Do not answer the
+question from an extra excerpt that is absent from the supported claims.
 Missing evidence is unsupported. Every listed requirement, requested_answer, and claim must
 pass before the answer can be accepted.
 
@@ -575,6 +579,12 @@ def _validate_verification(
         for verdict in result.verdicts
     ):
         raise ValueError("verifier rejected at least one claim")
+    claim_evidence_ids = {
+        evidence_id for verdict in result.verdicts
+        for evidence_id in verdict.supporting_evidence_ids
+    }
+    if not set(result.requested_answer.supporting_evidence_ids).issubset(claim_evidence_ids):
+        raise ValueError("whole-question coverage cites evidence absent from approved claims")
 
 
 def _render_claims(claims: list[GroundedClaim], sources: list[ChunkData]) -> str:
@@ -746,6 +756,7 @@ def grounding_fingerprint() -> str:
             "whitespace-normalize, split on (?<=[.!?])\\s+, hard-split spans every "
             f"{MAX_QUOTE_CHARS} characters, discard empty spans, preserve order and deduplicate"
         ),
+        "coverage_claim_binding": "Supported full-question evidence IDs must be used by approved claim verdicts",
         "verifier_schema": VERIFIER_SCHEMA,
         "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
         "insufficient_evidence": INSUFFICIENT_EVIDENCE,

@@ -1,7 +1,7 @@
-# Shared evidence and measurement checks, v22
+# Shared evidence and measurement checks, v22–v24
 
-Status: v22 run preserved with incomplete GPT-OSS controls; v23 schema-visibility
-follow-up prespecified below.
+Status: v22 and v23 findings preserved; v24 evidence-link follow-up prespecified
+below.
 
 ## Change
 
@@ -181,7 +181,47 @@ calls and apply the same completeness, semantic-failure and paper gates. No
 retries, setting changes or model promotion. Replay and inspect the same four
 paper questions only for eligible arms. Human review remains deferred.
 
-Status: offline suite passed 278 tests; strict mypy passed 61 files. Live checks
-are pending. The schema is included before the untrusted input, and a regression
+The v23 offline suite passed 278 tests; strict mypy passed 61 files. Both
+preflights and all 11 selected model verdicts completed for each candidate. Both
+matched 10/11 outcomes. Qwen still accepted the unsupported shared population
+qualifier. GPT accepted the regional-fat answer to the total-fat question: its
+claim verdict cited the regional result (ID 2), while whole-question coverage
+cited the separate total-fat result (ID 1). This is an unsafe off-target
+acceptance, despite valid evidence IDs. No output-limit failure occurred in this
+run; one follow-up cannot establish that schema visibility prevents them.
+
+Assistant citation inspection of the four paper cases found three supported
+answers and one context-limited ATP refusal for Qwen. GPT had two supported
+answers, one safe ATP refusal, and a supported cited-literature answer whose
+explicit distinction from current-paper experiments was incomplete. GPT methods
+and fat answers used the existing repair after malformed drafts. These diagnostic
+results do not support model promotion. The schema is included before the untrusted input, and a regression
 test checks that it equals the dynamic API schema. The response shape and runtime
 source-boundary validation are unchanged.
+
+## Prespecified v24 evidence-link follow-up
+
+The supported whole-question evidence IDs must now be a subset of the IDs used
+by approved claim verdicts. A verifier cannot approve an answer from an extra
+excerpt that was not used to support the rendered claims. The prompt explicitly
+instructs this relationship, and deterministic validation enforces it after
+all claims pass. Complete negative verdicts remain structurally valid. This is
+an evidence-link consistency gate, not proof of semantic relevance or truth.
+The shared-population failure can still occur when both assessments misread the
+same excerpt.
+
+This is a stricter output contract: a valid answer whose verifier cites additional
+whole-question excerpts must also attach them to its claim verdicts. It could
+cause avoidable refusals. The cited-study paper case specifically tests this risk;
+its v23 Qwen verdict used extra author/year IDs only for coverage. Runtime source
+permissions, quotes and the single repair remain unchanged.
+
+A new v24 fingerprint and `benchmarks/shared-evidence-v24-protocol.json` preserve
+both earlier experiments. Run fresh disjoint-source preflights and the same 11
+selected controls, followed by the same gated four-case replays for each model.
+Settings are unchanged; no retries, promotion, new retrieval or judge calls.
+The frozen local directory is `shared-evidence-v24-20260930/`. This is another
+known-case diagnostic follow-up, not independent validation or a full-suite run.
+
+Offline suite passed 279 tests and strict mypy passed 61 files. Live results
+remain pending.
