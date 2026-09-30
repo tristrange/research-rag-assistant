@@ -7,7 +7,7 @@ from app.retrieval import CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, merge_selected_chunks, render_context
 from app.retrieval.rerank import rerank_chunks, with_vector_reserve
 from app.retrieval.search import list_documents, search_chunks
-from app.types import AnswerResult, ChunkData
+from app.types import AnswerClaim, AnswerResult, ChunkData
 
 
 OVERVIEW_SECTION_PRIORITY = (
@@ -84,16 +84,20 @@ def answer_question(
             for chunk in chunks
         ]
 
+    claim_evidence: list[AnswerClaim] = []
     if answer_mode == "verified":
-        answer = grounded_answer(question, sources)
+        answer = grounded_answer(question, sources, claim_evidence=claim_evidence)
     else:
         context = render_context(sources)
         answer = generate(answer_prompt(question, context, overview=overview))
 
-    return {
+    result: AnswerResult = {
         "answer": answer,
         "sources": sources,
     }
+    if answer_mode == "verified":
+        result["claim_evidence"] = claim_evidence
+    return result
 
 
 def answer_each_document(
@@ -110,11 +114,19 @@ def answer_each_document(
     heading = "Overviews" if overview else "Answers"
     sections = [f"{heading} by paper, based on retrieved passages:"]
     sources: list[ChunkData] = []
+    claim_evidence: list[AnswerClaim] = []
     for document in documents:
         result = answer_question(
             question, document=document, answer_mode=answer_mode, overview=overview,
         )
         sections.append(f"{document}:\n{result['answer']}")
+        for claim in result.get("claim_evidence", []):
+            claim_evidence.append({
+                **claim,
+                "citations": [{
+                    **citation, "source_index": citation["source_index"] + len(sources),
+                } for citation in claim["citations"]],
+            })
         sources.extend(result["sources"])
 
-    return {"answer": "\n\n".join(sections), "sources": sources}
+    return {"answer": "\n\n".join(sections), "sources": sources, "claim_evidence": claim_evidence}

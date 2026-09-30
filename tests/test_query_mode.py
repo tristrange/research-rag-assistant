@@ -15,6 +15,18 @@ def local_client(*, raise_server_exceptions: bool = True) -> TestClient:
 
 
 class QueryModeTests(unittest.TestCase):
+    def test_query_returns_claim_evidence_bound_to_response_sources(self) -> None:
+        result = {"answer": "Finding (study.pdf, page 2)", "sources": [{
+            "document": "study.pdf", "page": 2, "chunk_index": 7, "text": "Finding.", "section": "results",
+        }], "claim_evidence": [{
+            "text": "Finding", "attribution": "this_document_authors",
+            "citations": [{"source_index": 0, "quote": "Finding."}],
+        }]}
+        with patch("app.main.answer_question", return_value=result):
+            response = local_client().post("/query", json={"question": "What happened?"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), result)
+
     def test_non_loopback_client_cannot_read_or_query(self) -> None:
         client = TestClient(
             app, base_url="http://127.0.0.1", client=("192.0.2.1", 50000),

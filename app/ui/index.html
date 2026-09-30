@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css?v=4">
-    <script src="/static/app.js?v=8" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=5">
+    <script src="/static/app.js?v=9" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -63,9 +63,15 @@
             <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
           </section>
 
+          <section id="evidence-panel" class="sources-panel" aria-labelledby="evidence-heading" hidden>
+            <h3 id="evidence-heading">Evidence used for this answer</h3>
+            <p class="field-note">These excerpts were selected by the model verifier for each accepted claim. Its check can be wrong; inspect the surrounding passages before relying on the answer.</p>
+            <div id="evidence-list"></div>
+          </section>
+
           <section id="sources-panel" class="sources-panel" aria-labelledby="sources-heading" hidden>
             <div class="sources-heading">
-              <h3 id="sources-heading">Retrieved passages</h3>
+              <h3 id="sources-heading">All retrieved passages</h3>
               <span id="source-count"></span>
             </div>
             <p class="field-note">Page links in the answer jump to matching retrieved passages. A link helps you inspect context; it does not verify the claim. Not every passage below is necessarily cited.</p>

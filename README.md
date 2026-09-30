@@ -119,6 +119,18 @@ curl -X POST http://127.0.0.1:8000/query \
   | jq
 ```
 
+The response includes `answer`, `sources` (all retrieved passages), and
+`claim_evidence` (the final accepted claims with the excerpts selected by the
+model verifier). Each citation has a zero-based `source_index` into this response's
+`sources` array and a `quote`. Indexes are adjusted when combining answers across
+papers. Quotes retain the verifier catalogue's whitespace normalization; they
+are not paraphrases. Refused answers have no claim evidence.
+
+In the browser, expand a claim under **Evidence used for this answer** to inspect
+its selected excerpts and attribution. Its page link opens the matching card
+under **All retrieved passages** for surrounding context. These are model-selected
+excerpts, not proof of factual correctness or independent human review.
+
 Omitting `document` keeps corpus-wide retrieval of the top matching passages;
 it does not guarantee coverage of every indexed paper. For a findings overview
 of **each** indexed paper, use `scope: "each"` without `document`:

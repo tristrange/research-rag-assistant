@@ -7,10 +7,16 @@ Hosting, accounts, OCR, and advanced cross-paper synthesis are later extensions.
 ## Milestones
 
 - [ ] Human-reviewed answer quality and documented limitations.
-- [ ] Cited evidence clearly distinguished from other retrieved passages.
+- [x] Cited evidence clearly distinguished from other retrieved passages.
 - [ ] Straightforward library management, service checks, useful errors, and progress.
 - [ ] Automated regression checks, current setup guide, architecture diagram,
       and a fresh-install smoke test.
+
+The browser now exposes each final accepted claim's attribution and exact
+verifier-selected excerpts separately from all retrieved passages. Links open
+the corresponding page's context. Refused and rejected drafts expose no claim
+evidence. This completes the evidence-display implementation; it does not
+complete the deferred human quality review or establish answer reliability.
 
 ## Development review protocol (frozen before new generation)
 

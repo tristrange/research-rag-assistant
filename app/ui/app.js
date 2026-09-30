@@ -12,6 +12,8 @@ const copyStatus = document.getElementById("copy-status");
 const sourcesPanel = document.getElementById("sources-panel");
 const sourceCount = document.getElementById("source-count");
 const sourceList = document.getElementById("source-list");
+const evidencePanel = document.getElementById("evidence-panel");
+const evidenceList = document.getElementById("evidence-list");
 
 let hasDocuments = false;
 let isSubmitting = false;
@@ -157,6 +159,53 @@ function showSources(sources) {
   return sourcePages;
 }
 
+function showEvidence(claims, sources, sourcePages) {
+  evidenceList.replaceChildren();
+  const labels = {
+    this_document_authors: "This paper's authors",
+    external_publication: "Cited literature",
+    non_study_context: "Context",
+  };
+  for (const claim of claims) {
+    const item = document.createElement("details");
+    item.className = "source-item";
+    const heading = document.createElement("summary");
+    const attribution = document.createElement("span");
+    attribution.className = "claim-attribution";
+    attribution.textContent = labels[claim.attribution];
+    heading.append(attribution, document.createTextNode(claim.text));
+    item.append(heading);
+    for (const citation of claim.citations) {
+      const source = sources[citation.source_index];
+      const location = document.createElement("p");
+      location.className = "evidence-location";
+      const link = document.createElement("a");
+      const label = `${source.document}, page ${source.page}`;
+      const page = sourcePages.get(label);
+      link.textContent = `${label} · ${source.section || "unknown"}`;
+      link.href = `#${page.id}`;
+      link.addEventListener("click", () => { page.open = true; });
+      location.append(link);
+      const quote = document.createElement("blockquote");
+      quote.className = "evidence-quote";
+      quote.textContent = citation.quote;
+      item.append(location, quote);
+    }
+    evidenceList.append(item);
+  }
+  evidencePanel.hidden = claims.length === 0;
+}
+
+function validEvidence(claims, sources) {
+  return Array.isArray(claims) && claims.every((claim) =>
+    claim && typeof claim.text === "string" &&
+    ["this_document_authors", "external_publication", "non_study_context"].includes(claim.attribution) &&
+    Array.isArray(claim.citations) && claim.citations.length > 0 &&
+    claim.citations.every((citation) => citation &&
+      Number.isInteger(citation.source_index) && citation.source_index >= 0 &&
+      citation.source_index < sources.length && typeof citation.quote === "string"));
+}
+
 async function submitQuestion(event) {
   event.preventDefault();
   const question = questionInput.value.trim();
@@ -170,6 +219,8 @@ async function submitQuestion(event) {
   resetCopyState();
   sourcesPanel.hidden = true;
   sourceList.replaceChildren();
+  evidencePanel.hidden = true;
+  evidenceList.replaceChildren();
   requestStatus.classList.remove("is-idle");
   let scope = "relevant";
   if (documentSelect.value === "__each__") scope = "each";
@@ -197,6 +248,9 @@ async function submitQuestion(event) {
     }
 
     const sourcePages = showSources(result.sources);
+    const claims = result.claim_evidence ?? [];
+    if (!validEvidence(claims, result.sources)) throw new Error("invalid evidence response");
+    showEvidence(claims, result.sources, sourcePages);
     renderAnswer(result.answer, sourcePages);
     answerPanel.hidden = false;
     requestStatus.textContent = "Answer ready.";
