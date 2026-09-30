@@ -221,6 +221,27 @@ examples below, and needs no separate frontend install or build step.
 
 ### Service failures
 
+The page runs a read-only service check on load. Use **Check services** to repeat
+it after fixing a problem. You can also inspect the same diagnostics from the
+terminal:
+
+```bash
+curl http://127.0.0.1:8000/status | jq
+```
+
+`GET /status` returns HTTP 200 with `available` and individual `checks`, including
+when a dependency needs attention. It checks database access and the expected
+paper-index columns, Ollama connectivity, and the configured answer and embedding
+model tags (an omitted tag means `latest`). An unreachable or malformed Ollama
+model list leaves model checks `unknown`, rather than declaring models missing.
+The probes use short connection/request and database statement timeouts, and
+do not read paper text, modify the index, generate answers, or download models.
+
+These checks are advisory and do not block questions. A passing check confirms
+access and installation, not an indexed library, sufficient memory, successful
+inference, or answer correctness. If the initial paper list failed to load, reload
+the page after fixing the database so the list is refreshed.
+
 The browser displays recovery guidance when the paper list or a question fails.
 The API returns service failures as `{"detail":{"code":"…","message":"…"}}`.
 They are failed requests, not insufficient-evidence answers; no answer or claim

@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css?v=5">
-    <script src="/static/app.js?v=10" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=6">
+    <script src="/static/app.js?v=11" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -29,6 +29,14 @@
             <h2 id="question-heading">Your question</h2>
           </div>
           <form id="query-form">
+            <div class="service-heading">
+              <span>Local services</span>
+              <button id="check-services-button" type="button">Check services</button>
+            </div>
+            <p id="service-status" class="field-note" role="status" aria-live="polite">Services have not been checked.</p>
+            <ul id="service-checks" class="service-checks"></ul>
+            <p class="field-note">Checks test database access and installed models. They do not run inference, check answer quality, or guarantee that a question will succeed.</p>
+
             <label for="document">Search scope</label>
             <select id="document" name="document" disabled>
               <option value="">Across papers (top matches)</option>

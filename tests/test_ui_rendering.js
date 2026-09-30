@@ -39,7 +39,18 @@ function loadUi(options = {}) {
   };
   const context = vm.createContext({
     document,
-    fetch: options.fetch ?? (async () => ({ ok: true, json: async () => [] })),
+    fetch: async (url, init) => {
+      if (url === "/status") {
+        if (options.statusFetch) return options.statusFetch();
+        return { ok: true, json: async () => ({ available: true, checks: [
+          { name: "database", status: "ok", message: "Accessible" },
+          { name: "ollama", status: "ok", message: "Accessible" },
+          { name: "answer_model", status: "ok", message: "Installed" },
+          { name: "embedding_model", status: "ok", message: "Installed" },
+        ] }) };
+      }
+      return options.fetch ? options.fetch(url, init) : { ok: true, json: async () => [] };
+    },
     ...(options.navigator ? { navigator: options.navigator } : {}),
   });
   const script = fs.readFileSync(path.join(__dirname, "../app/ui/app.js"), "utf8");
@@ -352,5 +363,76 @@ test("busy, legacy and non-JSON API errors have useful fallbacks", async () => {
     assert.match(error, response.status === 429 ? /Another question is still running/ : /API request failed/);
     assert.doesNotMatch(error, /private upstream/);
     assert.equal(elements.get("ask-button").disabled, false);
+  }
+});
+
+test("service checks run on load, show safe diagnostics, and replace results on retry", async () => {
+  let attempts = 0;
+  const { elements } = loadUi({
+    statusFetch: async () => {
+      attempts += 1;
+      return { ok: true, json: async () => ({ available: attempts > 1, checks: [
+        { name: "database", status: "ok", message: "Accessible" },
+        { name: "ollama", status: "ok", message: "Accessible" },
+        { name: "answer_model", status: attempts > 1 ? "ok" : "error", message: "<img src=x>" },
+        { name: "embedding_model", status: "ok", message: "Installed" },
+      ] }) };
+    },
+  });
+  assert.equal(elements.get("check-services-button").disabled, true);
+  await new Promise(setImmediate);
+  assert.equal(attempts, 1);
+  assert.match(elements.get("service-status").textContent, /need attention/);
+  const items = elements.get("service-checks").children;
+  assert.equal(items.length, 4);
+  assert.equal(items[2].textContent, "Answer model — Needs attention: <img src=x>");
+  assert.equal(items[2].children.length, 0);
+  await elements.get("check-services-button").click();
+  assert.equal(attempts, 2);
+  assert.match(elements.get("service-status").textContent, /checks passed/);
+  assert.equal(elements.get("service-checks").children.length, 4);
+  assert.equal(elements.get("check-services-button").disabled, false);
+});
+
+test("pending service checks cannot overlap or block a question submission", async () => {
+  let finish;
+  let attempts = 0;
+  const { elements } = loadUi({
+    fetch: async (url) => ({ ok: true, json: async () => url === "/documents"
+      ? ["study.pdf"] : { answer: "Answer while diagnostics are pending", sources: [] } }),
+    statusFetch: () => {
+      attempts += 1;
+      return new Promise((resolve) => { finish = resolve; });
+    },
+  });
+  await new Promise(setImmediate);
+  await elements.get("check-services-button").click();
+  assert.equal(attempts, 1);
+  elements.get("question").value = "Question";
+  elements.get("question").listeners.get("input")();
+  assert.equal(elements.get("ask-button").disabled, false);
+  await elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(elements.get("answer-text").textContent, "Answer while diagnostics are pending");
+  finish({ ok: false, status: 500, json: async () => ({}) });
+  await new Promise(setImmediate);
+  assert.match(elements.get("service-status").textContent, /Could not check/);
+  assert.equal(elements.get("check-services-button").disabled, false);
+});
+
+test("malformed service results are rejected without showing stale or misleading checks", async () => {
+  for (const body of [
+    null, { available: true, checks: [] },
+    { available: true, checks: [
+      { name: "database", status: "ok", message: "Accessible" },
+      { name: "ollama", status: "ok", message: "Accessible" },
+      { name: "answer_model", status: "error", message: "Missing" },
+      { name: "embedding_model", status: "ok", message: "Installed" },
+    ] },
+  ]) {
+    const { elements } = loadUi({ statusFetch: async () => ({ ok: true, json: async () => body }) });
+    await new Promise(setImmediate);
+    assert.match(elements.get("service-status").textContent, /Could not check/);
+    assert.equal(elements.get("service-checks").children.length, 0);
+    assert.equal(elements.get("check-services-button").disabled, false);
   }
 });

@@ -14,12 +14,50 @@ const sourceCount = document.getElementById("source-count");
 const sourceList = document.getElementById("source-list");
 const evidencePanel = document.getElementById("evidence-panel");
 const evidenceList = document.getElementById("evidence-list");
+const checkServicesButton = document.getElementById("check-services-button");
+const serviceStatus = document.getElementById("service-status");
+const serviceChecks = document.getElementById("service-checks");
 
 let hasDocuments = false;
 let isSubmitting = false;
 let copyRevision = 0;
 
 class ApiRequestError extends Error {}
+
+async function checkServices() {
+  if (checkServicesButton.disabled) return;
+  checkServicesButton.disabled = true;
+  serviceStatus.textContent = "Checking local services…";
+  serviceChecks.replaceChildren();
+  try {
+    const response = await fetch("/status");
+    await checkResponse(response);
+    const result = await response.json();
+    const names = ["database", "ollama", "answer_model", "embedding_model"];
+    if (typeof result.available !== "boolean" || !Array.isArray(result.checks) ||
+        result.checks.length !== names.length || !names.every((name) =>
+          result.checks.filter((check) => check?.name === name).length === 1) ||
+        !result.checks.every((check) => ["ok", "error", "unknown"].includes(check.status) &&
+          typeof check.message === "string") ||
+        result.available !== result.checks.every((check) => check.status === "ok")) {
+      throw new Error("invalid service response");
+    }
+    const labels = { database: "Database", ollama: "Ollama", answer_model: "Answer model", embedding_model: "Embedding model" };
+    const statuses = { ok: "OK", error: "Needs attention", unknown: "Not checked" };
+    for (const check of result.checks) {
+      const item = document.createElement("li");
+      item.textContent = `${labels[check.name]} — ${statuses[check.status]}: ${check.message}`;
+      serviceChecks.append(item);
+    }
+    serviceStatus.textContent = result.available
+      ? "Service checks passed. See the paper list below before asking a question."
+      : "Some services need attention. Follow the guidance below and check again.";
+  } catch {
+    serviceStatus.textContent = "Could not check local services. Check that the API is running, then try again.";
+  } finally {
+    checkServicesButton.disabled = false;
+  }
+}
 
 async function checkResponse(response) {
   if (response.ok) return;
@@ -292,3 +330,5 @@ form.addEventListener("submit", submitQuestion);
 copyAnswerButton.addEventListener("click", copyAnswer);
 resetCopyState();
 loadDocuments();
+checkServicesButton.addEventListener("click", checkServices);
+checkServices();
