@@ -20,8 +20,20 @@ silently leave the thinking stage at temperature zero.
 An absent variable, `{}`, or a filter-only override preserves the recommended
 temperature. Explicit zero remains possible for controlled experiments; it is
 not recommended for Qwen thinking. Both stages with thinking disabled retain the
-tested temperature-zero baseline; other models and the judge retain their prior
-settings. Custom aliases do not imply a model family, so configure them explicitly.
+tested temperature-zero baseline; other models outside GPT-OSS and the judge
+retain their prior settings. Custom aliases do not imply a model family, so configure them explicitly.
+
+GPT-OSS uses temperature 1.0 and top_p 1.0, following the publisher's
+[recommended sampling](https://github.com/openai/gpt-oss#recommended-sampling-parameters).
+The installed Ollama model sets temperature 1; the previous grounding profile
+was overriding it to zero. Low drafting and medium verifier reasoning, the
+4,096-token output cap, and 300-second thinking timeout are retained. Explicit
+sampling overrides still win, including zero for a controlled experiment.
+The [question-coverage development checks](question-coverage-evidence.md) record
+the failed zero-temperature diagnostics and fresh recommended-profile trials.
+Both temperature and top_p change, so those trials do not isolate a temperature
+effect. Older zero-temperature reports and protocols remain unchanged; comparisons
+need fresh fingerprints and reports.
 
 ## Configure a fresh trial
 

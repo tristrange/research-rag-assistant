@@ -102,12 +102,12 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(model.call_args_list[0].kwargs, {
             "think": DRAFT_THINK, "model": GROUNDING_MODEL,
             "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
-            "sampling": {"temperature": 0.0}, "timeout_seconds": 300.0,
+            "sampling": {"temperature": 1.0, "top_p": 1.0}, "timeout_seconds": 300.0,
         })
         self.assertEqual(model.call_args_list[1].kwargs, {
             "think": VERIFIER_THINK, "model": GROUNDING_MODEL,
             "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
-            "sampling": {"temperature": 0.0}, "timeout_seconds": 300.0,
+            "sampling": {"temperature": 1.0, "top_p": 1.0}, "timeout_seconds": 300.0,
         })
 
     def test_supported_cited_claim_gets_application_owned_page(self) -> None:
