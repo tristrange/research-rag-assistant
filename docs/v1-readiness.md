@@ -23,8 +23,10 @@ database failures, unavailable or missing Ollama models, timeouts and output-bud
 exhaustion. Failed queries permit another attempt. Read-only service checks now
 run on page load and through a Check services button, checking database/schema
 access and installed Ollama models. They are advisory and do not run inference or
-establish answer quality. Library management and more detailed progress remain
-separate usability follow-ups.
+establish answer quality. Library inventory and transactional index removal are
+available through `scripts.manage_library`, alongside the existing PDF indexer.
+The browser can refresh papers without a page reload. More detailed progress
+remains a separate usability follow-up.
 
 ## Development review protocol (frozen before new generation)
 

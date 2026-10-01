@@ -339,7 +339,7 @@ test("paper-list failures show service guidance and keep querying disabled", asy
   });
   await new Promise(setImmediate);
   assert.match(elements.get("library-status").textContent, /Check PostgreSQL/);
-  assert.match(elements.get("library-status").textContent, /Reload this page/);
+  assert.match(elements.get("library-status").textContent, /Refresh papers/);
   assert.equal(elements.get("ask-button").disabled, true);
 });
 
@@ -435,4 +435,90 @@ test("malformed service results are rejected without showing stale or misleading
     assert.equal(elements.get("service-checks").children.length, 0);
     assert.equal(elements.get("check-services-button").disabled, false);
   }
+});
+
+test("refresh replaces paper options without duplicates and preserves valid selections", async () => {
+  let filenames = ["a.pdf", "b.pdf"];
+  const { elements } = loadUi({ fetch: async () => ({ ok: true, json: async () => filenames }) });
+  await new Promise(setImmediate);
+  const select = elements.get("document");
+  select.value = "b.pdf";
+  filenames = ["b.pdf", "c.pdf"];
+  await elements.get("refresh-papers-button").click();
+  await elements.get("refresh-papers-button").click();
+  assert.deepEqual(select.children.map((option) => option.value), ["", "__each__", "__each_query__", "b.pdf", "c.pdf"]);
+  assert.equal(select.value, "b.pdf");
+  for (const scope of ["__each__", "__each_query__"]) {
+    select.value = scope;
+    await elements.get("refresh-papers-button").click();
+    assert.equal(select.value, scope);
+  }
+  select.value = "c.pdf";
+  filenames = ["b.pdf"];
+  await elements.get("refresh-papers-button").click();
+  assert.equal(select.value, "");
+  assert.match(elements.get("library-status").textContent, /selected paper is no longer indexed/);
+});
+
+test("refresh failures disable stale querying and allow recovery without a page reload", async () => {
+  let fail = false;
+  const { elements } = loadUi({ fetch: async () => fail
+    ? { ok: false, status: 503, json: async () => ({ detail: { code: "database_error", message: "Check PostgreSQL." } }) }
+    : { ok: true, json: async () => ["study.pdf"] },
+  });
+  await new Promise(setImmediate);
+  elements.get("question").value = "Question";
+  elements.get("question").listeners.get("input")();
+  assert.equal(elements.get("ask-button").disabled, false);
+  fail = true;
+  await elements.get("refresh-papers-button").click();
+  assert.match(elements.get("library-status").textContent, /Refresh papers/);
+  assert.equal(elements.get("document").disabled, true);
+  assert.equal(elements.get("ask-button").disabled, true);
+  assert.equal(elements.get("refresh-papers-button").disabled, false);
+  fail = false;
+  await elements.get("refresh-papers-button").click();
+  assert.equal(elements.get("document").disabled, false);
+  assert.equal(elements.get("ask-button").disabled, false);
+});
+
+test("refresh and questions cannot overlap, and an empty library disables querying", async () => {
+  let documentCalls = 0;
+  let queryCalls = 0;
+  let finishRefresh;
+  let finishQuery;
+  const { elements } = loadUi({ fetch: async (url) => {
+    if (url === "/documents") {
+      documentCalls += 1;
+      if (documentCalls === 1) return { ok: true, json: async () => ["study.pdf"] };
+      return new Promise((resolve) => { finishRefresh = resolve; });
+    }
+    queryCalls += 1;
+    return new Promise((resolve) => { finishQuery = resolve; });
+  } });
+  await new Promise(setImmediate);
+  const submit = elements.get("query-form").listeners.get("submit");
+  const refresh = elements.get("refresh-papers-button");
+  elements.get("question").value = "Question";
+  const refreshing = refresh.click();
+  await refresh.click();
+  await submit({ preventDefault() {} });
+  assert.equal(documentCalls, 2);
+  assert.equal(queryCalls, 0);
+  assert.equal(elements.get("ask-button").disabled, true);
+  finishRefresh({ ok: true, json: async () => ["study.pdf"] });
+  await refreshing;
+  const submitting = submit({ preventDefault() {} });
+  assert.equal(refresh.disabled, true);
+  await refresh.click();
+  assert.equal(documentCalls, 2);
+  finishQuery({ ok: true, json: async () => ({ answer: "Answer", sources: [] }) });
+  await submitting;
+  const emptying = refresh.click();
+  finishRefresh({ ok: true, json: async () => [] });
+  await emptying;
+  assert.match(elements.get("library-status").textContent, /No PDFs are indexed/);
+  assert.equal(elements.get("document").disabled, true);
+  assert.equal(elements.get("ask-button").disabled, true);
+  assert.equal(refresh.disabled, false);
 });
