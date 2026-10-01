@@ -19,6 +19,9 @@ The project extracts and chunks PDF text, generates local embeddings, stores the
 
 ## Current pipeline
 
+See the [architecture diagram and component responsibilities](docs/architecture.md)
+for the ingestion, query, evidence and local-service boundaries.
+
 ```text
 PDF
 → text extraction
@@ -28,7 +31,7 @@ PDF
 → semantic retrieval
 → reranking
 → local LLM
-→ answer + sources
+→ answer + sources + accepted claim evidence
 ```
 
 ## Setup
@@ -430,8 +433,9 @@ draft must pass all the same checks. Only an entirely approved answer is rendere
 source metadata. Invalid or rejected output becomes a fixed insufficient-evidence
 response. Model connection errors still propagate as errors, not evidence refusals.
 
-The response shape remains `answer` and `sources`; sources are the retrieved bundle,
-not a list filtered to cited passages. Quote matches establish textual presence, not
+The API response includes `answer`, `sources` and `claim_evidence`. Sources are
+the retrieved bundle, not a list filtered to cited passages; claim evidence
+contains the excerpts selected for final accepted claims. Quote matches establish textual presence, not
 semantic support, and the same local model acts as drafter and verifier. This mode
 can reject valid answers or miss subtle unsupported claims. The API and browser
 use `verified`; `answer_mode: "plain"` is rejected by the API. Local evaluation

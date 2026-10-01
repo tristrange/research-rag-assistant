@@ -56,3 +56,45 @@ under ignored `evaluation-results/`. Preserve failures. Do not record passwords
 or commit PDFs, excerpts, private credentials, or raw reports. Model tags alone
 do not pin weights. Human review and the separately reserved final validation
 questions remain necessary before tagging v1.
+
+## Recorded startup check: 2026-10-01
+
+Application commit `0b654537cd8bf629f235c291bf781b1722e6c509` completed this check
+in a fresh worktree and virtual environment on Apple Silicon macOS, Python
+3.14.7 and uv 0.12.21. A generated two-page PDF contained known synthetic
+seedling-height results and a missing-price control. A disposable
+`pgvector/pgvector:pg17` container used loopback port 55432, with the API on
+loopback port 8011. New private credentials were used; no personal database,
+PDF library or volume was reused.
+
+| Check | Observed result |
+| --- | --- |
+| Locked dependency installation | Passed; `pyproject.toml` and `uv.lock` unchanged. |
+| Schema initialization and live embedding/indexing | Passed; two chunks across two pages. |
+| `/status`, paper list and browser selection | Passed; all service checks available and the test filename selectable. |
+| Routine verified question | Returned both expected heights with day-14 qualifiers and a page-1 citation in 1:00. |
+| Evidence and source inspection | Selected excerpts supported both values; clicking the page reference opened surrounding context. |
+| Copy answer | Success feedback and clipboard text matched the displayed answer and citation. |
+| Missing-price question | Standard insufficient-evidence refusal in 0:19; no accepted claim evidence displayed. |
+| Removal preview and apply | Preview preserved the index; apply removed only the test paper's rows and preserved the PDF hash. |
+| Refresh after removal | Removed selection reset, empty-library message displayed, querying disabled. |
+| Cleanup | Test API stopped; only the disposable test container and its anonymous volume removed. |
+
+This exercised the normal verified path using `gpt-oss:20b`, low draft and
+medium verifier reasoning, the default sampling/output budget, live
+`nomic-embed-text` embeddings and the BGE reranker. No prompt, retrieval or model
+settings were changed. The first question included model/reranker startup costs;
+these two timings are observations, not a performance benchmark.
+
+The package cache, installed Ollama models and reranker cache were reused, so
+this does not test a cold download of all model weights. The PDF was synthetic
+and inspected by the assistant; it establishes working wiring, not scientific
+answer quality or completion of human review. These cases must not be reused as
+reserved final validation questions.
+
+Local evidence remains in ignored `evaluation-results/`: `live-startup-20261001.json`,
+`live-browser-20261001.json`, `live-config-20261001.json`, `api-startup.log` and
+`live-answer-20261001.jpg`. Records include the fixture hash, Ollama model
+digests, runtime settings, grounding fingerprint, returned text, observed
+browser state and cleanup result. The synthetic PDF and private `.env` remain
+local. No raw report, PDF or credential is part of this documentation PR.
