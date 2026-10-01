@@ -8,7 +8,7 @@ Hosting, accounts, OCR, and advanced cross-paper synthesis are later extensions.
 
 - [ ] Human-reviewed answer quality and documented limitations.
 - [x] Cited evidence clearly distinguished from other retrieved passages.
-- [ ] Straightforward library management, service checks, useful errors, and progress.
+- [x] Straightforward library management, service checks, useful errors, and progress.
 - [ ] Automated regression checks, current setup guide, architecture diagram,
       and a fresh-install smoke test.
 
@@ -25,8 +25,12 @@ run on page load and through a Check services button, checking database/schema
 access and installed Ollama models. They are advisory and do not run inference or
 establish answer quality. Library inventory and transactional index removal are
 available through `scripts.manage_library`, alongside the existing PDF indexer.
-The browser can refresh papers without a page reload. More detailed progress
-remains a separate usability follow-up.
+The browser can refresh papers without a page reload and shows elapsed time
+while waiting for an answer, stopping the timer on success or failure. It does
+not infer backend stages or an estimated finish time. The PDF indexing CLI
+reports actual reading, chunk preparation, completed embeddings, and saving;
+completion is printed only after the transaction commits. This completes the
+basic local usability implementation; it does not approve a release.
 
 ## Development review protocol (frozen before new generation)
 

@@ -72,10 +72,43 @@ class IndexPdfTests(unittest.TestCase):
 
     def test_embedding_failure_preserves_existing_chunks(self) -> None:
         index_pdf.index_pdf()
+        messages: list[str] = []
         with patch.object(index_pdf, "embed_text", side_effect=RuntimeError("offline")):
             with self.assertRaisesRegex(RuntimeError, "offline"):
-                index_pdf.index_pdf()
+                index_pdf.index_pdf(progress=messages.append)
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+        self.assertEqual(messages[-1], "Embedding chunks: 0/1")
+        self.assertNotIn("Saving index…", messages)
+
+    def test_progress_reports_completed_embeddings_before_index_replacement(self) -> None:
+        index_pdf.index_pdf()
+        self.pages[0]["text"] = "Updated text"
+        messages: list[str] = []
+
+        def observe(message: str) -> None:
+            messages.append(message)
+            self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+
+        self.assertEqual(index_pdf.index_pdf(progress=observe), 1)
+        self.assertEqual(messages, [
+            "Reading sample.pdf…", "Read 1 PDF pages. Preparing chunks…",
+            "Embedding chunks: 0/1", "Embedding chunks: 1/1", "Saving index…",
+        ])
+        self.assertEqual(self.contents(), [("sample.pdf", "Updated text")])
+
+    def test_chunk_progress_is_bounded_and_handles_an_empty_pdf(self) -> None:
+        self.pages[0]["text"] = "x" * 20_000
+        messages: list[str] = []
+        count = index_pdf.index_pdf(progress=messages.append)
+        self.assertGreater(count, 10)
+        embedding_messages = [message for message in messages if message.startswith("Embedding chunks:")]
+        self.assertLessEqual(len(embedding_messages), 11)
+        self.assertEqual(embedding_messages[-1], f"Embedding chunks: {count}/{count}")
+        self.pages = []
+        messages.clear()
+        self.assertEqual(index_pdf.index_pdf(progress=messages.append), 0)
+        self.assertIn("Embedding chunks: 0/0", messages)
+        self.assertEqual(messages[-1], "Saving index…")
 
     def test_oversized_pdf_is_rejected_before_embedding_and_keeps_index(self) -> None:
         index_pdf.index_pdf()
@@ -151,8 +184,19 @@ class IndexCliTests(unittest.TestCase):
             paper.write_bytes(b"fixture")
             with patch("sys.argv", ["index_pdf", str(paper)]), patch.object(index_pdf, "index_pdf", return_value=7) as indexer, redirect_stdout(io.StringIO()) as output:
                 index_pdf.main()
-            indexer.assert_called_once_with(str(paper))
+            indexer.assert_called_once_with(str(paper), progress=index_pdf.print_progress)
             self.assertIn("7 chunks from another paper.pdf", output.getvalue())
+
+    def test_failed_indexing_never_prints_completion(self) -> None:
+        with TemporaryDirectory() as directory:
+            paper = Path(directory) / "paper.pdf"
+            paper.write_bytes(b"fixture")
+            with patch("sys.argv", ["index_pdf", str(paper)]), \
+                    patch.object(index_pdf, "index_pdf", side_effect=RuntimeError("save failed")), \
+                    redirect_stdout(io.StringIO()) as output:
+                with self.assertRaisesRegex(RuntimeError, "save failed"):
+                    index_pdf.main()
+            self.assertNotIn("Indexed", output.getvalue())
 
     def test_bad_input_never_calls_indexer(self) -> None:
         with TemporaryDirectory() as directory:

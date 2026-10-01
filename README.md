@@ -88,6 +88,12 @@ Place your PDFs under `data/` and index each by path:
 uv run python -m scripts.index_pdf data/my-paper.pdf
 ```
 
+The terminal reports PDF reading, chunk preparation, completed embeddings out of
+the total chunk count, and index saving. Embedding updates are limited to about
+ten lines per PDF. `Indexed …` appears only after the database transaction commits;
+an embedding count of `N/N` means embedding finished, not that the index is saved.
+The Python `index_pdf()` function remains quiet unless given a `progress` callback.
+
 Omitting the path retains the `data/sample.pdf` development example. Local PDFs
 are ignored by Git. The [corpus notes](docs/benchmark-corpus.md) record attribution,
 licenses, historical PDF copies and an Emma Frank coauthored benchmark.
@@ -251,6 +257,13 @@ help with inspection but do not verify a claim. The passages below an answer are
 the retrieved context; they are not necessarily passages the answer cited. The
 page uses the same `/documents` and `/query` endpoints as the command-line
 examples below, and needs no separate frontend install or build step.
+
+While a question runs, the response panel displays elapsed minutes and seconds.
+It stops at the total time taken on success or failure and resets for each retry.
+Timing measures the browser's wait, not the backend's current stage or estimated
+completion. Start/finish messages are announced to screen readers; the changing
+timer does not make an announcement every second. Local model loading and
+verification can take several minutes, especially for each-paper scopes.
 
 ### Service failures
 

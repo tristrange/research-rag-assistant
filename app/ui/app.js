@@ -4,6 +4,7 @@ const libraryStatus = document.getElementById("library-status");
 const questionInput = document.getElementById("question");
 const askButton = document.getElementById("ask-button");
 const requestStatus = document.getElementById("request-status");
+const requestTiming = document.getElementById("request-timing");
 const requestError = document.getElementById("request-error");
 const answerPanel = document.getElementById("answer-panel");
 const answerText = document.getElementById("answer-text");
@@ -306,6 +307,14 @@ async function submitQuestion(event) {
   requestStatus.textContent = eachPaper
     ? "Searching each indexed paper separately. This can take several minutes…"
     : "Searching and preparing an answer. Verified mode may take several minutes…";
+  const startedAt = performance.now();
+  const updateElapsed = (label = "Elapsed") => {
+    const seconds = Math.floor((performance.now() - startedAt) / 1000);
+    requestTiming.textContent = `${label}: ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+  requestTiming.hidden = false;
+  updateElapsed();
+  const elapsedTimer = setInterval(updateElapsed, 1000);
 
   try {
     const response = await fetch("/query", {
@@ -342,6 +351,8 @@ async function submitQuestion(event) {
     }
     requestError.hidden = false;
   } finally {
+    clearInterval(elapsedTimer);
+    updateElapsed("Time taken");
     isSubmitting = false;
     updateSubmitState();
   }

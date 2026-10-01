@@ -29,6 +29,9 @@ class Element {
 
 function loadUi(options = {}) {
   const elements = new Map();
+  let now = 0;
+  let nextTimer = 0;
+  const timers = new Map();
   const document = {
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, new Element("div"));
@@ -39,6 +42,9 @@ function loadUi(options = {}) {
   };
   const context = vm.createContext({
     document,
+    performance: { now: () => now },
+    setInterval: (callback) => { timers.set(++nextTimer, callback); return nextTimer; },
+    clearInterval: (timer) => timers.delete(timer),
     fetch: async (url, init) => {
       if (url === "/status") {
         if (options.statusFetch) return options.statusFetch();
@@ -55,7 +61,14 @@ function loadUi(options = {}) {
   });
   const script = fs.readFileSync(path.join(__dirname, "../app/ui/app.js"), "utf8");
   vm.runInContext(`${script}\nglobalThis.testUi = { showSources, renderAnswer, showEvidence, validEvidence };`, context);
-  return { ...context.testUi, elements };
+  return {
+    ...context.testUi, elements,
+    advanceTime(milliseconds) {
+      now += milliseconds;
+      for (const callback of timers.values()) callback();
+    },
+    activeTimers: () => timers.size,
+  };
 }
 
 test("page references open all returned passages from that document and page", () => {
@@ -329,6 +342,76 @@ test("service errors show API guidance as text and allow a successful retry", as
   assert.equal(elements.get("request-error").hidden, true);
   assert.equal(elements.get("answer-text").textContent, "Recovered");
   assert.equal(elements.get("ask-button").disabled, false);
+});
+
+test("question timing tracks elapsed time across delayed ticks and stops on completion", async () => {
+  let finishQuery;
+  let queryCalls = 0;
+  const { elements, advanceTime, activeTimers } = loadUi({ fetch: async (url) => {
+    if (url === "/documents") return { ok: true, json: async () => ["study.pdf"] };
+    queryCalls += 1;
+    return new Promise((resolve) => { finishQuery = resolve; });
+  } });
+  await new Promise(setImmediate);
+  const submit = elements.get("query-form").listeners.get("submit");
+  await submit({ preventDefault() {} });
+  assert.equal(activeTimers(), 0); // A blank question never starts a timer.
+  elements.get("question").value = "Question";
+  elements.get("document").value = "__each__";
+  const submitting = submit({ preventDefault() {} });
+  const timing = elements.get("request-timing");
+  assert.equal(timing.hidden, false);
+  assert.equal(timing.textContent, "Elapsed: 0:00");
+  const waitingMessage = elements.get("request-status").textContent;
+  assert.match(waitingMessage, /each indexed paper/);
+  advanceTime(65_000); // A delayed browser tick must count time, not callbacks.
+  assert.equal(timing.textContent, "Elapsed: 1:05");
+  assert.equal(elements.get("request-status").textContent, waitingMessage);
+  await submit({ preventDefault() {} });
+  assert.equal(queryCalls, 1);
+  assert.equal(activeTimers(), 1);
+  finishQuery({ ok: true, json: async () => ({ answer: "Answer", sources: [] }) });
+  await submitting;
+  assert.equal(timing.textContent, "Time taken: 1:05");
+  assert.equal(elements.get("request-status").textContent, "Answer ready.");
+  assert.equal(activeTimers(), 0);
+  advanceTime(60_000);
+  assert.equal(timing.textContent, "Time taken: 1:05");
+  assert.equal(elements.get("ask-button").disabled, false);
+});
+
+test("failed questions stop timing and retries start a fresh duration", async () => {
+  for (const failure of [
+    () => { throw new TypeError("network failed"); },
+    () => ({ ok: false, status: 504, json: async () => ({ detail: { code: "model_timeout", message: "Try a narrower question." } }) }),
+    () => ({ ok: true, json: async () => ({ answer: null, sources: [] }) }),
+  ]) {
+    let finishQuery;
+    const { elements, advanceTime, activeTimers } = loadUi({ fetch: async (url) => {
+      if (url === "/documents") return { ok: true, json: async () => ["study.pdf"] };
+      return new Promise((resolve) => { finishQuery = resolve; });
+    } });
+    await new Promise(setImmediate);
+    elements.get("question").value = "Question";
+    const submit = elements.get("query-form").listeners.get("submit");
+    const submitting = submit({ preventDefault() {} });
+    advanceTime(12_000);
+    finishQuery(Promise.resolve().then(failure));
+    await submitting;
+    assert.equal(elements.get("request-timing").textContent, "Time taken: 0:12");
+    assert.equal(elements.get("request-error").hidden, false);
+    assert.equal(activeTimers(), 0);
+    advanceTime(30_000);
+    const retrying = submit({ preventDefault() {} });
+    assert.equal(elements.get("request-timing").textContent, "Elapsed: 0:00");
+    assert.equal(elements.get("request-error").hidden, true);
+    advanceTime(3_000);
+    finishQuery({ ok: true, json: async () => ({ answer: "Recovered", sources: [] }) });
+    await retrying;
+    assert.equal(elements.get("request-timing").textContent, "Time taken: 0:03");
+    assert.equal(activeTimers(), 0);
+    assert.equal(elements.get("answer-text").textContent, "Recovered");
+  }
 });
 
 test("paper-list failures show service guidance and keep querying disabled", async () => {

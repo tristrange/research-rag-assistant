@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css?v=7">
-    <script src="/static/app.js?v=12" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=8">
+    <script src="/static/app.js?v=13" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -63,6 +63,7 @@
             <h2 id="result-heading">Response</h2>
           </div>
           <p id="request-status" class="request-status is-idle" role="status" aria-live="polite">Ask a question to see an answer and its retrieved passages here.</p>
+          <p id="request-timing" class="request-timing" aria-live="off" hidden></p>
           <p id="request-error" class="request-error" role="alert" hidden></p>
 
           <section id="answer-panel" class="answer-panel" aria-labelledby="answer-heading" hidden>
