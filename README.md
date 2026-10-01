@@ -811,6 +811,11 @@ warmup exclusion, document matching, index validation, and reranker ordering.
 Answer-evaluation tests additionally cover evidence labels, strict judge validation,
 abstention scoring, reference isolation, report preservation, and both generation paths.
 
+PostgreSQL schema and vector behavior has a separate opt-in integration suite.
+It skips when `RAG_TEST_POSTGRES_URL` is unset and creates isolated test databases
+through that controller URL. See the [PostgreSQL contract-test instructions](docs/postgres-contract-tests.md)
+for the disposable local Docker setup, required privileges and the coverage boundary.
+
 ## Type checking
 
 Install development dependencies with `uv sync --locked`, then check all application code,
