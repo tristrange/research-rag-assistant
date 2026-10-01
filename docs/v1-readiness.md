@@ -32,6 +32,13 @@ reports actual reading, chunk preparation, completed embeddings, and saving;
 completion is printed only after the transaction commits. This completes the
 basic local usability implementation; it does not approve a release.
 
+The `Regression checks` workflow installs locked dependencies in a fresh macOS
+environment and runs the Python and browser regressions plus strict mypy. It needs
+no paper library or model/database services. The [fresh-install check](install-smoke-test.md)
+separates these installation checks from the live setup and question smoke test.
+The release milestone remains open until the architecture documentation and live
+fresh-install check are complete; green CI does not approve release or answer quality.
+
 ## Development review protocol (frozen before new generation)
 
 Run these 16 inspected cases once each with the normal unexpanded reranked top
