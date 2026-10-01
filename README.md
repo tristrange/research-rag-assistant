@@ -313,6 +313,7 @@ If loading the paper list fails, fix the issue and click **Refresh papers**.
 | 504 | `model_timeout` | For answer generation, try a narrower question and review `RAG_GROUNDING_TIMEOUT_SECONDS`. For embeddings, check Ollama's activity and memory; the grounding timeout does not apply. |
 | 502 | `model_output_limit` | Try a narrower question; review `RAG_GROUNDING_OUTPUT_TOKENS` if it repeats. |
 | 502 | `model_service_error` | Check Ollama's logs and available memory. |
+| 502 | `model_invalid_response` | Ollama returned malformed chat data or an invalid embedding vector. Check its logs and model compatibility, then retry. |
 | 503 | `dependency_error` | Check other dependency requests, including model downloads. |
 
 Responses and service-error log messages omit exception text, SQL, credentials,

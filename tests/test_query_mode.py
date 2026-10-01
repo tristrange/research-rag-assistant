@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
 
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
+from app.db.models import Chunk
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.main import QueryRequest, _query_gate, app, query
 
@@ -19,6 +20,34 @@ def local_client(*, raise_server_exceptions: bool = True) -> TestClient:
 
 
 class QueryModeTests(unittest.TestCase):
+    def test_malformed_provider_envelopes_are_safe_errors_and_release_query_gate(self) -> None:
+        chunk = Chunk(document="study.pdf", page=1, chunk_index=0,
+                      text="The intervention increased the measured outcome.", section="results")
+        client = local_client()
+        for operation in ("embedding", "chat"):
+            url = OLLAMA_EMBED_URL if operation == "embedding" else OLLAMA_URL
+            malformed = httpx.Response(200, request=httpx.Request("POST", url),
+                                      json={"private": "secret model output"})
+            with self.subTest(operation=operation), self.assertLogs("app.main", level="WARNING") as logs:
+                with patch("httpx.post", return_value=malformed) as post, \
+                        patch("app.grounding.generate_verification_json") as verifier:
+                    if operation == "chat":
+                        with patch("app.rag.search_chunks", return_value=[chunk]), \
+                                patch("app.rag.rerank_chunks", return_value=[chunk]):
+                            response = client.post("/query", json={"question": "What changed?"})
+                    else:
+                        response = client.post("/query", json={"question": "What changed?"})
+                self.assertEqual(response.status_code, 502)
+                detail = response.json()["detail"]
+                self.assertEqual(detail["code"], "model_invalid_response")
+                self.assertIn(operation, detail["message"])
+                self.assertNotIn("answer", response.json())
+                self.assertNotIn("secret model output", response.text + " ".join(logs.output))
+                post.assert_called_once()  # No grounding repair after a broken envelope.
+                verifier.assert_not_called()
+                with patch("app.main.answer_question", return_value={"answer": "Recovered", "sources": []}):
+                    self.assertEqual(client.post("/query", json={"question": "Try again?"}).status_code, 200)
+
     def test_real_query_embedding_failures_receive_endpoint_specific_guidance(self) -> None:
         request = httpx.Request("POST", OLLAMA_EMBED_URL)
         cases: list[tuple[Exception, int, str]] = [

@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import httpx
 import pymupdf
 from sqlalchemy import Connection, create_engine, event, select
 from sqlalchemy.engine import ExecutionContext
@@ -13,7 +14,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
 from app.db.models import Chunk
+from app.embeddings import OLLAMA_EMBED_URL, embed_text
 from app.ingestion.pdf import extract_pages
+from app.llm.errors import OllamaResponseError
 from app.types import PageData
 from scripts import index_pdf
 
@@ -79,6 +82,27 @@ class IndexPdfTests(unittest.TestCase):
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
         self.assertEqual(messages[-1], "Embedding chunks: 0/1")
         self.assertNotIn("Saving index…", messages)
+
+    def test_malformed_embedding_keeps_index_and_cli_reports_safe_failure(self) -> None:
+        index_pdf.index_pdf()
+        self.pages[0]["text"] = "Updated text"
+        malformed = httpx.Response(200, request=httpx.Request("POST", OLLAMA_EMBED_URL),
+                                  json={"embeddings": [["private provider output"]]})
+        with patch.object(index_pdf, "embed_text", embed_text), patch("httpx.post", return_value=malformed):
+            with self.assertRaises(OllamaResponseError):
+                index_pdf.index_pdf()
+            with TemporaryDirectory() as directory:
+                pdf = Path(directory) / "sample.pdf"
+                pdf.touch()
+                output = io.StringIO()
+                with patch("sys.argv", ["index_pdf", str(pdf)]), redirect_stderr(output), redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit) as exit_result:
+                        index_pdf.main()
+        self.assertEqual(exit_result.exception.code, 1)
+        self.assertIn("invalid embedding response", output.getvalue())
+        self.assertIn("existing index was not replaced", output.getvalue())
+        self.assertNotIn("private provider output", output.getvalue())
+        self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
 
     def test_progress_reports_completed_embeddings_before_index_replacement(self) -> None:
         index_pdf.index_pdf()
