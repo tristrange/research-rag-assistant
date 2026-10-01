@@ -9,20 +9,24 @@ verified answering. Evaluation and internal plain-generation paths are separate.
 flowchart LR
     PDF["Local PDF"] --> Extract["PyMuPDF: text + page numbers"]
     Extract --> Chunk["Sentence-aware chunks + section metadata"]
-    Chunk --> Embed["Ollama: nomic-embed-text"]
-    Embed --> Store["Atomic filename replacement"]
+    Chunk --> ChunkEmbed["Chunk embeddings: Ollama nomic-embed-text"]
+    ChunkEmbed --> Store["Atomic filename replacement"]
     Store --> DB[("PostgreSQL + pgvector")]
 
     UI["Browser: question + search scope"] --> API["FastAPI: POST /query"]
-    API --> Search["Embed question + cosine search"]
-    Search --> Embed
-    Search --> DB
+    API --> QueryEmbed["Question embedding: Ollama nomic-embed-text"]
+    QueryEmbed --> Search["Read-only cosine search"]
+    Search -->|read| DB
     DB --> Rank["Local BGE cross-encoder reranker"]
     Rank --> Ground["Ollama: draft + evidence verification"]
     Ground --> Result["Answer or refusal + sources + claim evidence"]
     Result --> API
     API --> UI
 ```
+
+Both embedding nodes use the same `embed_text()` helper. Only ingestion proceeds
+to index replacement; asking a question reads the stored chunks without changing
+the corpus.
 
 ## Ingestion and stored data
 
