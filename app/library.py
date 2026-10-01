@@ -1,6 +1,7 @@
 """Inventory and exact-filename removal of indexed papers."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy import delete, distinct, func, select
 
@@ -26,7 +27,7 @@ def library_inventory() -> list[IndexedDocument]:
 
 
 def validate_document_name(document: str) -> None:
-    if not document.strip() or document in {".", ".."} or "/" in document or "\\" in document:
+    if not document.strip() or document in {".", ".."} or Path(document).name != document:
         raise ValueError("Use one exact indexed filename, not a path.")
 
 

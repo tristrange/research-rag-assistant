@@ -1,5 +1,6 @@
 from contextlib import redirect_stdout
 import io
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -50,11 +51,33 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual([paper.document for paper in library_inventory()], ["A.pdf", "other paper.pdf"])
 
     def test_invalid_paths_and_blank_names_are_rejected_before_database_access(self) -> None:
-        for document in ("", "   ", ".", "..", "data/a.pdf", "data\\a.pdf"):
+        separators = [separator for separator in (os.sep, os.altsep) if separator]
+        for document in ("", "   ", ".", "..", *(f"data{separator}a.pdf" for separator in separators)):
             with self.subTest(document=document), patch("app.library.SessionLocal") as database:
                 with self.assertRaises(ValueError):
                     remove_document(document)
                 database.begin.assert_not_called()
+
+    @unittest.skipIf(os.name == "nt", "Backslashes are path separators on Windows")
+    def test_cli_removes_posix_backslash_filename_and_preserves_source(self) -> None:
+        with TemporaryDirectory() as directory:
+            pdf = Path(directory) / "study\\draft.pdf"
+            pdf.write_bytes(b"Original PDF bytes")
+            # Match the indexer's filename identity, including literal backslashes.
+            with self.sessions.begin() as db:
+                db.add(Chunk(document=pdf.name, page=1, chunk_index=0,
+                             text="Synthetic paper text", embedding=[0.0] * 768))
+            self.assertIn(pdf.name, [paper.document for paper in library_inventory()])
+            output = io.StringIO()
+            before = library_inventory()
+            with patch("sys.argv", ["manage_library", "remove", pdf.name]), redirect_stdout(output):
+                main()
+            self.assertEqual(library_inventory(), before)
+            self.assertIn("Would remove 1 chunks", output.getvalue())
+            with patch("sys.argv", ["manage_library", "remove", pdf.name, "--yes"]), redirect_stdout(output):
+                main()
+            self.assertEqual(library_inventory(), [paper for paper in before if paper.document != pdf.name])
+            self.assertEqual(pdf.read_bytes(), b"Original PDF bytes")
 
     def test_original_pdf_is_preserved(self) -> None:
         with TemporaryDirectory() as directory:
