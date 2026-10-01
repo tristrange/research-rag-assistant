@@ -20,8 +20,11 @@ complete the deferred human quality review or establish answer reliability.
 
 Service-error guidance is implemented for the paper list and questions, including
 database failures, unavailable or missing Ollama models, timeouts and output-budget
-exhaustion. Failed queries permit another attempt. Library management, proactive
-service checks and more detailed progress remain separate usability follow-ups.
+exhaustion. Failed queries permit another attempt. Read-only service checks now
+run on page load and through a Check services button, checking database/schema
+access and installed Ollama models. They are advisory and do not run inference or
+establish answer quality. Library management and more detailed progress remain
+separate usability follow-ups.
 
 ## Development review protocol (frozen before new generation)
 

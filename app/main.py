@@ -17,6 +17,7 @@ from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
+from app.service_checks import ServiceStatus, service_status
 
 
 app = FastAPI(docs_url=None, redoc_url=None)
@@ -148,6 +149,11 @@ def api_docs() -> FileResponse:
 @app.get("/documents", response_model=list[str])
 def documents() -> list[str]:
     return list_documents()
+
+
+@app.get("/status", response_model=ServiceStatus)
+def status() -> ServiceStatus:
+    return service_status()
 
 
 @app.post("/query", response_model=QueryResponse)
