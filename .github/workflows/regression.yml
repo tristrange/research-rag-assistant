@@ -56,3 +56,51 @@ jobs:
 
       - name: Strict type checking
         run: uv run --locked mypy
+
+  postgres-contracts:
+    name: PostgreSQL contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      RAG_DATABASE_URL: "sqlite:///:memory:"
+      RAG_TEST_POSTGRES_URL: "postgresql+psycopg://rag:contract-test-only@127.0.0.1:5432/postgres"
+      UV_NO_PROGRESS: "1"
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: rag
+          POSTGRES_PASSWORD: contract-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rag -d postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.21"
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Install locked database-test dependencies
+        # Exercise only storage modules; exclude model weights and Linux's CUDA stack.
+        run: |
+          uv export --locked --no-dev --no-emit-project \
+            --prune sentence-transformers --prune uvicorn --prune pymupdf \
+            --output-file "$RUNNER_TEMP/postgres-requirements.txt"
+          uv venv
+          uv pip sync "$RUNNER_TEMP/postgres-requirements.txt"
+
+      - name: PostgreSQL contracts
+        run: .venv/bin/python -m unittest discover -s tests/integration -v
