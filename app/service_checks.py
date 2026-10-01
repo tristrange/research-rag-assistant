@@ -40,7 +40,7 @@ def check_database() -> ServiceCheck:
             connection.execute(select(Chunk).limit(0))
         return ServiceCheck(name="database", status="ok", message="Database and paper-index schema are accessible.")
     except SQLAlchemyError:
-        return ServiceCheck(name="database", status="error", message="Check PostgreSQL and your .env settings, then run uv run python -m scripts.init_db. Reload the page afterward to refresh the paper list.")
+        return ServiceCheck(name="database", status="error", message="Check PostgreSQL and your .env settings, then run uv run python -m scripts.init_db. Use Refresh papers afterward to update the paper list.")
     finally:
         probe.dispose()
 

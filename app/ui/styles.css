@@ -89,6 +89,10 @@ select:focus, textarea:focus { border-color: var(--accent); }
 select:disabled { background: #f2f5f1; color: var(--muted); }
 .field-note { margin: 0.45rem 0 1.5rem; color: var(--muted); font-size: 0.8rem; }
 .service-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.85rem; font-weight: 700; }
+.library-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+.library-heading label { margin: 0; }
+#refresh-papers-button { width: auto; min-height: 2.25rem; margin: 0; padding: 0.4rem 0.65rem; border: 1px solid var(--line); background: #fff; color: var(--accent-dark); box-shadow: none; font-size: 0.8rem; }
+#refresh-papers-button:hover:not(:disabled) { background: #edf5ef; }
 #check-services-button { width: auto; min-height: 2.25rem; margin: 0; padding: 0.4rem 0.65rem; font-size: 0.8rem; }
 #service-status { margin-bottom: 0.4rem; }
 .service-checks { margin: 0; padding-left: 1.2rem; font-size: 0.8rem; color: var(--muted); }

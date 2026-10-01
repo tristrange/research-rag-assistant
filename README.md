@@ -103,6 +103,39 @@ filename's chunks, including removing stale chunks if the PDF becomes shorter or
 has no extractable text. Extraction, embedding, or database failures preserve the
 previous index. Use distinct filenames for distinct papers.
 
+### Manage the local library
+
+List exact indexed filenames with their stored chunk and indexed-page counts:
+
+```bash
+uv run python -m scripts.manage_library list
+```
+
+Indexed-page counts cover pages with stored chunks, not every page of the source
+PDF. Adding and updating a paper use the existing `scripts.index_pdf` command.
+To remove one paper from retrieval, preview its index removal first:
+
+```bash
+uv run python -m scripts.manage_library remove my-paper.pdf
+```
+
+Apply the removal explicitly with `--yes`:
+
+```bash
+uv run python -m scripts.manage_library remove my-paper.pdf --yes
+```
+
+Removal uses the exact filename, is transactional, and preserves all other papers
+and the original PDF file. Quote filenames containing spaces; pass a filename,
+not a path or wildcard. The PDF can be indexed again later. Adding, replacing or
+removing papers changes the corpus: preserve earlier evaluation reports and use
+fresh reports when evaluating the changed library.
+
+In the browser, click **Refresh papers** after changing the index or fixing a
+failed paper-list request. Valid paper and each-paper scope selections are kept;
+if the selected paper disappeared, the scope resets to Across papers with a notice.
+An empty library or failed refresh disables querying until papers load again.
+
 List the indexed filenames before choosing a paper:
 
 ```bash
@@ -239,14 +272,14 @@ do not read paper text, modify the index, generate answers, or download models.
 
 These checks are advisory and do not block questions. A passing check confirms
 access and installation, not an indexed library, sufficient memory, successful
-inference, or answer correctness. If the initial paper list failed to load, reload
-the page after fixing the database so the list is refreshed.
+inference, or answer correctness. If the initial paper list failed to load, use
+**Refresh papers** after fixing the database so the list is refreshed.
 
 The browser displays recovery guidance when the paper list or a question fails.
 The API returns service failures as `{"detail":{"code":"…","message":"…"}}`.
 They are failed requests, not insufficient-evidence answers; no answer or claim
 evidence is returned. A failed question releases the request lock so you can retry.
-If loading the paper list fails, fix the issue and reload the page.
+If loading the paper list fails, fix the issue and click **Refresh papers**.
 
 | HTTP status | Error code | Next action |
 | --- | --- | --- |

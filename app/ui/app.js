@@ -17,8 +17,10 @@ const evidenceList = document.getElementById("evidence-list");
 const checkServicesButton = document.getElementById("check-services-button");
 const serviceStatus = document.getElementById("service-status");
 const serviceChecks = document.getElementById("service-checks");
+const refreshPapersButton = document.getElementById("refresh-papers-button");
 
 let hasDocuments = false;
+let isLoadingDocuments = false;
 let isSubmitting = false;
 let copyRevision = 0;
 
@@ -100,7 +102,8 @@ async function copyAnswer() {
 }
 
 function updateSubmitState() {
-  askButton.disabled = !hasDocuments || isSubmitting || !questionInput.value.trim();
+  askButton.disabled = !hasDocuments || isLoadingDocuments || isSubmitting || !questionInput.value.trim();
+  refreshPapersButton.disabled = isLoadingDocuments || isSubmitting;
 }
 
 function escapeRegex(text) {
@@ -152,6 +155,11 @@ function renderAnswer(answer, sourcePages) {
 }
 
 async function loadDocuments() {
+  if (isLoadingDocuments || isSubmitting) return;
+  isLoadingDocuments = true;
+  documentSelect.disabled = true;
+  libraryStatus.textContent = "Loading indexed papers…";
+  updateSubmitState();
   try {
     const response = await fetch("/documents");
     await checkResponse(response);
@@ -160,22 +168,36 @@ async function loadDocuments() {
       throw new Error("invalid document response");
     }
 
-    for (const filename of filenames) {
+    const previous = documentSelect.value;
+    documentSelect.replaceChildren();
+    for (const [value, label] of [
+      ["", "Across papers (top matches)"],
+      ["__each__", "Each paper (overview)"],
+      ["__each_query__", "Each paper (targeted search)"],
+      ...filenames.map((filename) => [filename, filename]),
+    ]) {
       const option = document.createElement("option");
-      option.value = filename;
-      option.textContent = filename;
+      option.value = value;
+      option.textContent = label;
       documentSelect.append(option);
     }
+    documentSelect.value = filenames.includes(previous) || ["__each__", "__each_query__"].includes(previous) ? previous : "";
     hasDocuments = filenames.length > 0;
     documentSelect.disabled = !hasDocuments;
     libraryStatus.textContent = hasDocuments
       ? `${filenames.length} indexed ${filenames.length === 1 ? "paper" : "papers"} available.`
-      : "No PDFs are indexed yet. Index a PDF, then reload this page.";
+      : "No PDFs are indexed yet. Index a PDF, then refresh papers.";
+    if (previous && !["__each__", "__each_query__"].includes(previous) && !filenames.includes(previous)) {
+      libraryStatus.textContent += " The selected paper is no longer indexed; search scope was reset to Across papers.";
+    }
   } catch (error) {
+    hasDocuments = false;
+    documentSelect.disabled = true;
     libraryStatus.textContent = error instanceof ApiRequestError
-      ? `${error.message} Reload this page after fixing the issue.`
-      : "Could not load the paper list. Check the database and reload this page.";
+      ? `${error.message} Refresh papers after fixing the issue.`
+      : "Could not load the paper list. Check the database and refresh papers.";
   } finally {
+    isLoadingDocuments = false;
     updateSubmitState();
   }
 }
@@ -264,7 +286,7 @@ function validEvidence(claims, sources) {
 async function submitQuestion(event) {
   event.preventDefault();
   const question = questionInput.value.trim();
-  if (!hasDocuments || isSubmitting || !question) return;
+  if (!hasDocuments || isLoadingDocuments || isSubmitting || !question) return;
 
   isSubmitting = true;
   updateSubmitState();
@@ -331,4 +353,5 @@ copyAnswerButton.addEventListener("click", copyAnswer);
 resetCopyState();
 loadDocuments();
 checkServicesButton.addEventListener("click", checkServices);
+refreshPapersButton.addEventListener("click", loadDocuments);
 checkServices();
