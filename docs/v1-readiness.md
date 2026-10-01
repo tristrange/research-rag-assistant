@@ -9,7 +9,7 @@ Hosting, accounts, OCR, and advanced cross-paper synthesis are later extensions.
 - [ ] Human-reviewed answer quality and documented limitations.
 - [x] Cited evidence clearly distinguished from other retrieved passages.
 - [x] Straightforward library management, service checks, useful errors, and progress.
-- [ ] Automated regression checks, current setup guide, architecture diagram,
+- [x] Automated regression checks, current setup guide, architecture diagram,
       and a fresh-install smoke test.
 
 The browser now exposes each final accepted claim's attribution and exact
@@ -36,8 +36,13 @@ The `Regression checks` workflow installs locked dependencies in a fresh macOS
 environment and runs the Python and browser regressions plus strict mypy. It needs
 no paper library or model/database services. The [fresh-install check](install-smoke-test.md)
 separates these installation checks from the live setup and question smoke test.
-The release milestone remains open until the architecture documentation and live
-fresh-install check are complete; green CI does not approve release or answer quality.
+The [architecture diagram](architecture.md) documents the current ingestion,
+retrieval, verification and service boundaries. The recorded 2026-10-01 live
+startup check passed with an isolated PostgreSQL container, a synthetic PDF and
+the default verified model. Existing package/model caches were reused; cold model
+downloads were not tested. This completes the basic local setup/release-tooling
+milestone. Green CI and successful startup do not approve release or answer quality.
+Human review and the reserved final validation below remain outstanding before v1.
 
 ## Development review protocol (frozen before new generation)
 
