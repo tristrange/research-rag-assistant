@@ -10,7 +10,7 @@ The project extracts and chunks PDF text, generates local embeddings, stores the
 - uv
 - FastAPI
 - Ollama
-- Qwen3 8B
+- GPT-OSS 20B for verified answers; Qwen3 8B for plain generation and evaluation judging
 - nomic-embed-text
 - PostgreSQL + pgvector
 - SQLAlchemy
@@ -33,10 +33,17 @@ PDF
 
 ## Setup
 
+The supported local target is macOS with Apple Silicon. Install uv, Docker with
+Compose, and Ollama before following the setup steps. uv can install the Python
+3.14 version specified in `.python-version`. Node.js 24 is needed only for the
+browser regression tests; the browser interface itself needs no Node runtime.
+See the [fresh-install check](docs/install-smoke-test.md) for checks that do not
+need models or a database, and the remaining live startup procedure.
+
 Install dependencies:
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
 Create local credentials and start PostgreSQL. The private `.env` file is ignored
@@ -774,13 +781,21 @@ grading rules; historical reports remain readable and are not rewritten.
 
 ## Tests
 
+The **Regression checks** GitHub Actions workflow runs Python regressions, browser
+logic tests and strict mypy on pull requests and pushes to `main`. It installs
+the committed lockfile in a fresh environment on a macOS runner. No secrets,
+PDF library, PostgreSQL or Ollama service are required; Hugging Face model
+downloads are disabled. Dependencies are downloaded during installation, so
+this is service-independent testing, not a network-free install. This workflow
+does not measure live retrieval or answer quality, and is not a release approval.
+
 Run the regression tests without Ollama or PostgreSQL:
 
 ```bash
-uv run python -m unittest discover -s tests -v
+uv run --locked python -m unittest discover -s tests -v
 ```
 
-If Node.js is installed, check the browser answer and source rendering separately:
+With Node.js 24 installed, check browser rendering and request behavior separately:
 
 ```bash
 node --test tests/test_ui_rendering.js
@@ -794,11 +809,11 @@ abstention scoring, reference isolation, report preservation, and both generatio
 
 ## Type checking
 
-Install development dependencies with `uv sync`, then check all application code,
+Install development dependencies with `uv sync --locked`, then check all application code,
 scripts, tests, and the package entry point:
 
 ```bash
-uv run mypy
+uv run --locked mypy
 ```
 
 Strict checking uses shared typed dictionaries for pages, chunks, answers, and
