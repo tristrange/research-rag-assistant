@@ -65,6 +65,8 @@ def configuration_hash(report: ReportModel) -> str:
     configuration = {"settings": settings,
                      "generator_model": report.generator_model, "judge_model": report.judge_model,
                      "embedding_model": report.embedding_model, "reranker_model": report.reranker_model}
+    if report.runtime_before is not None:
+        configuration["runtime_before"] = report.runtime_before.model_dump()
     return sha256(json.dumps(configuration, sort_keys=True).encode()).hexdigest()
 
 
@@ -90,11 +92,23 @@ def _case_html(key: str, result: CompletedResultModel, number: int, pdf_document
         f"<h4>{_location(item.document, item.page, pdf_document, pdf_uri)}</h4>{_text(item.quote)}"
         for item in result.case.evidence
     ) or "<p>No evidence label; inspect the paper to confirm unanswerability.</p>"
+    if result.claim_evidence is None:
+        accepted = "<p>Unknown: this report did not capture accepted claim evidence.</p>"
+    elif not result.claim_evidence:
+        accepted = "<p>No claims were approved by the grounding verifier.</p>"
+    else:
+        accepted = "".join(
+            f"<h4>{escape(claim.attribution)}</h4>{_text(claim.text)}" + "".join(
+                f"<p>Passage {quote.source_index + 1}</p>{_text(quote.quote)}"
+                for quote in claim.citations
+            ) for claim in result.claim_evidence
+        )
     return (
         f'<article id="case-{number}"><h2>{escape(key)}</h2>'
         f'<p>Original paper: <a href="{escape(pdf_uri, quote=True)}" target="_blank" '
         f'rel="noopener">{escape(pdf_document)}</a></p><h3>Question</h3>{_text(result.case.question)}'
         f"<h3>Recorded answer</h3>{_text(result.answer)}"
+        f"<h3>Machine-approved claim evidence</h3>{accepted}"
         f"<h3>Retrieved passages</h3>{sources}"
         f"<details><summary>Reference label ({label}) — review this too</summary>"
         f"{_text(result.case.reference_answer)}{evidence}</details></article>"

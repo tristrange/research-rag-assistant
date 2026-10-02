@@ -8,7 +8,8 @@ from typing import cast
 import unittest
 from unittest.mock import Mock, patch
 
-from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, summarize
+from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer, Judge, summarize
+from app.llm.telemetry import observe_call
 from app.judge_calibration import CalibrationReport
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import EVALUATOR_PROMPT_SHA256, ReportModel, _new_report
@@ -188,6 +189,36 @@ class EvaluateReplayTests(unittest.TestCase):
         self.assertEqual(saved["status"], "failed")
         self.assertIsNone(saved["metrics"])
         self.assertEqual(self.path.read_bytes(), original)
+
+    def test_final_runtime_failure_does_not_duplicate_successful_judge_calls(self) -> None:
+        original = self.path.read_bytes()
+        calibration = CalibrationReport(version="2", passed=True, results=[])
+
+        def successful_judge(generated: GeneratedCaseAnswer, judge: Judge) -> CaseEvaluation:
+            with observe_call("chat", self.protocol.judge_model) as call:
+                pass
+            assert call is not None
+            return {**self.result, "case": generated["case"], "judge_calls": [call.model_dump()]}
+
+        runtime = {"ollama_version": "test"}
+        for index, final_check in enumerate([{"ollama_version": "changed"}, ValueError("runtime unavailable")]):
+            output = self.root / f"runtime-failure-{index}.json"
+            with (self.subTest(final_check=final_check),
+                  patch("scripts.evaluate_grounding_replays.run_calibration", return_value=calibration),
+                  patch("scripts.evaluate_grounding_replays.judge_case_answer", side_effect=successful_judge),
+                  patch("scripts.evaluate_grounding_replays.judge_runtime", side_effect=[runtime, final_check]),
+                  self.assertRaises(ValueError)):
+                evaluate(self.manifest, self.root, [self.path], output, protocol=self.protocol,
+                         generation_record=self.record)
+            saved = json.loads(output.read_text())
+            self.assertEqual(saved["status"], "failed")
+            self.assertIsNone(saved["metrics"])
+            self.assertEqual(len(saved["results"]), 1)
+            calls = saved["results"][0]["judge_calls"]
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0]["status"], "complete")
+            self.assertEqual(saved["failed_calls"], [])
+            self.assertEqual(self.path.read_bytes(), original)
 
     def test_changed_prompt_or_candidate_is_rejected(self) -> None:
         for key, value in [("generator_prompt_sha256", "b" * 64),

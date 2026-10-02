@@ -76,16 +76,22 @@ shows recorded answers and every retrieved passage, with reference labels in a
 separate expandable section. Model-judge scores are omitted. Paper PDFs and the
 packet stay in ignored local directories; do not commit them.
 
-The current answer reports do not retain the original structured draft or
+The frozen September answer reports do not retain the original structured draft or
 selected quote for each claim. This packet can assess displayed page references
 against returned passages and the PDF, but cannot reconstruct the original
 quote-level verification. A cited page may match multiple passages. Exposing
-the selected evidence is part of the separate evidence-display milestone.
+the selected evidence in the UI is part of the separate evidence-display milestone.
+New schema-v3 reports retain final approved claims and selected quotes, and new
+review packets display them separately from retrieved passages. They do not
+reconstruct missing approvals in the frozen reports. See the
+[evaluation report format](evaluation-report-format.md).
 
 The recorded answer configuration hash is
 `7851218bd54bbee9fe17a63f4aec70125d637596547e3272554948c12b31308e`.
 It binds model tags and report settings, including the grounding prompt/schema
-fingerprint, embedding model, and reranker. It does not pin model weight digests.
+fingerprint, embedding model, and reranker. This historical hash does not pin model
+weight digests. New review configurations also bind the initial runtime snapshot
+when captured; the frozen manifest and its old reports remain unchanged.
 The exporter rejects reports with a different configuration even when their
 file hashes match the selection manifest.
 

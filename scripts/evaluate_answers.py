@@ -31,6 +31,7 @@ from app.grounding import (
 )
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_THINK, JUDGE_MODEL, MODEL, Thinking, generate_json
+from app.llm.telemetry import ModelCall, RuntimeSnapshot, capture_calls, runtime_snapshot
 from app.retrieval import CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
 from app.prompts import answer_prompt
@@ -39,7 +40,7 @@ from scripts.answer_quality_cases import ANSWER_CASES, PAPER_SHA256
 from scripts.compare_reranking import CorpusSnapshot, snapshot
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 EVALUATOR_VERSION = "9"
 
 
@@ -129,6 +130,29 @@ class SourceModel(StrictModel):
     section: str = "unknown"
 
 
+class AcceptedQuoteModel(StrictModel):
+    source_index: int = Field(ge=0)
+    quote: str = Field(min_length=1)
+
+
+class AcceptedClaimModel(StrictModel):
+    text: str = Field(min_length=1)
+    attribution: Literal["this_document_authors", "external_publication", "non_study_context"]
+    citations: list[AcceptedQuoteModel] = Field(min_length=1)
+
+
+def validate_claim_sources(claims: list[AcceptedClaimModel] | None, sources: list[SourceModel]) -> None:
+    """Check stored quote bindings, without rerunning semantic verification."""
+    for claim in claims or []:
+        for citation in claim.citations:
+            if citation.source_index >= len(sources):
+                raise ValueError("accepted quote source_index is outside the returned sources")
+            quote = " ".join(citation.quote.split())
+            passage = " ".join(sources[citation.source_index].text.split())
+            if not quote or quote not in passage:
+                raise ValueError("accepted quote is not an exact source substring")
+
+
 class GeneratedAnswerModel(StrictModel):
     case: CaseModel
     answer: str
@@ -136,6 +160,9 @@ class GeneratedAnswerModel(StrictModel):
     evidence_found: list[bool]
     evidence_recall: float | None = Field(default=None, ge=0, le=1)
     answer_ms: float = Field(ge=0)
+    # None means unknown/not captured, unlike a captured empty list.
+    claim_evidence: list[AcceptedClaimModel] | None = None
+    answer_calls: list[ModelCall] | None = None
 
     @model_validator(mode="after")
     def validate_evidence_shape(self) -> "GeneratedAnswerModel":
@@ -144,6 +171,7 @@ class GeneratedAnswerModel(StrictModel):
         expected = sum(self.evidence_found) / len(self.evidence_found) if self.evidence_found else None
         if self.evidence_recall != expected:
             raise ValueError("evidence_recall does not match evidence_found")
+        validate_claim_sources(self.claim_evidence, self.sources)
         return self
 
 
@@ -159,6 +187,7 @@ class CompletedResultModel(GeneratedAnswerModel):
     judge: StoredJudgeModel
     judge_ms: float = Field(ge=0)
     passed: bool
+    judge_calls: list[ModelCall] | None = None
 
 
 class CorpusModel(StrictModel):
@@ -235,7 +264,7 @@ class MetricsModel(StrictModel):
 
 
 class ReportModel(StrictModel):
-    schema_version: Literal[2]
+    schema_version: Literal[2, 3]
     status: Literal["running", "failed", "calibration_failed", "complete"]
     started_at: str
     finished_at: str | None = None
@@ -260,6 +289,12 @@ class ReportModel(StrictModel):
     metrics: MetricsModel | None
     results: list[CompletedResultModel]
     pending: GeneratedAnswerModel | None
+    runtime_before: RuntimeSnapshot | None = None
+    runtime_after: RuntimeSnapshot | None = None
+    resume_runtime: RuntimeSnapshot | None = None
+    calibration_calls: list[ModelCall] | None = None
+    failed_stage: Literal["calibration", "answer", "judge", "runtime_check"] | None = None
+    failed_calls: list[ModelCall] | None = None
 
     @model_validator(mode="after")
     def validate_run_shape(self) -> "ReportModel":
@@ -408,6 +443,7 @@ def validate_resume_consistency(
     answer_mode: str = "plain",
     *, paper_sha256: str | None = None, benchmark: BenchmarkMetadata | None = None,
     top_k: int | None = None,
+    runtime: RuntimeSnapshot | None = None,
 ) -> None:
     expected: dict[str, tuple[object, object]] = {
         "corpus": (saved.corpus.model_dump(), corpus),
@@ -433,6 +469,21 @@ def validate_resume_consistency(
             raise ValueError(f"Cannot resume because case {completed.case.id!r} changed")
     if saved.pending is not None and saved.pending.case.model_dump() != current_cases[saved.pending.case.id]:
         raise ValueError(f"Cannot resume because pending case {saved.pending.case.id!r} changed")
+    for observed in (saved.runtime_before, saved.runtime_after, saved.resume_runtime):
+        if observed is not None:
+            validate_runtime(observed, runtime, require_known=True)
+
+
+def validate_runtime(before: RuntimeSnapshot, after: RuntimeSnapshot | None, *, require_known: bool = False) -> None:
+    """Reject observed identity changes; a resume must recheck known identities."""
+    expected: dict[str, str | None] = {"Ollama version": before.ollama_version, **before.model_digests}
+    current: dict[str, str | None] = ({"Ollama version": after.ollama_version, **after.model_digests}
+                                     if after is not None else {})
+    changed = [name for name, value in expected.items()
+               if value is not None and current.get(name) != value
+               and (require_known or current.get(name) is not None)]
+    if changed:
+        raise ValueError("Ollama model/runtime identity changed or could not be rechecked: " + ", ".join(changed))
 
 
 def _new_report(
@@ -440,6 +491,7 @@ def _new_report(
     strategy: str, reranker_model: str | None, answer_mode: str = "plain",
     *, paper_sha256: str | None = None, benchmark: BenchmarkMetadata | None = None,
     top_k: int | None = None,
+    runtime: RuntimeSnapshot | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION, "status": "running", "started_at": now.isoformat(),
@@ -473,6 +525,9 @@ def _new_report(
         ),
         "requested_case_ids": [case["id"] for case in cases],
         "metrics": None, "results": [], "pending": None,
+        "runtime_before": runtime.model_dump() if runtime is not None else None,
+        "runtime_after": None, "resume_runtime": None,
+        "calibration_calls": None, "failed_stage": None, "failed_calls": None,
     }
 
 
@@ -483,7 +538,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path,
                         help="new JSON report path; defaults to evaluation-results/answers-TIMESTAMP.json")
     parser.add_argument("--resume", type=Path,
-                        help="resume a schema-v2 report into a new output without changing the original")
+                        help="resume a schema-v2/v3 report into a new output without changing the original")
     parser.add_argument("--benchmark", type=Path, help="JSON benchmark manifest; omit for the legacy sample development set")
     parser.add_argument("--pdf", type=Path, help="local PDF; required with --benchmark, otherwise defaults to data/sample.pdf")
     parser.add_argument("--validate-only", action="store_true", help="check PDF fingerprint and labels without database or model calls")
@@ -574,19 +629,23 @@ def main() -> None:
     from app.retrieval.rerank import MODEL_NAME
 
     reranker_model = None if strategy == "vector" else MODEL_NAME
+    runtime_models = [GROUNDING_MODEL if answer_mode == "verified" else MODEL, JUDGE_MODEL, EMBEDDING_MODEL]
+    current_runtime = runtime_snapshot(runtime_models)
     if saved is None:
         report = ReportModel.model_validate(
             _new_report(now, before, cases, strategy, reranker_model, answer_mode,
-                        paper_sha256=paper_hash, benchmark=benchmark, top_k=top_k)
+                        paper_sha256=paper_hash, benchmark=benchmark, top_k=top_k, runtime=current_runtime)
         ).model_dump()
     else:
         validate_resume_consistency(saved, cases, before, strategy, reranker_model, answer_mode,
-                                    paper_sha256=paper_hash, benchmark=benchmark, top_k=top_k)
+                                    paper_sha256=paper_hash, benchmark=benchmark, top_k=top_k, runtime=current_runtime)
         report = cast(dict[str, object], saved.model_dump())
         report = {
             **report,
             "status": "running", "finished_at": None, "resumed_from": str(args.resume),
             "error": None, "metrics": None, "calibration": None,
+            "schema_version": SCHEMA_VERSION, "resume_runtime": current_runtime.model_dump(),
+            "runtime_after": None, "calibration_calls": None, "failed_stage": None, "failed_calls": None,
         }
 
     try:
@@ -594,10 +653,14 @@ def main() -> None:
     except ValueError as error:
         parser.error(str(error))
     save_report(output, report)
+    active_calls: list[ModelCall] = []
+    stage: Literal["calibration", "answer", "judge", "runtime_check"] = "calibration"
     try:
         print("Checking the judge against known calibration examples...", flush=True)
-        calibration = CalibrationModel.model_validate(run_calibration(generate_json)).model_dump()
-        report = {**report, "calibration": calibration}
+        with capture_calls() as active_calls:
+            calibration = CalibrationModel.model_validate(run_calibration(generate_json)).model_dump()
+        report = {**report, "calibration": calibration,
+                  "calibration_calls": [call.model_dump() for call in active_calls]}
         save_report(output, report)
         if not calibration["passed"]:
             report = {
@@ -616,14 +679,23 @@ def main() -> None:
             print(f"Evaluating {index + 1}/{len(cases)}: {case['id']}...", flush=True)
             pending = cast(GeneratedCaseAnswer | None, report["pending"])
             if pending is None:
-                pending = generate_case_answer(case, answer)
+                stage = "answer"
+                with capture_calls() as active_calls:
+                    pending = generate_case_answer(case, answer)
                 report = {**report, "pending": pending}
                 save_report(output, report)
-            result = judge_case_answer(pending, generate_json)
+            stage = "judge"
+            with capture_calls() as active_calls:
+                result = judge_case_answer(pending, generate_json)
             results = [*cast(list[CaseEvaluation], report["results"]), result]
             report = {**report, "results": results, "pending": None}
             save_report(output, report)
             print_result(result)
+        stage = "runtime_check"
+        active_calls = []
+        final_runtime = runtime_snapshot(runtime_models)
+        report = {**report, "runtime_after": final_runtime.model_dump()}
+        validate_runtime(current_runtime, final_runtime)
         if snapshot(document) != before:
             raise RuntimeError("The index changed during evaluation; results are invalid")
         results = cast(list[CaseEvaluation], report["results"])
@@ -634,6 +706,7 @@ def main() -> None:
             "status": "failed",
             "error": f"{type(error).__name__}: {error}",
             "metrics": None,
+            "failed_stage": stage, "failed_calls": [call.model_dump() for call in active_calls],
         }
         raise
     finally:

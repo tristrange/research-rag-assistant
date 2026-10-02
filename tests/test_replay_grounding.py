@@ -7,7 +7,8 @@ from typing import cast
 import unittest
 from unittest.mock import Mock, patch
 
-from app.types import ChunkData
+from app.llm.telemetry import RuntimeSnapshot
+from app.types import AnswerClaim, ChunkData
 from scripts.replay_grounding import main
 
 
@@ -47,6 +48,12 @@ def saved_report() -> Mock:
 
 
 class ReplayGroundingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        runtime = patch("scripts.replay_grounding.runtime_snapshot",
+                        return_value=RuntimeSnapshot(ollama_version=None, model_digests={}))
+        runtime.start()
+        self.addCleanup(runtime.stop)
+
     def test_unknown_case_id_is_rejected_before_output_reservation(self) -> None:
         with TemporaryDirectory() as directory:
             output = Path(directory) / "replay.json"
@@ -94,11 +101,17 @@ class ReplayGroundingTests(unittest.TestCase):
             sources: list[ChunkData],
             *,
             trace: list[dict[str, object]] | None = None,
+            claim_evidence: list[AnswerClaim] | None = None,
         ) -> str:
             self.assertEqual(question, CASE["question"])
             self.assertEqual(sources, [SOURCE])
             self.assertIsNotNone(trace)
             cast(list[dict[str, object]], trace).extend(trace_entries)
+            self.assertIsNotNone(claim_evidence)
+            cast(list[AnswerClaim], claim_evidence).append({
+                "text": "The response increased.", "attribution": "this_document_authors",
+                "citations": [{"source_index": 0, "quote": SOURCE["text"]}],
+            })
             return "The response increased. (paper.pdf, page 2)"
 
         with TemporaryDirectory() as directory:
@@ -120,6 +133,9 @@ class ReplayGroundingTests(unittest.TestCase):
             item = report["results"][0]
             self.assertEqual(item["trace"], trace_entries)
             self.assertEqual(item["answer"], "The response increased. (paper.pdf, page 2)")
+            self.assertEqual(item["claim_evidence"][0]["citations"][0]["source_index"], 0)
+            self.assertEqual(item["answer_calls"], [])
+            self.assertEqual(report["schema_version"], 2)
             self.assertGreaterEqual(item["elapsed_ms"], 0)
 
     def test_replay_preserves_nondefault_source_cutoffs(self) -> None:
@@ -152,6 +168,7 @@ class ReplayGroundingTests(unittest.TestCase):
             sources: list[ChunkData],
             *,
             trace: list[dict[str, object]] | None = None,
+            claim_evidence: list[AnswerClaim] | None = None,
         ) -> str:
             self.assertIsNotNone(trace)
             cast(list[dict[str, object]], trace).append(trace_entry)
@@ -177,6 +194,8 @@ class ReplayGroundingTests(unittest.TestCase):
             item = report["results"][0]
             self.assertEqual(item["trace"], [trace_entry])
             self.assertNotIn("answer", item)
+            self.assertNotIn("claim_evidence", item)
+            self.assertEqual(item["answer_calls"], [])
             self.assertGreaterEqual(item["elapsed_ms"], 0)
 
 

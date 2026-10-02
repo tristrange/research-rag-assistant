@@ -579,6 +579,10 @@ that review or approve a release.
 
 ## Answer-quality evaluation
 
+New reports preserve accepted claim evidence, per-call inference timings, and
+Ollama model/runtime identities. See the [report format and legacy compatibility](docs/evaluation-report-format.md)
+for what each field means and how resume handles older reports.
+
 The [first comparison on the second paper](docs/housing-model-comparison.md)
 compares Qwen3 8B, GPT-OSS 20B and Qwen3 Coder 30B with identical retrieved evidence.
 GPT-OSS refused where both Qwen models gave unsupported answers, but grader and
@@ -765,8 +769,10 @@ uv run python -m scripts.evaluate_answers \
 Resume keeps the original report, skips completed cases, and reuses a saved pending
 answer instead of regenerating it. Calibration runs again before work continues.
 The source paper, corpus, cases, model names, settings, and evaluator version must
-match; incompatible or malformed reports are rejected. Model names do not pin
-Ollama model weights: keep the installed models unchanged between attempts.
+match; incompatible or malformed reports are rejected. New reports also record
+Ollama weight digests and runtime versions, and resume rechecks previously known
+identities. Missing metadata in older reports remains unknown; keep installed
+models unchanged when resuming those reports.
 Reports from the old schema (version 1), or older evaluations without recorded
 thinking settings or the generator prompt fingerprint, cannot be resumed; start
 a new run for them. Changing either prompt or thinking settings also requires a

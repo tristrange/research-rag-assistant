@@ -6,9 +6,10 @@ from pathlib import Path
 from time import perf_counter
 from typing import cast
 
-from app.grounding import grounded_answer
-from app.types import ChunkData
-from scripts.evaluate_answers import load_report, reserve_output, save_report, settings_for
+from app.grounding import GROUNDING_MODEL, grounded_answer
+from app.llm.telemetry import capture_calls, runtime_snapshot
+from app.types import AnswerClaim, ChunkData
+from scripts.evaluate_answers import load_report, reserve_output, save_report, settings_for, validate_runtime
 
 
 def main() -> None:
@@ -22,11 +23,14 @@ def main() -> None:
     if not cases or (args.ids and set(args.ids) != {r.case.id for r in cases}):
         parser.error("Selected case IDs must exist in the saved results")
     reserve_output(args.output)
+    before = runtime_snapshot([GROUNDING_MODEL])
     results: list[dict[str, object]] = []
     report: dict[str, object] = {
+        "schema_version": 2,
         "status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
         "source_report": str(args.report), "corpus": saved.corpus.model_dump(),
         "settings": settings_for(saved.settings.strategy, "verified", saved.settings.top_k), "results": results,
+        "runtime_before": before.model_dump(), "runtime_after": None,
         "methodology": "Fixed saved sources; new grounding only, no retrieval or evaluation judge. Inspect traces manually.",
     }
     save_report(args.output, report)
@@ -37,14 +41,23 @@ def main() -> None:
                                       "sources": [s.model_dump() for s in result.sources], "trace": trace}
             results.append(item)
             start = perf_counter()
-            try:
-                answer = grounded_answer(result.case.question,
-                    [cast(ChunkData, s.model_dump()) for s in result.sources], trace=trace)
-                item["answer"] = answer
-                print(result.case.id + ": " + answer, flush=True)
-            finally:
-                item["elapsed_ms"] = (perf_counter() - start) * 1000
-                save_report(args.output, report)
+            claims: list[AnswerClaim] = []
+            # Save failed-call timing too, but never expose draft evidence as accepted.
+            with capture_calls() as calls:
+                try:
+                    answer = grounded_answer(result.case.question,
+                        [cast(ChunkData, s.model_dump()) for s in result.sources],
+                        trace=trace, claim_evidence=claims)
+                    item["answer"] = answer
+                    item["claim_evidence"] = claims
+                    print(result.case.id + ": " + answer, flush=True)
+                finally:
+                    item["elapsed_ms"] = (perf_counter() - start) * 1000
+                    item["answer_calls"] = [call.model_dump() for call in calls]
+                    save_report(args.output, report)
+        after = runtime_snapshot([GROUNDING_MODEL])
+        report["runtime_after"] = after.model_dump()
+        validate_runtime(before, after)
         report["status"] = "complete"
     except (Exception, KeyboardInterrupt) as error:
         report["status"] = "failed"
