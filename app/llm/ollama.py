@@ -5,6 +5,7 @@ import httpx
 
 from app.config import GENERATOR_MODEL, JUDGE_MODEL as JUDGE_MODEL
 from app.llm.errors import OllamaResponseError, response_object
+from app.llm.telemetry import observe_call, record_metadata
 
 
 Thinking = bool | Literal["low", "medium", "high"]
@@ -62,26 +63,30 @@ def chat(
     if think is not None:
         payload["think"] = think
 
-    response = httpx.post(
-        OLLAMA_URL,
-        json=payload,
-        timeout=timeout_seconds if timeout_seconds is not None else default_timeout(think),
-    )
+    requested_model = model or MODEL
+    with observe_call("chat", requested_model) as call:
+        response = httpx.post(
+            OLLAMA_URL,
+            json=payload,
+            timeout=timeout_seconds if timeout_seconds is not None else default_timeout(think),
+        )
 
-    response.raise_for_status()
+        response.raise_for_status()
 
-    data = response_object(response, "chat")
-    if "done" in data and data["done"] is not True:
-        raise OllamaResponseError("chat")
-    if "done_reason" in data and not isinstance(data["done_reason"], str):
-        raise OllamaResponseError("chat")
-    message = data.get("message")
-    if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-        raise OllamaResponseError("chat")
-    if data.get("done_reason") == "length":
-        raise OllamaOutputLimitError("Ollama exhausted the output token budget before completing the response")
-    # A string can still fail the grounding content schema; that is handled there.
-    return cast(str, message["content"])
+        data = response_object(response, "chat")
+        if call is not None:
+            record_metadata(call, data)
+        if "done" in data and data["done"] is not True:
+            raise OllamaResponseError("chat")
+        if "done_reason" in data and not isinstance(data["done_reason"], str):
+            raise OllamaResponseError("chat")
+        message = data.get("message")
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            raise OllamaResponseError("chat")
+        if data.get("done_reason") == "length":
+            raise OllamaOutputLimitError("Ollama exhausted the output token budget before completing the response")
+        # A string can still fail the grounding content schema; that is handled there.
+        return cast(str, message["content"])
 
 
 def generate(prompt: str) -> str:

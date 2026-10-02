@@ -14,6 +14,7 @@ from typing import Any, cast
 import unittest
 from unittest.mock import Mock, patch
 
+import httpx
 from app.answer_evaluation import (
     AnswerEvaluationCase,
     CaseEvaluation,
@@ -29,7 +30,8 @@ from app.grounding import (
     VERIFIER_THINK,
 )
 from app.judge_calibration import CALIBRATION_VERSION
-from app.llm.ollama import MODEL
+from app.llm.ollama import MODEL, OLLAMA_URL, generate
+from app.llm.telemetry import RuntimeSnapshot
 from app.retrieval.rerank import MODEL_NAME
 from app.types import ChunkData, PageData
 from scripts.answer_quality_cases import ANSWER_CASES
@@ -104,6 +106,8 @@ class AnswerRunnerTests(unittest.TestCase):
         self.pages = [PageData(document="paper.pdf", page=1, text="The response increased.")]
 
     def patch_preflight(self, stack: ExitStack, *, calibration_passed: bool = True) -> Mock:
+        stack.enter_context(patch("scripts.evaluate_answers.runtime_snapshot",
+                                  return_value=RuntimeSnapshot(ollama_version=None, model_digests={})))
         stack.enter_context(patch("pathlib.Path.read_bytes", return_value=b"paper"))
         stack.enter_context(patch("scripts.evaluate_answers.PAPER_SHA256", sha256(b"paper").hexdigest()))
         stack.enter_context(patch("scripts.evaluate_answers.extract_pages", return_value=self.pages))
@@ -170,6 +174,29 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertEqual(report["pending"], generated)
             self.assertEqual(report["results"], [])
             self.assertIsNone(report["metrics"])
+
+    def test_failed_generation_retains_provider_timing_without_answer_evidence(self) -> None:
+        case = ANSWER_CASES[0]
+        error = httpx.ReadTimeout("private failure text", request=httpx.Request("POST", OLLAMA_URL))
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory) / "failed.json"
+            stack.enter_context(patch("sys.argv", ["evaluate_answers", "--case", case["id"], "--output", str(output)]))
+            self.patch_preflight(stack)
+            stack.enter_context(patch("app.rag.answer_question", side_effect=lambda question, **kwargs: generate(question)))
+            stack.enter_context(patch("app.llm.ollama.httpx.post", side_effect=error))
+            with redirect_stdout(io.StringIO()), self.assertRaises(httpx.ReadTimeout):
+                main()
+            report = load_report(output)
+        self.assertEqual(report.status, "failed")
+        self.assertEqual(report.failed_stage, "answer")
+        self.assertIsNone(report.pending)
+        self.assertIsNone(report.metrics)
+        self.assertIsNotNone(report.failed_calls)
+        calls = report.failed_calls or []
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].status, "failed")
+        self.assertGreaterEqual(calls[0].elapsed_ms, 0)
+        self.assertNotIn("private failure text", calls[0].model_dump_json())
 
     def test_resume_reuses_pending_answer_and_preserves_original_report(self) -> None:
         first, second = ANSWER_CASES[:2]

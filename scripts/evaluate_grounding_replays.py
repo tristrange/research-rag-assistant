@@ -17,10 +17,11 @@ from app.answer_evaluation import (
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.config import GroundingSampling
 from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, Thinking, generate_json
-from app.types import ChunkData
+from app.llm.telemetry import ModelCall, RuntimeSnapshot, capture_calls
+from app.types import AnswerClaim, ChunkData
 from scripts.evaluate_answers import (
-    CaseModel, CorpusModel, EVALUATOR_PROMPT_SHA256, ReportModel, SettingsModel,
-    SourceModel, StrictModel, reserve_output, save_report,
+    AcceptedClaimModel, CaseModel, CorpusModel, EVALUATOR_PROMPT_SHA256, ReportModel, SettingsModel,
+    SourceModel, StrictModel, reserve_output, save_report, validate_claim_sources,
 )
 from scripts.prepare_human_review import ReviewManifest, configuration_hash, review_set_hash
 
@@ -31,9 +32,17 @@ class ReplayCase(StrictModel):
     trace: list[dict[str, object]]
     answer: str
     elapsed_ms: float = Field(ge=0)
+    claim_evidence: list[AcceptedClaimModel] | None = None
+    answer_calls: list[ModelCall] | None = None
+
+    @model_validator(mode="after")
+    def validate_evidence(self) -> "ReplayCase":
+        validate_claim_sources(self.claim_evidence, self.sources)
+        return self
 
 
 class CompletedReplay(StrictModel):
+    schema_version: Literal[1, 2] = 1
     status: Literal["complete"]
     started_at: str
     finished_at: str
@@ -42,6 +51,8 @@ class CompletedReplay(StrictModel):
     settings: SettingsModel
     methodology: str
     results: list[ReplayCase] = Field(min_length=1)
+    runtime_before: RuntimeSnapshot | None = None
+    runtime_after: RuntimeSnapshot | None = None
 
 
 class CandidateConfig(StrictModel):
@@ -202,6 +213,11 @@ def load_inputs(
                 case=case, answer=item.answer, sources=sources,
                 evidence_found=found, evidence_recall=sum(found) / len(found) if found else None,
                 answer_ms=item.elapsed_ms,
+                claim_evidence=cast(list[AnswerClaim] | None,
+                                    [claim.model_dump() for claim in item.claim_evidence]
+                                    if item.claim_evidence is not None else None),
+                answer_calls=[call.model_dump() for call in item.answer_calls]
+                             if item.answer_calls is not None else None,
             ))
         provenance.append({
             "replay": str(path), "sha256": sha256(replay_bytes).hexdigest(),
@@ -232,6 +248,7 @@ def evaluate(
     reserve_output(output)
     results: list[CaseEvaluation] = []
     report: dict[str, object] = {
+        "schema_version": 2,
         "status": "running", "error": None, "started_at": datetime.now(timezone.utc).isoformat(),
         "protocol": protocol.model_dump(),
         "generation_record": attestation, "judge_runtime": runtime,
@@ -241,21 +258,26 @@ def evaluate(
         "evaluator_prompt_sha256": EVALUATOR_PROMPT_SHA256,
         "calibration_version": CALIBRATION_VERSION, "calibration": None,
         "requested_case_ids": [item["case"]["id"] for item in generated],
+        "calibration_calls": None, "failed_calls": None,
         "results": results, "metrics": None,
         "methodology": "Saved answers only; no generation or retrieval. Fixed judge and inspected "
                        "development labels, not independent human review. Answer timing excludes retrieval.",
     }
     save_report(output, report)
+    calls: list[ModelCall] = []
     try:
-        calibration = run_calibration(generate_json)
+        with capture_calls() as calls:
+            calibration = run_calibration(generate_json)
         report["calibration"] = calibration
+        report["calibration_calls"] = [call.model_dump() for call in calls]
         save_report(output, report)
         if not calibration["passed"]:
             report["status"] = "calibration_failed"
             report["error"] = "Judge calibration failed"
             raise SystemExit("Judge calibration failed; no answer metrics published")
         for item in generated:
-            result = judge_case_answer(item, generate_json)
+            with capture_calls() as calls:
+                result = judge_case_answer(item, generate_json)
             results.append(result)
             save_report(output, report)
             print(f"Judged {item['case']['id']}: abstained={result['abstained']}", flush=True)
@@ -266,6 +288,7 @@ def evaluate(
     except (Exception, KeyboardInterrupt) as error:
         report["status"] = "failed"
         report["error"] = f"{type(error).__name__}: {error}"
+        report["failed_calls"] = [call.model_dump() for call in calls]
         raise
     finally:
         report["finished_at"] = datetime.now(timezone.utc).isoformat()

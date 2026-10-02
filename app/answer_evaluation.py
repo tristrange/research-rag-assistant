@@ -5,12 +5,13 @@ from statistics import mean
 import json
 import re
 from time import perf_counter
-from typing import Annotated, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.grounding import INSUFFICIENT_EVIDENCE
-from app.types import AnswerResult, ChunkData
+from app.llm.telemetry import capture_calls
+from app.types import AnswerClaim, AnswerResult, ChunkData
 
 
 # Whole-response matches only. Never match a prefix or discard explanatory text.
@@ -119,6 +120,9 @@ class CaseEvaluation(TypedDict):
     answer_ms: float
     judge_ms: float
     passed: bool
+    claim_evidence: NotRequired[list[AnswerClaim] | None]
+    answer_calls: NotRequired[list[dict[str, object]] | None]
+    judge_calls: NotRequired[list[dict[str, object]] | None]
 
 
 class GeneratedCaseAnswer(TypedDict):
@@ -130,6 +134,8 @@ class GeneratedCaseAnswer(TypedDict):
     evidence_found: list[bool]
     evidence_recall: float | None
     answer_ms: float
+    claim_evidence: NotRequired[list[AnswerClaim] | None]
+    answer_calls: NotRequired[list[dict[str, object]] | None]
 
 
 class AnswerMetrics(TypedDict):
@@ -211,7 +217,8 @@ Evaluation data (JSON):
 
 def generate_case_answer(case: AnswerEvaluationCase, answer: Answer) -> GeneratedCaseAnswer:
     started = perf_counter()
-    result = answer(case["question"])
+    with capture_calls() as calls:
+        result = answer(case["question"])
     answered = perf_counter()
     found = [evidence_found(label, result["sources"]) for label in case["evidence"]]
     evidence_recall = mean(float(value) for value in found) if found else None
@@ -222,6 +229,8 @@ def generate_case_answer(case: AnswerEvaluationCase, answer: Answer) -> Generate
         "evidence_found": found,
         "evidence_recall": evidence_recall,
         "answer_ms": (answered - started) * 1000,
+        "claim_evidence": result.get("claim_evidence"),
+        "answer_calls": [call.model_dump() for call in calls],
     }
 
 
@@ -259,7 +268,8 @@ def score_answer(case: AnswerEvaluationCase, result: AnswerResult, judge: Judge)
 def judge_case_answer(generated: GeneratedCaseAnswer, judge: Judge) -> CaseEvaluation:
     result = AnswerResult(answer=generated["answer"], sources=generated["sources"])
     judging_started = perf_counter()
-    scores = score_answer(generated["case"], result, judge)
+    with capture_calls() as calls:
+        scores = score_answer(generated["case"], result, judge)
     case = generated["case"]
     judged = perf_counter()
     abstained = scores.abstained
@@ -284,6 +294,7 @@ def judge_case_answer(generated: GeneratedCaseAnswer, judge: Judge) -> CaseEvalu
         },
         "judge_ms": (judged - judging_started) * 1000,
         "passed": passed,
+        "judge_calls": [call.model_dump() for call in calls],
     }
 
 
