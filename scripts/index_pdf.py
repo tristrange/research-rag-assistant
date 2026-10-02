@@ -9,6 +9,7 @@ from app.db.models import Chunk
 from app.embeddings import embed_text
 from app.ingestion.chunking import chunk_pages
 from app.ingestion.pdf import extract_pages
+from app.llm.errors import OllamaResponseError
 
 
 PDF_PATH = "data/sample.pdf"
@@ -80,7 +81,10 @@ def main() -> None:
     args = parser.parse_args()
     if not args.pdf.is_file() or args.pdf.suffix.lower() != ".pdf":
         parser.error("PDF must be an existing regular file with a .pdf extension")
-    count = index_pdf(str(args.pdf), progress=print_progress)
+    try:
+        count = index_pdf(str(args.pdf), progress=print_progress)
+    except OllamaResponseError as error:
+        parser.exit(status=1, message=f"{error}\nThe existing index was not replaced.\n")
     print(f"Indexed {count} chunks from {args.pdf.name}", flush=True)
 
 

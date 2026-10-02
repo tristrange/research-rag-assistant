@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
+from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
@@ -42,6 +43,12 @@ async def database_error(request: Request, error: SQLAlchemyError) -> JSONRespon
 @app.exception_handler(OllamaOutputLimitError)
 async def output_limit_error(request: Request, error: OllamaOutputLimitError) -> JSONResponse:
     return service_error(502, "model_output_limit", "The model exhausted its output budget before completing the answer check. Try a narrower question; if this repeats, review RAG_GROUNDING_OUTPUT_TOKENS.")
+
+
+@app.exception_handler(OllamaResponseError)
+async def invalid_model_response(request: Request, error: OllamaResponseError) -> JSONResponse:
+    activity = "embedding" if error.operation == "embedding" else "chat"
+    return service_error(502, "model_invalid_response", f"Ollama returned an invalid {activity} response. Check Ollama's logs and model compatibility, then try again.")
 
 
 @app.exception_handler(httpx.HTTPError)
