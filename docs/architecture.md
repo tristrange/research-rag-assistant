@@ -30,7 +30,10 @@ the corpus.
 
 ## Ingestion and stored data
 
-[`scripts.index_pdf`](../scripts/index_pdf.py) extracts text with PyMuPDF and
+[`app.ingestion.indexing`](../app/ingestion/indexing.py) owns extraction, chunking,
+embedding and atomic replacement. [`scripts.index_pdf`](../scripts/index_pdf.py)
+handles terminal arguments, progress output and error messages, and delegates to
+the shared application function. The workflow extracts text with PyMuPDF and
 retains the PDF's one-based page number. The chunker preserves document, page,
 chunk index and recognized section. Its normal target is 500 characters with
 100-character overlap, preferring sentence and whitespace boundaries. It does

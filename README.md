@@ -102,7 +102,8 @@ The terminal reports PDF reading, chunk preparation, completed embeddings out of
 the total chunk count, and index saving. Embedding updates are limited to about
 ten lines per PDF. `Indexed …` appears only after the database transaction commits;
 an embedding count of `N/N` means embedding finished, not that the index is saved.
-The Python `index_pdf()` function remains quiet unless given a `progress` callback.
+The shared `app.ingestion.indexing.index_pdf()` function remains quiet unless given
+a `progress` callback. The terminal command delegates to this application workflow.
 
 Omitting the path retains the `data/sample.pdf` development example. Local PDFs
 are ignored by Git. The [corpus notes](docs/benchmark-corpus.md) record attribution,
