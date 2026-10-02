@@ -281,6 +281,8 @@ def evaluate(
             results.append(result)
             save_report(output, report)
             print(f"Judged {item['case']['id']}: abstained={result['abstained']}", flush=True)
+        # Identity checks do not make inference calls; completed calls belong to results.
+        calls = []
         if judge_runtime(protocol) != runtime:
             raise ValueError("judge/runtime changed while grading")
         report["metrics"] = summarize(results)
