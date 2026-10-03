@@ -12,8 +12,8 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
-from app.db.models import Chunk
-from app.library import IndexedDocument, library_inventory, remove_document
+from app.db.models import Chunk, DocumentIndex
+from app.library import IndexedDocument, document_provenance, library_inventory, remove_document
 from scripts.manage_library import main
 
 
@@ -41,6 +41,29 @@ class LibraryTests(unittest.TestCase):
             IndexedDocument("A.pdf", 1, 1), IndexedDocument("a%_.pdf", 1, 1),
             IndexedDocument("a.pdf", 3, 2), IndexedDocument("other paper.pdf", 1, 1),
         ])
+
+    def test_provenance_inspection_reports_unknown_and_removal_cleans_record(self) -> None:
+        self.assertIsNone(document_provenance("a.pdf"))
+        output = io.StringIO()
+        with patch("sys.argv", ["manage_library", "provenance", "a.pdf"]), redirect_stdout(output):
+            main()
+        self.assertIn("Provenance unknown", output.getvalue())
+        with self.sessions.begin() as db:
+            db.add(DocumentIndex(
+                document="a.pdf", pdf_sha256="a" * 64, embedding_model="nomic-embed-text",
+                embedding_dimensions=768, extraction_version="extract-v1",
+                chunking_version="chunks-v1", chunk_size=500, overlap=100,
+            ))
+        record = document_provenance("a.pdf")
+        assert record is not None
+        self.assertEqual(record["pdf_sha256"], "a" * 64)
+        self.assertEqual(record["embedding_dimensions"], 768)
+        output = io.StringIO()
+        with patch("sys.argv", ["manage_library", "provenance", "a.pdf"]), redirect_stdout(output):
+            main()
+        self.assertIn("embedding_model: nomic-embed-text", output.getvalue())
+        remove_document("a.pdf")
+        self.assertIsNone(document_provenance("a.pdf"))
 
     def test_removal_matches_exact_filename_and_preserves_other_papers(self) -> None:
         self.assertEqual(remove_document("a.pdf"), 3)

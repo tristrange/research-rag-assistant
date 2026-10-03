@@ -22,6 +22,10 @@
       <h2>POST /query</h2>
       <p>Ask a question and receive an answer with retrieved passages. Send JSON with a
         <code>question</code>, and optionally a <code>document</code> or <code>scope</code>.</p>
+      <p>A <code>409 index_incompatible</code> response means the selected papers need
+        reindexing because their embedding provenance is unknown or incompatible.
+        Run <code>uv run python -m scripts.init_db</code>, then
+        <code>uv run python -m scripts.index_pdf &lt;PDF path&gt;</code> for each selected paper.</p>
       <pre><code>curl -X POST http://127.0.0.1:8000/query \
   -H 'Content-Type: application/json' \
   -d '{"question":"What were the main findings?"}'</code></pre>
