@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
 from app.db.database import Base
+from app.db.models import DocumentIndex
 from app.main import app
 from app.service_checks import (
     CHECK_TIMEOUT_SECONDS, OLLAMA_TAGS_URL, ServiceCheck, ServiceStatus,
@@ -35,6 +36,16 @@ class ServiceCheckTests(unittest.TestCase):
         self.assertIn("scripts.init_db", check.message)
         self.assertNotIn("SELECT", check.message)
         dispose.assert_called_once_with()
+
+    def test_schema_probe_requires_the_provenance_table(self) -> None:
+        engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
+        Base.metadata.create_all(engine)
+        DocumentIndex.__table__.drop(engine)
+        with patch("app.service_checks.create_engine", return_value=engine):
+            check = check_database()
+        self.assertEqual(check.status, "error")
+        self.assertIn("scripts.init_db", check.message)
 
     def test_unreachable_database_is_redacted_and_does_not_skip_ollama_checks(self) -> None:
         from sqlalchemy.exc import OperationalError

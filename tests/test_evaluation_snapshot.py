@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
@@ -30,6 +30,9 @@ class SnapshotTests(unittest.TestCase):
             snapshot("sample.pdf")
 
     def test_duplicate_identities_rejected(self) -> None:
+        # Preserve the evaluator's protection for unmigrated legacy databases.
+        with self.sessions.begin() as db:
+            db.execute(text("DROP INDEX uq_chunks_location"))
         self.add_chunk()
         self.add_chunk()
         with self.assertRaisesRegex(ValueError, "Duplicate"):

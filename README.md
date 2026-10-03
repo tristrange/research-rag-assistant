@@ -120,6 +120,35 @@ filename's chunks, including removing stale chunks if the PDF becomes shorter or
 has no extractable text. Extraction, embedding, or database failures preserve the
 previous index. Use distinct filenames for distinct papers.
 
+Each successful index now records the source PDF's SHA-256 checksum, embedding
+model name and dimensions, extraction implementation/PyMuPDF version, and
+chunking implementation/size/overlap. Chunks and provenance are saved together.
+A detected PDF change during indexing aborts replacement. PostgreSQL serializes
+save/remove transactions and rejects duplicate `(document, page, chunk_index)`
+locations; expensive extraction and embedding happen before the write lock.
+
+After pulling this change, run `uv run python -m scripts.init_db` and reindex
+each PDF you want to query. Old rows are preserved with **unknown provenance**;
+the migration does not guess how their vectors were generated. Retrieval returns
+`409 index_incompatible` for unknown provenance or a different embedding model
+name/dimension in the selected scope. A compatible selected paper remains
+queryable even if another paper needs reindexing. If initialization detects
+duplicate legacy chunk locations, reindex those PDFs and rerun initialization;
+it does not silently discard rows.
+
+Inspect a paper's saved provenance without reading its PDF:
+
+```bash
+uv run python -m scripts.manage_library provenance my-paper.pdf
+```
+
+Compatibility checks compare model names and dimensions, **not model weight
+digests**. Reindex after replacing an embedding model under the same Ollama name.
+The saved PDF checksum describes the indexed input; queries do not reread files
+to detect later edits. Changing the answer model alone requires no reindexing.
+Processing versions and chunk settings are provenance, not vector compatibility
+checks; reindex after changing extraction/chunking before evaluating that change.
+
 ### Manage the local library
 
 List exact indexed filenames with their stored chunk and indexed-page counts:
@@ -307,6 +336,7 @@ If loading the paper list fails, fix the issue and click **Refresh papers**.
 
 | HTTP status | Error code | Next action |
 | --- | --- | --- |
+| 409 | `index_incompatible` | Run `scripts.init_db`, then reindex the selected PDFs with `scripts.index_pdf <PDF path>`. |
 | 503 | `database_error` | Start PostgreSQL, load `.env`, and run `uv run python -m scripts.init_db`. |
 | 503 | `model_unavailable` | Open Ollama or run `ollama serve`. |
 | 503 | `model_not_found` | Check `RAG_GROUNDING_MODEL` and install that model with `ollama pull`. |

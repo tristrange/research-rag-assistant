@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 from fastapi.testclient import TestClient
@@ -8,6 +8,7 @@ from sqlalchemy.exc import OperationalError
 
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.db.models import Chunk
+from app.db.index_contract import IndexCompatibilityError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.main import QueryRequest, _query_gate, app, query
 
@@ -36,7 +37,12 @@ class QueryModeTests(unittest.TestCase):
                                 patch("app.rag.rerank_chunks", return_value=[chunk]):
                             response = client.post("/query", json={"question": "What changed?"})
                     else:
-                        response = client.post("/query", json={"question": "What changed?"})
+                        # Keep this a real embedding-path test, with storage
+                        # stubbed independently of the provenance contracts.
+                        db = MagicMock()
+                        db.scalar.return_value = None
+                        with patch("app.retrieval.search.SessionLocal", return_value=db):
+                            response = client.post("/query", json={"question": "What changed?"})
                 self.assertEqual(response.status_code, 502)
                 detail = response.json()["detail"]
                 self.assertEqual(detail["code"], "model_invalid_response")
@@ -59,8 +65,11 @@ class QueryModeTests(unittest.TestCase):
              502, "model_service_error"),
         ]
         for error, status, code in cases:
+            db = MagicMock()
+            db.scalar.return_value = None
             with self.subTest(code=code), patch("app.embeddings.httpx.post", side_effect=error) as embedding, \
-                    patch("app.grounding.generate_draft_json") as draft:
+                    patch("app.grounding.generate_draft_json") as draft, \
+                    patch("app.retrieval.search.SessionLocal", return_value=db):
                 response = local_client().post("/query", json={"question": "Question?"})
             self.assertEqual(response.status_code, status)
             detail = response.json()["detail"]
@@ -81,6 +90,7 @@ class QueryModeTests(unittest.TestCase):
         request = httpx.Request("POST", OLLAMA_URL)
         cases: list[tuple[Exception, int, str]] = [
             (OperationalError("private SQL", {}, Exception("secret-password")), 503, "database_error"),
+            (IndexCompatibilityError("private model output"), 409, "index_incompatible"),
             (httpx.ConnectError("secret-password", request=request), 503, "model_unavailable"),
             (httpx.ReadTimeout("secret-password", request=request), 504, "model_timeout"),
             (httpx.HTTPStatusError("secret-password", request=request,

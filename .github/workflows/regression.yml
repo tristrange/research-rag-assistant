@@ -97,7 +97,7 @@ jobs:
         # Exercise only storage modules; exclude model weights and Linux's CUDA stack.
         run: |
           uv export --locked --no-dev --no-emit-project \
-            --prune sentence-transformers --prune uvicorn --prune pymupdf \
+            --prune sentence-transformers --prune uvicorn \
             --output-file "$RUNNER_TEMP/postgres-requirements.txt"
           uv venv
           uv pip sync "$RUNNER_TEMP/postgres-requirements.txt"

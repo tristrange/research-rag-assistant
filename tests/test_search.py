@@ -16,9 +16,9 @@ class SearchTests(unittest.TestCase):
         Base.metadata.create_all(engine)
         sessions = sessionmaker(engine)
         with sessions.begin() as db:
-            for document in ["b.pdf", "a.pdf", "b.pdf"]:
+            for index, document in enumerate(["b.pdf", "a.pdf", "b.pdf"]):
                 db.add(Chunk(
-                    document=document, page=1, chunk_index=0, text="Evidence",
+                    document=document, page=1, chunk_index=index, text="Evidence",
                     embedding=[0.0] * 768,
                 ))
 
@@ -27,7 +27,7 @@ class SearchTests(unittest.TestCase):
 
     def test_exact_document_predicate_precedes_vector_ranking_and_limit(self) -> None:
         db = MagicMock()
-        db.scalar.return_value = 1
+        db.scalar.side_effect = [None, 1, None]
         db.scalars.return_value = []
         with patch("app.retrieval.search.SessionLocal", return_value=db), \
                 patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):
@@ -54,6 +54,7 @@ class SearchTests(unittest.TestCase):
 
     def test_unscoped_search_keeps_corpus_wide_ranking(self) -> None:
         db = MagicMock()
+        db.scalar.return_value = None
         db.scalars.return_value = []
         with patch("app.retrieval.search.SessionLocal", return_value=db), \
                 patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):
@@ -63,7 +64,7 @@ class SearchTests(unittest.TestCase):
 
     def test_section_filter_limits_ranked_candidates(self) -> None:
         db = MagicMock()
-        db.scalar.return_value = 1
+        db.scalar.side_effect = [None, 1, None]
         db.scalars.return_value = []
         with patch("app.retrieval.search.SessionLocal", return_value=db), \
                 patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):

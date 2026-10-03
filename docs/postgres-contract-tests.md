@@ -6,6 +6,11 @@ represent: fresh and repeated schema initialization, migration of a legacy
 document/section filters. Fixtures are synthetic; the suite does not call Ollama
 or download Hugging Face models.
 
+It also verifies unknown/mismatched index profiles, unique chunk locations,
+non-destructive duplicate detection during migration, and concurrent replacement
+and removal through the application indexer. Synthetic files use stub extraction
+and embedding; transaction locking and database writes are real PostgreSQL.
+
 The suite is opt-in. Without `RAG_TEST_POSTGRES_URL`, its tests skip. The URL is
 the **controller database** used only to create and drop a uniquely named
 `rag_contract_<uuid>` database for each test. The controller database itself is
@@ -59,5 +64,6 @@ database: the suite creates and drops test databases there.
 
 CI runs these contracts in a separate Ubuntu job against a disposable
 `pgvector/pgvector` service with a locked, pruned dependency set that omits
-`sentence-transformers`, Uvicorn and PyMuPDF. This job validates PostgreSQL
+`sentence-transformers` and Uvicorn. PyMuPDF is retained for importing the indexer.
+This job validates PostgreSQL
 contracts only and does not claim that the full application supports Linux.

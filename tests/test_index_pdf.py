@@ -1,5 +1,6 @@
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -13,13 +14,16 @@ from sqlalchemy.engine import ExecutionContext
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
-from app.db.models import Chunk
+from app.db.models import Chunk, DocumentIndex
 from app.embeddings import OLLAMA_EMBED_URL, embed_text
 from app.ingestion import indexing
 from app.ingestion.pdf import extract_pages
 from app.llm.errors import OllamaResponseError
 from app.types import PageData
 from scripts import index_pdf as index_cli
+
+
+REAL_PDF_CHECKSUM = indexing.pdf_checksum
 
 
 class IndexPdfTests(unittest.TestCase):
@@ -33,6 +37,7 @@ class IndexPdfTests(unittest.TestCase):
             ("SessionLocal", self.sessions),
             ("extract_pages", lambda _, **kwargs: self.pages),
             ("embed_text", lambda _: [0.0] * 768),
+            ("pdf_checksum", lambda _: "0" * 64),
         ]:
             patcher = patch.object(indexing, target, replacement)
             patcher.start()
@@ -54,6 +59,35 @@ class IndexPdfTests(unittest.TestCase):
         self.assertEqual(indexing.index_pdf(), 1)
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
         self.assertEqual(self.sections(), ["unknown"])
+
+    def test_saves_pdf_and_processing_provenance_with_chunks(self) -> None:
+        with TemporaryDirectory() as directory:
+            paper = Path(directory) / "sample.pdf"
+            paper.write_bytes(b"synthetic PDF bytes")
+            # Exercise real checksum I/O, while extraction/embedding stay stubbed.
+            with patch.object(indexing, "pdf_checksum", REAL_PDF_CHECKSUM):
+                indexing.index_pdf(str(paper))
+            with self.sessions() as db:
+                record = db.get(DocumentIndex, "sample.pdf")
+                assert record is not None
+                self.assertEqual(record.pdf_sha256, hashlib.sha256(paper.read_bytes()).hexdigest())
+                self.assertEqual((record.embedding_model, record.embedding_dimensions), ("nomic-embed-text", 768))
+                self.assertEqual((record.chunk_size, record.overlap), (500, 100))
+                self.assertEqual(record.extraction_version, indexing.EXTRACTION_VERSION)
+                self.assertEqual(record.chunking_version, indexing.CHUNKING_VERSION)
+
+    def test_changed_pdf_does_not_replace_existing_provenance_or_chunks(self) -> None:
+        indexing.index_pdf()
+        self.pages[0]["text"] = "Changed text"
+        for hashes in (["1" * 64, "2" * 64], ["1" * 64, "1" * 64, "2" * 64]):
+            with self.subTest(hashes=hashes), patch.object(indexing, "pdf_checksum", side_effect=hashes):
+                with self.assertRaisesRegex(ValueError, "PDF.*changed"):
+                    indexing.index_pdf()
+            self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+            with self.sessions() as db:
+                record = db.get(DocumentIndex, "sample.pdf")
+                assert record is not None
+                self.assertEqual(record.pdf_sha256, "0" * 64)
 
     def test_persists_recognized_section_metadata(self) -> None:
         self.pages[0]["text"] = "3. RESULTS\nObserved result."
@@ -81,6 +115,8 @@ class IndexPdfTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "offline"):
                 indexing.index_pdf(progress=messages.append)
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+        with self.sessions() as db:
+            self.assertIsNotNone(db.get(DocumentIndex, "sample.pdf"))
         self.assertEqual(messages[-1], "Embedding chunks: 0/1")
         self.assertNotIn("Saving index…", messages)
 
@@ -194,12 +230,18 @@ class IndexPdfTests(unittest.TestCase):
         finally:
             event.remove(self.engine, "before_cursor_execute", reject_insert)
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
+        with self.sessions() as db:
+            record = db.get(DocumentIndex, "sample.pdf")
+            assert record is not None
+            self.assertEqual(record.pdf_sha256, "0" * 64)
 
     def test_empty_document_removes_its_stale_chunks(self) -> None:
         indexing.index_pdf()
         self.pages = []
         self.assertEqual(indexing.index_pdf(), 0)
         self.assertEqual(self.contents(), [])
+        with self.sessions() as db:
+            self.assertIsNone(db.get(DocumentIndex, "sample.pdf"))
 
 
 class IndexCliTests(unittest.TestCase):

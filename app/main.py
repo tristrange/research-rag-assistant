@@ -13,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.db.index_contract import IndexCompatibilityError
+
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
@@ -38,6 +40,11 @@ def service_error(status: int, code: str, message: str) -> JSONResponse:
 @app.exception_handler(SQLAlchemyError)
 async def database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
     return service_error(503, "database_error", "The database request failed. Check that PostgreSQL is running, load your .env settings, and run uv run python -m scripts.init_db.")
+
+
+@app.exception_handler(IndexCompatibilityError)
+async def index_profile_error(request: Request, error: IndexCompatibilityError) -> JSONResponse:
+    return service_error(409, "index_incompatible", "The selected papers have unknown or incompatible embedding provenance. Run uv run python -m scripts.init_db, then reindex them with uv run python -m scripts.index_pdf <PDF path>.")
 
 
 @app.exception_handler(OllamaOutputLimitError)

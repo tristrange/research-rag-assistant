@@ -47,6 +47,15 @@ no extractable chunks removes that filename's old rows. Distinct papers need
 distinct filenames. Changing extraction, chunking or embeddings requires
 reindexing before evaluating the new corpus.
 
+`document_indexes` records each saved PDF checksum and its extraction, chunking
+and embedding profile in the same transaction as its chunks. Legacy rows retain
+unknown provenance until reindexed. Retrieval checks the selected scope against
+the current embedding model name/dimensions before inference, then again under
+a shared PostgreSQL transaction advisory lock before vector ranking. Replacements
+and removals take the exclusive lock; inference holds no index lock. A unique
+index enforces each document/page/chunk location. See the README for migration
+recovery and the limits of name-based embedding compatibility.
+
 The CLI reports real stages and completed embedding counts. `Indexed …` follows
 the successful commit; completing embeddings alone does not establish a saved
 index. PDFs remain local and are ignored by Git.

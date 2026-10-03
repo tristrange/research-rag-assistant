@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import NullPool
 
 from app.config import DATABASE_URL, GROUNDING_MODEL
-from app.db.models import Chunk
+from app.db.models import Chunk, DocumentIndex
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 
 
@@ -38,6 +38,7 @@ def check_database() -> ServiceCheck:
         with probe.connect() as connection:
             # LIMIT 0 checks every expected column without reading paper text.
             connection.execute(select(Chunk).limit(0))
+            connection.execute(select(DocumentIndex).limit(0))
         return ServiceCheck(name="database", status="ok", message="Database and paper-index schema are accessible.")
     except SQLAlchemyError:
         return ServiceCheck(name="database", status="error", message="Check PostgreSQL and your .env settings, then run uv run python -m scripts.init_db. Use Refresh papers afterward to update the paper list.")
