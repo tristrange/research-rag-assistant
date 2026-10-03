@@ -3,11 +3,10 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 
 from app.db.database import Base
-from app.db.models import DocumentIndex
 from app.main import app
 from app.service_checks import (
     CHECK_TIMEOUT_SECONDS, OLLAMA_TAGS_URL, ServiceCheck, ServiceStatus,
@@ -41,7 +40,8 @@ class ServiceCheckTests(unittest.TestCase):
         engine = create_engine("sqlite://")
         self.addCleanup(engine.dispose)
         Base.metadata.create_all(engine)
-        DocumentIndex.__table__.drop(engine)
+        with engine.begin() as connection:
+            connection.execute(text("DROP TABLE document_indexes"))
         with patch("app.service_checks.create_engine", return_value=engine):
             check = check_database()
         self.assertEqual(check.status, "error")
