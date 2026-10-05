@@ -105,6 +105,14 @@ an embedding count of `N/N` means embedding finished, not that the index is save
 The shared `app.ingestion.indexing.index_pdf()` function remains quiet unless given
 a `progress` callback. The terminal command delegates to this application workflow.
 
+Indexing sends up to 16 chunk texts per embedding request and reuses one HTTP
+client for the PDF. Progress advances after each fully validated batch. A failed
+request or invalid vector preserves the existing chunks and provenance; saving
+starts only after all batches finish. The embedding model, dimensions and chunk
+boundaries are unchanged, so this optimization requires no reindexing.
+See the [local batching measurement](docs/embedding-batching.md) for timings and
+the limits of the comparison.
+
 Omitting the path retains the `data/sample.pdf` development example. Local PDFs
 are ignored by Git. The [corpus notes](docs/benchmark-corpus.md) record attribution,
 licenses, historical PDF copies and an Emma Frank coauthored benchmark.

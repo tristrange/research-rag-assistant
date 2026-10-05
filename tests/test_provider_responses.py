@@ -6,9 +6,10 @@ from unittest.mock import patch
 
 import httpx
 
-from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL, embed_text
+from app.embeddings import EMBEDDING_MODEL, MAX_EMBEDDING_BATCH_SIZE, OLLAMA_EMBED_URL, embed_text, embed_texts
 from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError, chat, generate_json
+from app.llm.telemetry import capture_calls
 
 
 _UNSET = object()
@@ -178,6 +179,44 @@ class ProviderResponseTests(unittest.TestCase):
         with patch("app.embeddings.httpx.post", return_value=failed):
             with self.assertRaises(httpx.HTTPStatusError):
                 embed_text("passage")
+
+    def test_batch_vectors_keep_input_order_and_caller_client_ownership(self) -> None:
+        payloads: list[object] = []
+
+        def handle(request: httpx.Request) -> httpx.Response:
+            payloads.append(json.loads(request.content))
+            return response(OLLAMA_EMBED_URL, payload={"embeddings": [[0] * 768, [1.5] * 768]})
+
+        with httpx.Client(transport=httpx.MockTransport(handle)) as client, capture_calls() as calls:
+            vectors = embed_texts(["First", "Second β"], client=client)
+            self.assertFalse(client.is_closed)
+        self.assertTrue(client.is_closed)
+        self.assertEqual(vectors, [[0.0] * 768, [1.5] * 768])
+        self.assertEqual(payloads, [{"model": EMBEDDING_MODEL, "input": ["First", "Second β"]}])
+        self.assertEqual([(c.operation, c.status) for c in calls], [("embedding", "complete")])
+
+    def test_batch_rejects_wrong_cardinality_and_invalid_later_vectors(self) -> None:
+        invalid: list[object] = [
+            [], [[0.0] * 768], [[0.0] * 768] * 3,
+            [[0.0] * 768, [0.0] * 767],
+            [[0.0] * 768, [0.0] * 767 + [True]],
+            [[0.0] * 768, [0.0] * 767 + [math.nan]],
+        ]
+        for vectors in invalid:
+            with self.subTest(vectors=vectors), patch(
+                "app.embeddings.httpx.post",
+                return_value=response(OLLAMA_EMBED_URL, payload={"embeddings": vectors}),
+            ), capture_calls() as calls:
+                self.assert_response_error("embedding", lambda: embed_texts(["First", "Second"]))
+            self.assertEqual([c.status for c in calls], ["failed"])
+
+    def test_empty_and_oversized_batches_do_not_call_provider(self) -> None:
+        with patch("app.embeddings.httpx.post") as post, capture_calls() as calls:
+            self.assertEqual(embed_texts([]), [])
+            with self.assertRaises(ValueError):
+                embed_texts(["text"] * (MAX_EMBEDDING_BATCH_SIZE + 1))
+        post.assert_not_called()
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

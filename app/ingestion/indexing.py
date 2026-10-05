@@ -5,13 +5,14 @@ import hashlib
 from pathlib import Path
 
 import pymupdf
+import httpx
 
 from sqlalchemy import delete
 
 from app.db.database import SessionLocal
 from app.db.index_contract import embedding_profile, lock_index
 from app.db.models import Chunk, DocumentIndex
-from app.embeddings import embed_text
+from app.embeddings import MAX_EMBEDDING_BATCH_SIZE, embed_texts
 from app.ingestion.chunking import chunk_pages
 from app.ingestion.pdf import extract_pages
 
@@ -65,17 +66,27 @@ def index_pdf(pdf_path: str = PDF_PATH, *, progress: Callable[[str], None] | Non
     report(f"Embedding chunks: 0/{len(chunks)}")
     # Keep terminal output bounded even for large PDFs.
     report_every = max(1, (len(chunks) + 9) // 10)
-    for completed, chunk in enumerate(chunks, start=1):
-        db_chunks.append(Chunk(
-            document=chunk["document"],
-            page=chunk["page"],
-            chunk_index=chunk["chunk_index"],
-            text=chunk["text"],
-            section=chunk.get("section", "unknown"),
-            embedding=embed_text(chunk["text"]),
-        ))
-        if completed % report_every == 0 or completed == len(chunks):
-            report(f"Embedding chunks: {completed}/{len(chunks)}")
+    next_report = report_every
+    if chunks:
+        # One owned connection pool for this indexing operation; never a global
+        # client or a write transaction held open during inference.
+        with httpx.Client() as client:
+            for start in range(0, len(chunks), MAX_EMBEDDING_BATCH_SIZE):
+                batch = chunks[start:start + MAX_EMBEDDING_BATCH_SIZE]
+                vectors = embed_texts([chunk["text"] for chunk in batch], client=client)
+                for chunk, embedding in zip(batch, vectors, strict=True):
+                    db_chunks.append(Chunk(
+                        document=chunk["document"],
+                        page=chunk["page"],
+                        chunk_index=chunk["chunk_index"],
+                        text=chunk["text"],
+                        section=chunk.get("section", "unknown"),
+                        embedding=embedding,
+                    ))
+                completed = start + len(batch)
+                if completed >= next_report or completed == len(chunks):
+                    report(f"Embedding chunks: {completed}/{len(chunks)}")
+                    next_report = completed + report_every
 
     report("Saving index…")
     if pdf_checksum(path) != checksum or embedding_profile() != (model, dimensions):
