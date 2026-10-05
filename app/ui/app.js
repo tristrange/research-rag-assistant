@@ -1,5 +1,6 @@
 const form = document.getElementById("query-form");
 const documentSelect = document.getElementById("document");
+const scopeHelp = document.getElementById("scope-help");
 const libraryStatus = document.getElementById("library-status");
 const questionInput = document.getElementById("question");
 const askButton = document.getElementById("ask-button");
@@ -8,6 +9,7 @@ const requestTiming = document.getElementById("request-timing");
 const requestError = document.getElementById("request-error");
 const answerPanel = document.getElementById("answer-panel");
 const answerText = document.getElementById("answer-text");
+const answerGuidance = document.getElementById("answer-guidance");
 const copyAnswerButton = document.getElementById("copy-answer-button");
 const copyStatus = document.getElementById("copy-status");
 const sourcesPanel = document.getElementById("sources-panel");
@@ -107,6 +109,21 @@ function updateSubmitState() {
   refreshPapersButton.disabled = isLoadingDocuments || isSubmitting;
 }
 
+function updateScopeGuidance() {
+  const selected = documentSelect.value;
+  if (selected === "__each__") {
+    scopeHelp.textContent = "Answers separately for every indexed paper, prioritizing conclusions and other summary sections. Use for main findings. This can take several minutes.";
+  } else if (selected === "__each_query__") {
+    scopeHelp.textContent = "Answers separately for every indexed paper using passages matched to your question. Use for focused questions about methods, measurements or a stated result. This can take several minutes.";
+  } else if (selected) {
+    scopeHelp.textContent = `Searches only ${selected} for passages matched to your question. A focused question about methods, measurements or a stated result can help retrieval.`;
+  } else {
+    scopeHelp.textContent = "Across papers searches top matches; some papers may not appear. For main findings from every paper, choose Each paper (overview).";
+  }
+  questionInput.placeholder = selected === "__each__"
+    ? "What were the main findings?" : "What methods were used in the study?";
+}
+
 function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -199,6 +216,7 @@ async function loadDocuments() {
       : "Could not load the paper list. Check the database and refresh papers.";
   } finally {
     isLoadingDocuments = false;
+    updateScopeGuidance();
     updateSubmitState();
   }
 }
@@ -299,10 +317,13 @@ async function submitQuestion(event) {
   sourceList.replaceChildren();
   evidencePanel.hidden = true;
   evidenceList.replaceChildren();
+  answerGuidance.hidden = true;
+  answerGuidance.textContent = "";
   requestStatus.classList.remove("is-idle");
+  const selectedScope = documentSelect.value;
   let scope = "relevant";
-  if (documentSelect.value === "__each__") scope = "each";
-  if (documentSelect.value === "__each_query__") scope = "each_query";
+  if (selectedScope === "__each__") scope = "each";
+  if (selectedScope === "__each_query__") scope = "each_query";
   const eachPaper = scope !== "relevant";
   requestStatus.textContent = eachPaper
     ? "Searching each indexed paper separately. This can take several minutes…"
@@ -324,13 +345,16 @@ async function submitQuestion(event) {
         question,
         answer_mode: "verified",
         scope,
-        document: eachPaper ? null : documentSelect.value || null,
+        document: eachPaper ? null : selectedScope || null,
       }),
     });
     await checkResponse(response);
     const result = await response.json();
     if (typeof result.answer !== "string" || !Array.isArray(result.sources)) {
       throw new Error("invalid answer response");
+    }
+    if (result.outcome != null && !["answered", "partial", "insufficient_evidence"].includes(result.outcome)) {
+      throw new Error("invalid answer outcome");
     }
 
     const sourcePages = showSources(result.sources);
@@ -339,7 +363,21 @@ async function submitQuestion(event) {
     showEvidence(claims, result.sources, sourcePages);
     renderAnswer(result.answer, sourcePages);
     answerPanel.hidden = false;
-    requestStatus.textContent = "Answer ready.";
+    requestStatus.textContent = {
+      answered: "Answer ready.",
+      partial: "Some papers could not be answered.",
+      insufficient_evidence: "Not enough evidence to answer.",
+    }[result.outcome] ?? "Response ready.";
+    if (result.outcome === "partial" || result.outcome === "insufficient_evidence") {
+      answerGuidance.textContent = (result.outcome === "partial"
+        ? "At least one paper returned an insufficient-evidence response. "
+        : "The assistant could not support an answer with the retrieved passages. ") +
+        "This does not mean the papers lack those results. " +
+        (selectedScope === ""
+          ? "For main findings from every paper, choose Each paper (overview); for a specific detail, try a more focused question."
+          : "Try a focused question about methods, measurements or a stated result, and inspect the retrieved passages.");
+      answerGuidance.hidden = false;
+    }
   } catch (error) {
     requestStatus.textContent = "The request did not complete.";
     if (error instanceof ApiRequestError) {
@@ -359,9 +397,11 @@ async function submitQuestion(event) {
 }
 
 questionInput.addEventListener("input", updateSubmitState);
+documentSelect.addEventListener("change", updateScopeGuidance);
 form.addEventListener("submit", submitQuestion);
 copyAnswerButton.addEventListener("click", copyAnswer);
 resetCopyState();
+updateScopeGuidance();
 loadDocuments();
 checkServicesButton.addEventListener("click", checkServices);
 refreshPapersButton.addEventListener("click", loadDocuments);

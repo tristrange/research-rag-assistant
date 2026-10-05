@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
     <link rel="stylesheet" href="/static/styles.css?v=8">
-    <script src="/static/app.js?v=13" defer></script>
+    <script src="/static/app.js?v=14" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -41,16 +41,16 @@
               <label for="document">Search scope</label>
               <button id="refresh-papers-button" type="button">Refresh papers</button>
             </div>
-            <select id="document" name="document" disabled>
+            <select id="document" name="document" aria-describedby="scope-help" disabled>
               <option value="">Across papers (top matches)</option>
               <option value="__each__">Each paper (overview)</option>
               <option value="__each_query__">Each paper (targeted search)</option>
             </select>
             <p id="library-status" class="field-note" role="status" aria-live="polite">Loading indexed papers…</p>
-            <p class="field-note">An overview prioritizes each paper's conclusions. Targeted search finds passages for your question in each paper. Both can take longer.</p>
+            <p id="scope-help" class="field-note">Across papers searches top matches; some papers may not appear. For main findings from every paper, choose Each paper (overview).</p>
 
             <label for="question">Question</label>
-            <textarea id="question" name="question" rows="5" maxlength="2000" placeholder="What were the main findings?" required></textarea>
+            <textarea id="question" name="question" rows="5" maxlength="2000" placeholder="What methods were used in the study?" required></textarea>
 
             <p class="field-note">Answers are checked against retrieved passages. This can take several minutes and may refuse an answer even when evidence exists. Always inspect the source passages before relying on an answer.</p>
 
@@ -72,6 +72,7 @@
               <button id="copy-answer-button" type="button" aria-describedby="copy-status" disabled>Copy answer</button>
             </div>
             <p id="answer-text"></p>
+            <p id="answer-guidance" class="field-note" hidden></p>
             <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
           </section>
 
