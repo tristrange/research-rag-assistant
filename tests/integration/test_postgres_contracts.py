@@ -410,6 +410,43 @@ class PostgresContracts(unittest.TestCase):
             assert chunk is not None
             self.assertEqual(list(chunk.embedding), vector(1.0))
 
+    def test_reused_vector_preserves_ranking_and_filters_across_searches(self) -> None:
+        self.initialize()
+        first = self.add_chunk("a.pdf", vector(1.0))
+        second = self.add_chunk("a.pdf", vector(1.0), chunk_index=1)
+        abstract = self.add_chunk("a.pdf", vector(1.0, 1.0), section="abstract", chunk_index=2)
+        other = self.add_chunk("b.pdf", vector(0.0, 1.0))
+        scopes = [
+            (None, None, [first, second]),
+            ("a.pdf", ("abstract",), [abstract]),
+            ("b.pdf", ("results",), [other]),
+            ("a.pdf", ("conclusion",), []),
+        ]
+        with patch.object(search, "SessionLocal", self.sessions), \
+                patch.object(search, "embed_text", return_value=vector(1.0)) as embed:
+            shared = search.QuestionEmbedding("Question")
+            for document, sections, expected in scopes:
+                with self.subTest(document=document, sections=sections):
+                    found = search.search_by_embedding(shared, 2, document=document, sections=sections)
+                    self.assertEqual([c.id for c in found], expected)
+            embed.assert_called_once_with("Question")
+
+    def test_cached_vector_still_checks_new_scope_and_changed_provenance(self) -> None:
+        self.initialize()
+        good = self.add_chunk("good.pdf", vector(1.0))
+        self.add_chunk("other.pdf", vector(1.0))
+        with patch.object(search, "SessionLocal", self.sessions), \
+                patch.object(search, "embed_text", return_value=vector(1.0)) as embed:
+            shared = search.QuestionEmbedding("Question")
+            self.assertEqual([c.id for c in search.search_by_embedding(shared, document="good.pdf")], [good])
+            with self.sessions.begin() as db:
+                lock_index(db)
+                db.execute(text("UPDATE document_indexes SET embedding_model = 'changed-profile'"))
+            for document in ("good.pdf", "other.pdf", None):
+                with self.subTest(document=document), self.assertRaises(IndexCompatibilityError):
+                    search.search_by_embedding(shared, document=document)
+            embed.assert_called_once_with("Question")
+
 
 if __name__ == "__main__":
     unittest.main()

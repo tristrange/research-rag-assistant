@@ -65,6 +65,12 @@ index. PDFs remain local and are ignored by Git.
 [`app.rag`](../app/rag.py) embeds the question, uses pgvector cosine distance to
 retrieve ten candidates, then reranks them with the locally loaded
 `BAAI/bge-reranker-base` cross-encoder. The normal path keeps three passages.
+Each request owns one lazy question embedding, reused across overview section
+probes and each-paper searches. Document/section filters, candidate limits and
+cosine ordering still run independently for each search. Every search rechecks
+index compatibility, including when the vector is already available. The vector
+is discarded with the request; identical later questions are embedded again.
+
 The reranker downloads weights from Hugging Face on first use and caches them;
 an installed Ollama model does not include the reranker weights.
 
