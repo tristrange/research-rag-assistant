@@ -386,6 +386,15 @@ probe demonstrates why the API does not offer plain mode.
 
 Set these environment variables before starting the API or evaluation process:
 
+`app.config.SETTINGS` is one immutable startup snapshot shared by the database,
+model adapters, grounding and service diagnostics. Its sampling profile is also
+immutable; callers receive a fresh dictionary of Ollama options. The explicit
+`load_settings(environ)` factory can resolve an independent configuration for
+tests or tools without changing the process environment. Existing uppercase
+exports remain available for evaluation-script compatibility and derive from
+that same snapshot. Environment variable names, profiles and defaults are unchanged.
+The factory does not load `.env` automatically; keep sourcing it before launch.
+
 | Variable | Default | Role |
 |---|---|---|
 | `RAG_GENERATOR_MODEL` | `qwen3:8b` | Plain generation in local evaluation scripts |

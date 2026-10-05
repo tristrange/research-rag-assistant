@@ -3,13 +3,159 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from app.config import GroundingSampling, reasoning_setting, resolve_grounding_sampling
+from app.config import GroundingSampling, load_settings, reasoning_setting, resolve_grounding_sampling
 import subprocess
 import sys
 import unittest
 
 
 class ConfigTests(unittest.TestCase):
+    def test_load_settings_uses_explicit_mapping_without_process_environment_fallback(self) -> None:
+        explicit = {"RAG_GENERATOR_MODEL": "from-mapping"}
+        with patch.dict(os.environ, {
+            "RAG_GENERATOR_MODEL": "from-process",
+            "RAG_GROUNDING_MODEL": "process-grounder",
+            "RAG_DATABASE_URL": "postgresql://process:secret@localhost/db",
+        }, clear=False):
+            settings = load_settings(explicit)
+
+        self.assertEqual(settings.generator_model, "from-mapping")
+        self.assertEqual(settings.grounding_model, "gpt-oss:20b")
+        self.assertEqual(settings.database_url, "postgresql+psycopg://rag@localhost:5432/rag")
+
+    def test_resolved_settings_do_not_change_when_mapping_or_environment_changes(self) -> None:
+        source = {
+            "RAG_GENERATOR_MODEL": "first-generator",
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_DATABASE_URL": "postgresql://first:secret@localhost/db",
+        }
+        with patch.dict(os.environ, {"RAG_GENERATOR_MODEL": "process-generator"}, clear=False):
+            settings = load_settings(source)
+            source["RAG_GENERATOR_MODEL"] = "second-generator"
+            source["RAG_GROUNDING_MODEL"] = "second-grounder"
+            source["RAG_DATABASE_URL"] = "postgresql://second:secret@localhost/db"
+            os.environ["RAG_GENERATOR_MODEL"] = "later-process-generator"
+
+        self.assertEqual(settings.generator_model, "first-generator")
+        self.assertEqual(settings.grounding_model, "qwen3:8b")
+        self.assertEqual(settings.database_url, "postgresql://first:secret@localhost/db")
+
+    def test_settings_and_nested_sampling_are_immutable_and_options_are_fresh(self) -> None:
+        settings = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_GROUNDING_SAMPLING": '{"top_k": 12}',
+        })
+        with self.assertRaises((AttributeError, TypeError)):
+            settings.generator_model = "changed"  # type: ignore[misc]
+        with self.assertRaises((AttributeError, TypeError, ValueError)):
+            settings.grounding_sampling.top_k = 99
+
+        options = settings.grounding_sampling.options()
+        options["temperature"] = 1.9
+        options["top_k"] = 99
+        self.assertEqual(settings.grounding_sampling.options()["temperature"], 0.6)
+        self.assertEqual(settings.grounding_sampling.options()["top_k"], 12)
+
+    def test_timeout_properties_follow_stage_thinking_and_explicit_override(self) -> None:
+        cases = [
+            ({"RAG_DRAFT_THINK": "true", "RAG_VERIFIER_THINK": "false"}, 300, 120),
+            ({"RAG_DRAFT_THINK": "low", "RAG_VERIFIER_THINK": "high"}, 300, 300),
+            ({"RAG_DRAFT_THINK": "false", "RAG_VERIFIER_THINK": "false"}, 120, 120),
+            ({"RAG_DRAFT_THINK": "high", "RAG_VERIFIER_THINK": "false"}, 300, 120),
+        ]
+        for overrides, draft_timeout, verifier_timeout in cases:
+            with self.subTest(overrides=overrides):
+                settings = load_settings({"RAG_GROUNDING_MODEL": "custom-model", **overrides})
+                self.assertIsNone(settings.grounding_timeout_seconds)
+                self.assertEqual(settings.grounding_draft_timeout_seconds, draft_timeout)
+                self.assertEqual(settings.grounding_verifier_timeout_seconds, verifier_timeout)
+
+        overridden = load_settings({
+            "RAG_GROUNDING_MODEL": "custom-model",
+            "RAG_DRAFT_THINK": "false",
+            "RAG_VERIFIER_THINK": "high",
+            "RAG_GROUNDING_TIMEOUT_SECONDS": "450",
+        })
+        self.assertEqual(overridden.grounding_timeout_seconds, 450.0)
+        self.assertEqual(overridden.grounding_draft_timeout_seconds, 450.0)
+        self.assertEqual(overridden.grounding_verifier_timeout_seconds, 450.0)
+
+    def test_database_password_is_excluded_from_settings_repr(self) -> None:
+        settings = load_settings({"RAG_DATABASE_URL": "postgresql://alice:secret-password@db/rag"})
+        self.assertNotIn("secret-password", repr(settings))
+
+    def test_factories_are_independent_and_resolve_mixed_thinking_profiles(self) -> None:
+        first = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_DRAFT_THINK": "true",
+            "RAG_VERIFIER_THINK": "false",
+            "RAG_GROUNDING_SAMPLING": "{}",
+        })
+        second = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3.5:9b",
+            "RAG_DRAFT_THINK": "false",
+            "RAG_VERIFIER_THINK": "true",
+            "RAG_GROUNDING_SAMPLING": '{"temperature": 0}',
+        })
+        third = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_DRAFT_THINK": "false",
+            "RAG_VERIFIER_THINK": "false",
+        })
+
+        self.assertEqual(first.grounding_sampling.options()["temperature"], 0.6)
+        self.assertEqual(first.grounding_sampling.options()["top_k"], 20)
+        self.assertEqual(second.grounding_sampling.options()["temperature"], 0.0)
+        self.assertEqual(second.grounding_sampling.options()["top_k"], 20)
+        self.assertEqual(third.grounding_sampling.options(), {"temperature": 0.0})
+        self.assertEqual(first.grounding_draft_timeout_seconds, 300)
+        self.assertEqual(first.grounding_verifier_timeout_seconds, 120)
+
+    def test_nullable_sampling_override_does_not_replace_profile_default(self) -> None:
+        missing = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_GROUNDING_SAMPLING": "{}",
+        })
+        explicit_null = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_GROUNDING_SAMPLING": '{"top_p": null}',
+        })
+        self.assertEqual(missing.grounding_sampling.options(), explicit_null.grounding_sampling.options())
+        self.assertEqual(explicit_null.grounding_sampling.options()["top_p"], 0.95)
+
+    def test_invalid_inputs_are_rejected_by_settings_factory(self) -> None:
+        invalid_inputs = [
+            {"RAG_GENERATOR_MODEL": "  "},
+            {"RAG_DATABASE_URL": ""},
+            {"RAG_DRAFT_THINK": "maybe"},
+            {"RAG_GROUNDING_MODEL": "qwen3:8b", "RAG_DRAFT_THINK": "low"},
+            {"RAG_GROUNDING_SAMPLING": '{"top_k": true}'},
+            {"RAG_GROUNDING_SAMPLING": '{"unexpected": 1}'},
+            {"RAG_GROUNDING_TIMEOUT_SECONDS": "invalid"},
+            {"RAG_GROUNDING_TIMEOUT_SECONDS": "0"},
+            {"RAG_GROUNDING_TIMEOUT_SECONDS": "-1"},
+            {"RAG_GROUNDING_OUTPUT_TOKENS": "0"},
+            {"RAG_GROUNDING_OUTPUT_TOKENS": "1.5"},
+        ]
+        for values in invalid_inputs:
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                load_settings(values)
+
+    def test_missing_timeout_and_explicit_null_sampling_remain_distinct_from_zero(self) -> None:
+        absent_timeout = load_settings({"RAG_GROUNDING_MODEL": "custom-model"})
+        self.assertIsNone(absent_timeout.grounding_timeout_seconds)
+        with self.assertRaises(ValueError):
+            load_settings({
+                "RAG_GROUNDING_MODEL": "custom-model",
+                "RAG_GROUNDING_TIMEOUT_SECONDS": "null",
+            })
+
+        zero = load_settings({
+            "RAG_GROUNDING_MODEL": "qwen3:8b",
+            "RAG_GROUNDING_SAMPLING": '{"temperature": 0}',
+        })
+        self.assertEqual(zero.grounding_sampling.options()["temperature"], 0.0)
+
     def test_qwen_thinking_profiles_match_recommended_sampling(self) -> None:
         for model, temperature, presence in [("qwen3:8b", 0.6, 0.0), ("qwen3.5:9b", 1.0, 1.5),
                                              ("registry.example/library/qwen3:8b", 0.6, 0.0)]:
