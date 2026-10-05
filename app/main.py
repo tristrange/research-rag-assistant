@@ -21,6 +21,7 @@ from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
 from app.service_checks import ServiceStatus, service_status
+from app.types import AnswerOutcome
 
 
 app = FastAPI(docs_url=None, redoc_url=None)
@@ -148,6 +149,7 @@ class QueryResponse(BaseModel):
     answer: str
     sources: list[Source]
     claim_evidence: list[AnswerClaimEvidence] = Field(default_factory=list)
+    outcome: AnswerOutcome | None = None
 
 
 @app.get("/", response_class=FileResponse)
@@ -191,6 +193,7 @@ def query(request: QueryRequest) -> QueryResponse:
             answer=result["answer"],
             sources=[Source(**source) for source in result["sources"]],
             claim_evidence=[AnswerClaimEvidence.model_validate(claim) for claim in result.get("claim_evidence", [])],
+            outcome=result.get("outcome"),
         )
     finally:
         _query_gate.release()

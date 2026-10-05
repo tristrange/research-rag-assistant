@@ -25,10 +25,14 @@ class AnswerClaim(TypedDict):
     citations: list[EvidenceQuote]
 
 
+type AnswerOutcome = Literal["answered", "partial", "insufficient_evidence"]
+
+
 class AnswerResult(TypedDict):
     answer: str
     sources: list[ChunkData]
     claim_evidence: NotRequired[list[AnswerClaim]]
+    outcome: NotRequired[AnswerOutcome]
 
 
 class RetrievalTestCase(TypedDict):

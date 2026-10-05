@@ -110,8 +110,14 @@ The verifier can miss an unsupported claim or reject a correct answer. It does
 not compare runtime questions to stored benchmark answers. Qwen3 8B's evaluation
 judge runs in offline evaluation scripts, not in the normal verified query path.
 
-The response contains `answer`, `sources` and `claim_evidence`. `sources` is all
-retrieved context. `claim_evidence` contains only final accepted claims with
+The response contains `answer`, `sources` and `claim_evidence`. The additive
+`outcome` field records verified answering or insufficient evidence; each-paper
+responses report `partial` when only some
+papers were answered. Plain generation with retrieved context leaves the
+outcome unknown. The browser uses this field for readiness and retry guidance,
+without classifying model prose or claiming independent answer quality.
+`sources` is all retrieved context. `claim_evidence` contains only final accepted
+claims with
 their attribution and verifier-selected excerpts; citation indexes refer to
 `sources`. Refusals expose no accepted claim evidence. Browser page links open
 the matching retrieved context; inspect that context and the original PDF.

@@ -20,6 +20,30 @@ class RagTests(unittest.TestCase):
         grounded.assert_called_once_with("Question", result["sources"], claim_evidence=[])
         generate.assert_not_called()
         self.assertEqual(result["answer"], "Checked answer")
+        self.assertEqual(result["outcome"], "answered")
+
+    def test_verified_source_present_refusal_has_insufficient_evidence_outcome(self) -> None:
+        source = Chunk(document="paper.pdf", page=10, chunk_index=1,
+                       text="A cited study.", section="references")
+        with patch("app.rag.search_chunks", return_value=[source]), \
+                patch("app.rag.rerank_chunks", return_value=[source]), \
+                patch("app.rag.grounded_answer", return_value=INSUFFICIENT_EVIDENCE):
+            result = answer_question("Question", answer_mode="verified")
+        self.assertEqual(result["sources"], [{
+            "document": "paper.pdf", "page": 10, "chunk_index": 1,
+            "text": "A cited study.", "section": "references",
+        }])
+        self.assertEqual(result["answer"], INSUFFICIENT_EVIDENCE)
+        self.assertEqual(result["outcome"], "insufficient_evidence")
+
+    def test_plain_refusal_text_does_not_infer_an_outcome(self) -> None:
+        selected = Chunk(document="paper.pdf", page=1, chunk_index=0, text="Evidence")
+        with patch("app.rag.search_chunks", return_value=[selected]), \
+                patch("app.rag.rerank_chunks", return_value=[selected]), \
+                patch("app.rag.generate", return_value=INSUFFICIENT_EVIDENCE):
+            result = answer_question("Question", answer_mode="plain")
+        self.assertEqual(result["answer"], INSUFFICIENT_EVIDENCE)
+        self.assertNotIn("outcome", result)
 
     def test_reference_sources_are_labelled_and_retained(self) -> None:
         reference = Chunk(document="paper.pdf", page=10, chunk_index=1,
@@ -138,6 +162,7 @@ class RagTests(unittest.TestCase):
         grounded.assert_not_called()
         self.assertEqual(result["sources"], [])
         self.assertEqual(result["answer"], INSUFFICIENT_EVIDENCE)
+        self.assertEqual(result["outcome"], "insufficient_evidence")
 
     def test_expanded_sources_are_the_exact_evidence_sent_to_generator(self) -> None:
         selected = Chunk(document="paper.pdf", page=2, chunk_index=1, text="Seed")
@@ -218,7 +243,7 @@ class RagTests(unittest.TestCase):
     def test_every_paper_is_answered_independently_and_labelled(self) -> None:
         def scoped_answer(question: str, *, document: str, answer_mode: str,
                           overview: bool, query_embedding: QuestionEmbedding) -> dict[str, object]:
-            return {"answer": f"Finding for {document}", "sources": [{
+            return {"answer": f"Finding for {document}", "outcome": "answered", "sources": [{
                 "document": document, "page": 1, "chunk_index": 0,
                 "text": f"Evidence for {document}",
             }], "claim_evidence": [{
@@ -242,6 +267,27 @@ class RagTests(unittest.TestCase):
             self.assertEqual([source["document"] for source in result["sources"]], ["a.pdf", "b.pdf"])
             self.assertEqual([claim["citations"][0]["source_index"] for claim in result["claim_evidence"]], [0, 1])
             self.assertIs(answer.call_args_list[0].kwargs["query_embedding"], answer.call_args_list[1].kwargs["query_embedding"])
+
+    def test_each_paper_aggregates_verified_outcomes(self) -> None:
+        for outcomes, expected in [
+            (["answered", "insufficient_evidence"], "partial"),
+            (["answered", "answered"], "answered"),
+            (["insufficient_evidence", "insufficient_evidence"], "insufficient_evidence"),
+        ]:
+            def scoped_answer(question: str, *, document: str, answer_mode: str,
+                              overview: bool, query_embedding: QuestionEmbedding) -> dict[str, object]:
+                outcome = outcomes[0 if document == "a.pdf" else 1]
+                return {
+                    "answer": f"Result for {document}", "outcome": outcome,
+                    "sources": [{"document": document, "page": 1, "chunk_index": 0, "text": "Evidence"}],
+                    "claim_evidence": [],
+                }
+
+            with self.subTest(outcomes=outcomes), \
+                    patch("app.rag.list_documents", return_value=["a.pdf", "b.pdf"]), \
+                    patch("app.rag.answer_question", side_effect=scoped_answer):
+                result = answer_each_document("Question", answer_mode="verified", overview=False)
+            self.assertEqual(result["outcome"], expected)
 
     def test_overview_fallbacks_make_one_embedding_call(self) -> None:
         selected = Chunk(document="paper.pdf", page=1, chunk_index=0, text="Evidence", section="unknown")
@@ -281,7 +327,9 @@ class RagTests(unittest.TestCase):
             result = answer_each_document("Question", overview=True, answer_mode="verified")
         embed.assert_not_called()
         grounded.assert_not_called()
-        self.assertEqual(result, {"answer": INSUFFICIENT_EVIDENCE, "sources": []})
+        self.assertEqual(result, {
+            "answer": INSUFFICIENT_EVIDENCE, "sources": [], "outcome": "insufficient_evidence",
+        })
 
 
 if __name__ == "__main__":

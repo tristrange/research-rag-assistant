@@ -63,6 +63,7 @@ def answer_question(
         return {
             "answer": INSUFFICIENT_EVIDENCE,
             "sources": [],
+            "outcome": "insufficient_evidence",
         }
 
     chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
@@ -102,6 +103,7 @@ def answer_question(
     }
     if answer_mode == "verified":
         result["claim_evidence"] = claim_evidence
+        result["outcome"] = "insufficient_evidence" if answer == INSUFFICIENT_EVIDENCE else "answered"
     return result
 
 
@@ -114,19 +116,22 @@ def answer_each_document(
     """Answer independently for every indexed paper, preserving attribution."""
     documents = list_documents()
     if not documents:
-        return {"answer": INSUFFICIENT_EVIDENCE, "sources": []}
+        return {"answer": INSUFFICIENT_EVIDENCE, "sources": [], "outcome": "insufficient_evidence"}
 
     heading = "Overviews" if overview else "Answers"
     sections = [f"{heading} by paper, based on retrieved passages:"]
     sources: list[ChunkData] = []
     claim_evidence: list[AnswerClaim] = []
     embedding = QuestionEmbedding(question)
+    answered_count = 0
     for document in documents:
         result = answer_question(
             question, document=document, answer_mode=answer_mode, overview=overview,
             query_embedding=embedding,
         )
         sections.append(f"{document}:\n{result['answer']}")
+        if result.get("outcome") == "answered":
+            answered_count += 1
         for claim in result.get("claim_evidence", []):
             claim_evidence.append({
                 **claim,
@@ -136,4 +141,10 @@ def answer_each_document(
             })
         sources.extend(result["sources"])
 
-    return {"answer": "\n\n".join(sections), "sources": sources, "claim_evidence": claim_evidence}
+    combined: AnswerResult = {"answer": "\n\n".join(sections), "sources": sources, "claim_evidence": claim_evidence}
+    if answer_mode == "verified":
+        combined["outcome"] = (
+            "answered" if answered_count == len(documents)
+            else "partial" if answered_count else "insufficient_evidence"
+        )
+    return combined

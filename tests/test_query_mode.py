@@ -9,6 +9,7 @@ from sqlalchemy.exc import OperationalError
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.db.models import Chunk
 from app.db.index_contract import IndexCompatibilityError
+from app.grounding import INSUFFICIENT_EVIDENCE
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.main import QueryRequest, _query_gate, app, query
 
@@ -51,7 +52,7 @@ class QueryModeTests(unittest.TestCase):
                 self.assertNotIn("secret model output", response.text + " ".join(logs.output))
                 post.assert_called_once()  # No grounding repair after a broken envelope.
                 verifier.assert_not_called()
-                with patch("app.main.answer_question", return_value={"answer": "Recovered", "sources": []}):
+                with patch("app.main.answer_question", return_value={"answer": "Recovered", "sources": [], "outcome": "answered"}):
                     self.assertEqual(client.post("/query", json={"question": "Try again?"}).status_code, 200)
 
     def test_real_query_embedding_failures_receive_endpoint_specific_guidance(self) -> None:
@@ -112,7 +113,7 @@ class QueryModeTests(unittest.TestCase):
                 for secret in ("secret-password", "private model output", "private SQL"):
                     self.assertNotIn(secret, response.text)
                     self.assertNotIn(secret, " ".join(logs.output))
-                with patch("app.main.answer_question", return_value={"answer": "Recovered", "sources": []}):
+                with patch("app.main.answer_question", return_value={"answer": "Recovered", "sources": [], "outcome": "answered"}):
                     retry = client.post("/query", json={"question": "Question?"})
                 self.assertEqual(retry.status_code, 200)
 
@@ -142,7 +143,7 @@ class QueryModeTests(unittest.TestCase):
             self.assertEqual(response.json()["detail"]["code"], "model_output_limit")
 
     def test_query_returns_claim_evidence_bound_to_response_sources(self) -> None:
-        result = {"answer": "Finding (study.pdf, page 2)", "sources": [{
+        result = {"answer": "Finding (study.pdf, page 2)", "outcome": "answered", "sources": [{
             "document": "study.pdf", "page": 2, "chunk_index": 7, "text": "Finding.", "section": "results",
         }], "claim_evidence": [{
             "text": "Finding", "attribution": "this_document_authors",
@@ -183,10 +184,11 @@ class QueryModeTests(unittest.TestCase):
                 self.assertEqual(client.get("/", headers={"Host": host}).status_code, 400)
 
     def test_verified_request_reaches_answer_pipeline(self) -> None:
-        with patch("app.main.answer_question", return_value={"answer": "Checked", "sources": []}) as answer:
+        with patch("app.main.answer_question", return_value={"answer": "Checked", "sources": [], "outcome": "answered"}) as answer:
             response = query(QueryRequest(question="Question?", answer_mode="verified"))
         answer.assert_called_once_with("Question?", answer_mode="verified", document=None)
         self.assertEqual(response.answer, "Checked")
+        self.assertEqual(response.outcome, "answered")
 
     def test_request_defaults_to_verified_and_unknown_mode_is_rejected(self) -> None:
         self.assertEqual(QueryRequest(question="Question?").answer_mode, "verified")
@@ -236,12 +238,28 @@ class QueryModeTests(unittest.TestCase):
         listing.assert_called_once_with()
 
     def test_query_endpoint_passes_selected_document(self) -> None:
-        with patch("app.main.answer_question", return_value={"answer": "Checked", "sources": []}) as answer:
+        with patch("app.main.answer_question", return_value={"answer": "Checked", "sources": [], "outcome": "answered"}) as answer:
             response = local_client().post("/query", json={
                 "question": "Question?", "answer_mode": "verified", "document": "paper.pdf",
             })
         self.assertEqual(response.status_code, 200)
         answer.assert_called_once_with("Question?", answer_mode="verified", document="paper.pdf")
+        self.assertEqual(response.json()["outcome"], "answered")
+
+    def test_legacy_answer_without_outcome_serializes_null(self) -> None:
+        with patch("app.main.answer_question", return_value={"answer": "Checked", "sources": []}):
+            response = local_client().post("/query", json={"question": "Question?"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["outcome"])
+
+    def test_empty_verified_lookup_returns_insufficient_evidence_outcome(self) -> None:
+        with patch("app.rag.search_chunks", return_value=[]):
+            response = local_client().post("/query", json={"question": "Question?"})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["answer"], INSUFFICIENT_EVIDENCE)
+        self.assertEqual(body["sources"], [])
+        self.assertEqual(body["outcome"], "insufficient_evidence")
 
     def test_document_must_be_a_nonempty_filename(self) -> None:
         for document in ["", "   ", "data/paper.pdf", "data\\paper.pdf"]:
@@ -253,7 +271,7 @@ class QueryModeTests(unittest.TestCase):
 
     def test_each_paper_scope_uses_separate_answer_path(self) -> None:
         with patch("app.main.answer_each_document", return_value={
-            "answer": "Answers by paper", "sources": [],
+            "answer": "Answers by paper", "sources": [], "outcome": "answered",
         }) as each, patch("app.main.answer_question") as relevant:
             response = local_client().post("/query", json={
                 "question": "What were the findings?", "scope": "each",
@@ -266,7 +284,7 @@ class QueryModeTests(unittest.TestCase):
 
     def test_each_paper_targeted_scope_searches_each_document(self) -> None:
         with patch("app.main.answer_each_document", return_value={
-            "answer": "Answers by paper", "sources": [],
+            "answer": "Answers by paper", "sources": [], "outcome": "answered",
         }) as each, patch("app.main.answer_question") as relevant:
             response = local_client().post("/query", json={
                 "question": "What methods were used?", "scope": "each_query",

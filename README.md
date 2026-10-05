@@ -213,6 +213,21 @@ model verifier). Each citation has a zero-based `source_index` into this respons
 papers. Quotes retain the verifier catalogue's whitespace normalization; they
 are not paraphrases. Refused answers have no claim evidence.
 
+The API also returns `outcome`: `answered`, `insufficient_evidence`, or `partial`.
+For verified each-paper requests, `partial` means some papers were answered and
+others returned insufficient evidence; all refusals yield `insufficient_evidence`.
+This describes the software's response, not independent factual verification.
+Plain generated answers and older responses may have no outcome (`null` in the
+API); the browser displays a neutral “Response ready” message for them. A request
+with no retrieved passages is explicitly insufficient evidence in either mode.
+
+The browser explains the selected search scope and suggests the findings
+question only for **Each paper (overview)**. Insufficient and partial responses
+keep their available passages and accepted evidence visible, with guidance for
+trying a more focused question. These responses do not establish that the
+original papers lack the requested result. Scope changes never submit or retry
+a question automatically.
+
 In the browser, expand a claim under **Evidence used for this answer** to inspect
 its selected excerpts and attribution. Its page link opens the matching card
 under **All retrieved passages** for surrounding context. These are model-selected

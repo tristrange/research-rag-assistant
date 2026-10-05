@@ -71,6 +71,43 @@ function loadUi(options = {}) {
   };
 }
 
+test("scope guidance updates for each selection and refresh preserves the question and scope", async () => {
+  let filenames = ["study.pdf"];
+  const { elements } = loadUi({ fetch: async () => ({ ok: true, json: async () => filenames }) });
+  await new Promise(setImmediate);
+
+  const scope = elements.get("document");
+  const question = elements.get("question");
+  const help = elements.get("scope-help");
+  const placeholder = question.placeholder;
+  question.value = "Keep my wording";
+  const descriptions = [];
+  for (const value of ["", "__each__", "__each_query__", "study.pdf"]) {
+    scope.value = value;
+    scope.listeners.get("change")?.();
+    descriptions.push(help.textContent);
+  }
+
+  assert.ok(descriptions.every((description) => description.length > 0));
+  assert.equal(new Set(descriptions).size, 4);
+  assert.match(descriptions[0], /across|top matches/i);
+  assert.match(descriptions[1], /overview|every indexed paper/i);
+  assert.match(descriptions[2], /targeted|question/i);
+  assert.match(descriptions[3], /only study\.pdf/i);
+  assert.equal(question.placeholder, "What methods were used in the study?");
+  scope.value = "__each__";
+  scope.listeners.get("change")?.();
+  assert.equal(question.placeholder, "What were the main findings?");
+  assert.equal(question.value, "Keep my wording");
+  assert.notEqual(question.placeholder, placeholder);
+
+  filenames = ["study.pdf", "new.pdf"];
+  await elements.get("refresh-papers-button").click();
+  assert.equal(scope.value, "__each__");
+  assert.equal(help.textContent, descriptions[1]);
+  assert.equal(question.value, "Keep my wording");
+});
+
 test("page references open all returned passages from that document and page", () => {
   const { showSources, renderAnswer, elements } = loadUi();
   const pages = showSources([
@@ -316,6 +353,120 @@ test("query submission clears previous evidence and displays the new API selecti
   assert.equal(elements.get("answer-text").textContent, "New");
 });
 
+test("answer outcomes control readiness guidance while retaining answer sources and evidence", async () => {
+  const sources = [{ document: "study.pdf", page: 2, section: "results", text: "Supported result." }];
+  const claim = { text: "Supported result", attribution: "this_document_authors", citations: [
+    { source_index: 0, quote: "Supported result." },
+  ] };
+  const cases = [
+    { outcome: "answered", status: "Answer ready.", guidanceHidden: true },
+    { outcome: "partial", status: "Some papers could not be answered.", guidanceHidden: false },
+    { outcome: "insufficient_evidence", status: "Not enough evidence to answer.", guidanceHidden: false },
+    { outcome: undefined, status: "Response ready.", guidanceHidden: true },
+    { outcome: null, status: "Response ready.", guidanceHidden: true },
+  ];
+
+  for (const { outcome, status, guidanceHidden } of cases) {
+    const { elements } = loadUi({ fetch: async (url) => url === "/documents"
+      ? { ok: true, json: async () => ["study.pdf"] }
+      : { ok: true, json: async () => ({
+        answer: "Supported answer",
+        sources,
+        claim_evidence: [claim],
+        ...(outcome === undefined ? {} : { outcome }),
+      }) },
+    });
+    await new Promise(setImmediate);
+    elements.get("question").value = "Question";
+    await elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+    assert.equal(elements.get("request-status").textContent, status);
+    const guidance = elements.get("answer-guidance");
+    assert.equal(guidance.hidden, guidanceHidden);
+    if (!guidanceHidden) {
+      assert.match(guidance.textContent, /does not mean.*lack.*results/i);
+      assert.match(guidance.textContent, /focused question/i);
+    }
+    assert.equal(elements.get("answer-text").textContent, "Supported answer");
+    assert.equal(elements.get("answer-panel").hidden, false);
+    assert.equal(elements.get("source-count").textContent, "1");
+    assert.equal(elements.get("copy-answer-button").disabled, false);
+    assert.equal(elements.get("evidence-panel").hidden, false);
+    assert.equal(elements.get("evidence-list").children[0].children[2].textContent, "Supported result.");
+  }
+});
+
+test("invalid answer outcomes are rejected before rendering and clear prior guidance on submit", async () => {
+  let nextResult = {
+    answer: "First answer", sources: [], outcome: "insufficient_evidence",
+  };
+  const { elements } = loadUi({ fetch: async (url) => url === "/documents"
+    ? { ok: true, json: async () => ["study.pdf"] }
+    : { ok: true, json: async () => nextResult },
+  });
+  await new Promise(setImmediate);
+  elements.get("question").value = "First question";
+  const submit = elements.get("query-form").listeners.get("submit");
+  await submit({ preventDefault() {} });
+  assert.equal(elements.get("answer-guidance").hidden, false);
+  assert.match(elements.get("answer-guidance").textContent, /does not mean.*lack.*results/i);
+
+  for (const invalidOutcome of ["unknown", "ANSWERED", 1, false, {}]) {
+    nextResult = { answer: "Must not render", sources: [], outcome: invalidOutcome };
+    elements.get("question").value = "Second question";
+    await submit({ preventDefault() {} });
+    assert.equal(elements.get("answer-guidance").hidden, true);
+    assert.equal(elements.get("answer-guidance").textContent, "");
+    assert.equal(elements.get("answer-panel").hidden, true);
+    assert.equal(elements.get("answer-text").textContent, "");
+    assert.equal(elements.get("sources-panel").hidden, true);
+    assert.equal(elements.get("request-error").hidden, false);
+  }
+});
+
+test("each scope selection is posted as its matching API scope", async () => {
+  const payloads = [];
+  const { elements } = loadUi({ fetch: async (url, init) => {
+    if (url === "/documents") return { ok: true, json: async () => ["study.pdf"] };
+    payloads.push(JSON.parse(init.body));
+    return { ok: true, json: async () => ({ answer: "Answer", sources: [] }) };
+  } });
+  await new Promise(setImmediate);
+  const select = elements.get("document");
+  for (const [value, scope, document] of [
+    ["", "relevant", null],
+    ["__each__", "each", null],
+    ["__each_query__", "each_query", null],
+    ["study.pdf", "relevant", "study.pdf"],
+  ]) {
+    select.value = value;
+    elements.get("question").value = "Question";
+    await elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+    assert.equal(payloads.at(-1).scope, scope);
+    assert.equal(payloads.at(-1).document, document);
+  }
+});
+
+test("outcome advice uses the scope captured when submission began", async () => {
+  let finishQuery;
+  const { elements } = loadUi({ fetch: async (url) => url === "/documents"
+    ? { ok: true, json: async () => ["study.pdf"] }
+    : new Promise((resolve) => { finishQuery = resolve; }),
+  });
+  await new Promise(setImmediate);
+  elements.get("question").value = "Question";
+  const submitting = elements.get("query-form").listeners.get("submit")({ preventDefault() {} });
+  const scope = elements.get("document");
+  scope.value = "__each__";
+  scope.listeners.get("change")?.();
+  finishQuery({ ok: true, json: async () => ({
+    answer: "Partial answer", sources: [], outcome: "partial",
+  }) });
+  await submitting;
+  const guidance = elements.get("answer-guidance").textContent;
+  assert.match(guidance, /Each paper \(overview\)/);
+  assert.match(guidance, /specific detail.*focused question/i);
+});
+
 test("service errors show API guidance as text and allow a successful retry", async () => {
   const message = "Ollama could not complete the request. <img src=x>";
   let attempts = 0;
@@ -373,7 +524,7 @@ test("question timing tracks elapsed time across delayed ticks and stops on comp
   finishQuery({ ok: true, json: async () => ({ answer: "Answer", sources: [] }) });
   await submitting;
   assert.equal(timing.textContent, "Time taken: 1:05");
-  assert.equal(elements.get("request-status").textContent, "Answer ready.");
+  assert.equal(elements.get("request-status").textContent, "Response ready.");
   assert.equal(activeTimers(), 0);
   advanceTime(60_000);
   assert.equal(timing.textContent, "Time taken: 1:05");
