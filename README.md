@@ -861,7 +861,7 @@ grading rules; historical reports remain readable and are not rewritten.
 ## Tests
 
 The **Regression checks** GitHub Actions workflow runs Python regressions, browser
-logic tests and strict mypy on pull requests and pushes to `main`. It installs
+logic tests, real-browser smoke tests and strict mypy on pull requests and pushes to `main`. It installs
 the committed lockfile in a fresh environment on a macOS runner. No secrets,
 PDF library, PostgreSQL or Ollama service are required; Hugging Face model
 downloads are disabled. Dependencies are downloaded during installation, so
@@ -879,6 +879,25 @@ With Node.js 24 installed, check browser rendering and request behavior separate
 ```bash
 node --test tests/test_ui_rendering.js
 ```
+
+To check the actual HTML, JavaScript and FastAPI routes in headless Chromium:
+
+```bash
+uv sync --locked
+uv run --locked python -m playwright install chromium
+RAG_DATABASE_URL=sqlite:///:memory: HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  uv run --locked python -m unittest discover -s tests/browser -v
+```
+
+The browser suite starts its own server on an unused loopback port and closes it
+afterward. It uses synthetic paper lists, service checks and answer results at
+the backend boundary; the page, assets, request validation and response serialization
+are real. It checks emphasis rendering, literal HTML safety, evidence and citation
+links, clipboard copying, refusal/partial guidance, paper refresh and retry after
+a service error. One flow uses a narrow viewport. This is a Chromium smoke check,
+not Safari compatibility testing or a visual layout audit. The Clipboard API is stubbed
+so the copy-button check leaves the host clipboard unchanged. Browser binaries require
+a separate download; ordinary Python/Node tests do not require them.
 
 These tests use SQLite and stubbed extraction, embeddings, and reranking to check
 index replacement and rollback, evaluation metrics and cutoffs, timing boundaries,

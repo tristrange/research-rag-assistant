@@ -54,6 +54,12 @@ jobs:
       - name: Browser logic regressions
         run: node --test tests/test_ui_rendering.js
 
+      - name: Install smoke-test browser
+        run: uv run --locked python -m playwright install chromium
+
+      - name: Real-browser smoke tests
+        run: uv run --locked python -m unittest discover -s tests/browser -v
+
       - name: Strict type checking
         run: uv run --locked mypy
 
