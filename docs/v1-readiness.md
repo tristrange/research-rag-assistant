@@ -33,7 +33,9 @@ completion is printed only after the transaction commits. This completes the
 basic local usability implementation; it does not approve a release.
 
 The `Regression checks` workflow installs locked dependencies in a fresh macOS
-environment and runs the Python and browser regressions plus strict mypy. It needs
+environment and runs the Python and browser regressions plus strict mypy. A separate
+Chromium smoke suite exercises the real page, assets and FastAPI routes with synthetic
+backend results, including evidence links, clipboard copying and service-error retry. It needs
 no paper library or model/database services. The [fresh-install check](install-smoke-test.md)
 separates these installation checks from the live setup and question smoke test.
 The [architecture diagram](architecture.md) documents the current ingestion,
