@@ -8,12 +8,14 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import NullPool
 
-from app.config import DATABASE_URL, GROUNDING_MODEL
+from app.config import SETTINGS
 from app.db.models import Chunk, DocumentIndex
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 
 
 CHECK_TIMEOUT_SECONDS = 3
+DATABASE_URL = SETTINGS.database_url
+GROUNDING_MODEL = SETTINGS.grounding_model
 OLLAMA_TAGS_URL = OLLAMA_EMBED_URL.rsplit("/", 1)[0] + "/tags"
 
 

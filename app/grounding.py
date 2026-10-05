@@ -11,13 +11,8 @@ from typing import Annotated, Literal, TypedDict, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
-from app.config import (
-    GROUNDING_MODEL as GROUNDING_MODEL,
-    DRAFT_THINK as DRAFT_THINK, VERIFIER_THINK as VERIFIER_THINK,
-    GROUNDING_SAMPLING as GROUNDING_SAMPLING, GROUNDING_TIMEOUT_SECONDS,
-    GROUNDING_OUTPUT_TOKENS as GROUNDING_OUTPUT_TOKENS,
-)
-from app.llm.ollama import default_timeout, generate_json
+from app.config import SETTINGS
+from app.llm.ollama import generate_json
 from app.types import AnswerClaim, ChunkData
 
 
@@ -25,9 +20,15 @@ INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
 GROUNDING_CONTRACT_VERSION = "claim-grounding-v24"
-GROUNDING_CONTEXT_TOKENS = 12288
-GROUNDING_DRAFT_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(DRAFT_THINK)
-GROUNDING_VERIFIER_TIMEOUT_SECONDS = GROUNDING_TIMEOUT_SECONDS if GROUNDING_TIMEOUT_SECONDS is not None else default_timeout(VERIFIER_THINK)
+# Keep the existing evaluation-facing names, derived from the shared snapshot.
+GROUNDING_MODEL = SETTINGS.grounding_model
+DRAFT_THINK = SETTINGS.draft_think
+VERIFIER_THINK = SETTINGS.verifier_think
+GROUNDING_SAMPLING = SETTINGS.grounding_sampling
+GROUNDING_OUTPUT_TOKENS = SETTINGS.grounding_output_tokens
+GROUNDING_CONTEXT_TOKENS = SETTINGS.grounding_context_tokens
+GROUNDING_DRAFT_TIMEOUT_SECONDS = SETTINGS.grounding_draft_timeout_seconds
+GROUNDING_VERIFIER_TIMEOUT_SECONDS = SETTINGS.grounding_verifier_timeout_seconds
 MAX_CLAIMS = 3
 MAX_QUOTE_CHARS = 4000
 

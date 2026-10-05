@@ -1,14 +1,11 @@
 import json
-from typing import Literal, TypedDict, cast
+from typing import TypedDict, cast
 
 import httpx
 
-from app.config import GENERATOR_MODEL, JUDGE_MODEL as JUDGE_MODEL
+from app.config import SETTINGS, Thinking as Thinking, default_timeout as default_timeout
 from app.llm.errors import OllamaResponseError, response_object
 from app.llm.telemetry import observe_call, record_metadata
-
-
-Thinking = bool | Literal["low", "medium", "high"]
 
 
 class ChatRequest(TypedDict, total=False):
@@ -20,17 +17,14 @@ class ChatRequest(TypedDict, total=False):
     think: Thinking
 
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = GENERATOR_MODEL
+OLLAMA_URL = SETTINGS.ollama_chat_url
+MODEL = SETTINGS.generator_model
+JUDGE_MODEL = SETTINGS.judge_model
 JUDGE_THINK = False
 
 
 class OllamaOutputLimitError(RuntimeError):
     """An incomplete model response is a failed call, not an evidence refusal."""
-
-
-def default_timeout(think: Thinking | None) -> float:
-    return 300.0 if think is True or isinstance(think, str) else 120.0
 
 
 def chat(

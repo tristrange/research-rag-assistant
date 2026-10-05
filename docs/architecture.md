@@ -88,7 +88,11 @@ call checks claim support, attribution and coverage of the whole question. A
 rejected draft has at most one repair attempt followed by another check. A
 failed evidence check produces the standard insufficient-evidence refusal.
 Transport failures, timeouts and output exhaustion are service errors rather
-than evidence refusals. Settings are defined in [`app.config`](../app/config.py).
+than evidence refusals. [`app.config`](../app/config.py) resolves one immutable
+`SETTINGS` snapshot at startup, including model profiles, sampling and per-stage
+timeouts. Database, embedding/chat adapters, grounding and diagnostics derive
+their settings from it. Compatibility exports preserve evaluation/report imports;
+reloading environment variables requires restarting the application.
 
 “Verified” describes these software/model checks, not independent factual truth.
 The verifier can miss an unsupported claim or reject a correct answer. It does
