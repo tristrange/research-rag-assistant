@@ -10,6 +10,7 @@ It also verifies unknown/mismatched index profiles, unique chunk locations,
 non-destructive duplicate detection during migration, and concurrent replacement
 and removal through the application indexer. Request-owned question vectors are
 checked across repeated scopes, including changed provenance after caching.
+An invalid later embedding batch must preserve the saved chunks and provenance.
 Synthetic files use stub extraction
 and embedding; transaction locking and database writes are real PostgreSQL.
 

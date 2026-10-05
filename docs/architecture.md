@@ -39,7 +39,12 @@ chunk index and recognized section. Its normal target is 500 characters with
 100-character overlap, preferring sentence and whitespace boundaries. It does
 not perform OCR; scanned PDFs without text are outside local v1.
 
-Each chunk is embedded with `nomic-embed-text`. PostgreSQL stores its text,
+Chunks are embedded with `nomic-embed-text` in batches of at most 16, using one
+HTTP client owned and closed by the indexing operation. The provider validates
+the exact response count and every finite 768-value vector before returning a
+batch; input order pairs each vector with its chunk. No parallel inference or
+automatic retry is introduced. Question embedding keeps the single-text API.
+PostgreSQL stores each chunk's text,
 metadata and 768-dimensional vector in the `chunks` table. Extraction, chunking
 and all embeddings finish before a transaction replaces only rows for that
 exact filename. A failed embedding or save preserves the old index. A PDF with

@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import threading
 import unittest
+import httpx
 from collections.abc import Callable
 from typing import Literal
 from unittest.mock import patch
@@ -25,6 +26,7 @@ from app.db.index_contract import (
 from app.db.models import Chunk, DocumentIndex
 from app.ingestion import indexing
 from app.library import remove_document
+from app.llm.errors import OllamaResponseError
 from app.retrieval import search
 from app.types import PageData
 from scripts import init_db
@@ -241,7 +243,7 @@ class PostgresContracts(unittest.TestCase):
             pages: list[PageData] = [{"document": paper.name, "page": 1, "text": "Replacement text."}]
             with patch.object(indexing, "SessionLocal", self.sessions), \
                     patch.object(indexing, "extract_pages", return_value=pages), \
-                    patch.object(indexing, "embed_text", return_value=vector(1.0)):
+                    patch.object(indexing, "embed_texts", side_effect=lambda texts, **kw: [vector(1.0) for _ in texts]):
                 self.assertEqual(indexing.index_pdf(str(paper)), 1)
         self.initialize()
         with self.sessions() as db:
@@ -296,7 +298,7 @@ class PostgresContracts(unittest.TestCase):
 
             with patch.object(indexing, "SessionLocal", self.sessions), \
                     patch.object(indexing, "extract_pages", side_effect=extract), \
-                    patch.object(indexing, "embed_text", return_value=vector(1.0)), \
+                    patch.object(indexing, "embed_texts", side_effect=lambda texts, **kw: [vector(1.0) for _ in texts]), \
                     patch.object(indexing, "lock_index", side_effect=coordinated_lock), \
                     patch("app.library.SessionLocal", self.sessions), \
                     patch("app.library.lock_index", side_effect=coordinated_lock):
@@ -409,6 +411,32 @@ class PostgresContracts(unittest.TestCase):
             chunk = db.get(Chunk, identifier)
             assert chunk is not None
             self.assertEqual(list(chunk.embedding), vector(1.0))
+
+    def test_invalid_later_embedding_batch_preserves_saved_index_and_provenance(self) -> None:
+        self.initialize()
+        identifier = self.add_chunk("preserved.pdf", vector(1.0))
+        request = httpx.Request("POST", "http://localhost:11434/api/embed")
+        responses = [
+            httpx.Response(200, request=request, json={"embeddings": [vector(1.0)] * 16}),
+            httpx.Response(200, request=request, json={"embeddings": [[True]]}),
+        ]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "preserved.pdf"
+            path.write_bytes(b"replacement synthetic PDF")
+            pages: list[PageData] = [{"document": path.name, "page": 1, "text": "x" * 9000}]
+            with patch.object(indexing, "SessionLocal", self.sessions), \
+                    patch.object(indexing, "extract_pages", return_value=pages), \
+                    patch("httpx.Client.post", side_effect=responses) as post:
+                with self.assertRaises(OllamaResponseError):
+                    indexing.index_pdf(str(path))
+                self.assertEqual(post.call_count, 2)
+        with self.sessions() as db:
+            chunks = list(db.scalars(select(Chunk)))
+            self.assertEqual([c.id for c in chunks], [identifier])
+            self.assertEqual(list(chunks[0].embedding), vector(1.0))
+            record = db.get(DocumentIndex, "preserved.pdf")
+            assert record is not None
+            self.assertEqual(record.pdf_sha256, "0" * 64)
 
     def test_reused_vector_preserves_ranking_and_filters_across_searches(self) -> None:
         self.initialize()

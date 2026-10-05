@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
 from app.db.models import Chunk, DocumentIndex
-from app.embeddings import OLLAMA_EMBED_URL, embed_text
+from app.embeddings import OLLAMA_EMBED_URL, embed_texts
 from app.ingestion import indexing
 from app.ingestion.pdf import extract_pages
 from app.llm.errors import OllamaResponseError
@@ -36,7 +36,7 @@ class IndexPdfTests(unittest.TestCase):
         for target, replacement in [
             ("SessionLocal", self.sessions),
             ("extract_pages", lambda _, **kwargs: self.pages),
-            ("embed_text", lambda _: [0.0] * 768),
+            ("embed_texts", lambda texts, *, client=None: [[0.0] * 768 for _ in texts]),
             ("pdf_checksum", lambda _: "0" * 64),
         ]:
             patcher = patch.object(indexing, target, replacement)
@@ -53,6 +53,21 @@ class IndexPdfTests(unittest.TestCase):
     def sections(self) -> list[str]:
         with self.sessions() as db:
             return list(db.scalars(select(Chunk.section).order_by(Chunk.id)))
+
+    def document_index(self) -> tuple[object, ...] | None:
+        with self.sessions() as db:
+            record = db.get(DocumentIndex, "sample.pdf")
+            if record is None:
+                return None
+            return (
+                record.pdf_sha256, record.embedding_model, record.embedding_dimensions,
+                record.extraction_version, record.chunking_version,
+                record.chunk_size, record.overlap,
+            )
+
+    def ordered_chunks(self) -> list[Chunk]:
+        with self.sessions() as db:
+            return list(db.scalars(select(Chunk).order_by(Chunk.id)))
 
     def test_repeated_indexing_does_not_duplicate_chunks(self) -> None:
         self.assertEqual(indexing.index_pdf(), 1)
@@ -111,7 +126,7 @@ class IndexPdfTests(unittest.TestCase):
     def test_embedding_failure_preserves_existing_chunks(self) -> None:
         indexing.index_pdf()
         messages: list[str] = []
-        with patch.object(indexing, "embed_text", side_effect=RuntimeError("offline")):
+        with patch.object(indexing, "embed_texts", side_effect=RuntimeError("offline")):
             with self.assertRaisesRegex(RuntimeError, "offline"):
                 indexing.index_pdf(progress=messages.append)
         self.assertEqual(self.contents(), [("sample.pdf", "Original text")])
@@ -125,7 +140,7 @@ class IndexPdfTests(unittest.TestCase):
         self.pages[0]["text"] = "Updated text"
         malformed = httpx.Response(200, request=httpx.Request("POST", OLLAMA_EMBED_URL),
                                   json={"embeddings": [["private provider output"]]})
-        with patch.object(indexing, "embed_text", embed_text), patch("httpx.post", return_value=malformed):
+        with patch.object(indexing, "embed_texts", embed_texts), patch("httpx.Client.post", return_value=malformed):
             with self.assertRaises(OllamaResponseError):
                 indexing.index_pdf()
             with TemporaryDirectory() as directory:
@@ -157,6 +172,100 @@ class IndexPdfTests(unittest.TestCase):
         ])
         self.assertEqual(self.contents(), [("sample.pdf", "Updated text")])
 
+    def test_batches_preserve_page_order_and_partial_final_batch(self) -> None:
+        self.pages = [
+            {"document": "sample.pdf", "page": page, "text": f"Page {page} unique content."}
+            for page in range(1, 19)
+        ]
+        requests: list[list[str]] = []
+        embedded = 0
+
+        def embed_batch(texts: list[str], *, client: httpx.Client | None = None) -> list[list[float]]:
+            nonlocal embedded
+            self.assertIsNotNone(client)
+            requests.append(texts)
+            vectors: list[list[float]] = []
+            for _ in texts:
+                vectors.append([float(embedded)] * 768)
+                embedded += 1
+            return vectors
+
+        with patch.object(indexing, "embed_texts", side_effect=embed_batch):
+            self.assertEqual(indexing.index_pdf(), 18)
+
+        expected_texts = [f"Page {page} unique content." for page in range(1, 19)]
+        self.assertEqual([len(request) for request in requests], [16, 2])
+        self.assertEqual([text for request in requests for text in request], expected_texts)
+        rows = self.ordered_chunks()
+        self.assertEqual([(row.page, row.text) for row in rows], list(enumerate(expected_texts, start=1)))
+        self.assertEqual([row.embedding[0] for row in rows], [float(i) for i in range(18)])
+
+    def test_owned_client_is_reused_and_closed_on_success_and_failure(self) -> None:
+        self.pages = [
+            {"document": "sample.pdf", "page": page, "text": f"Page {page} unique content."}
+            for page in range(1, 19)
+        ]
+        for fail in (False, True):
+            with self.subTest(fail=fail):
+                client_instance = object()
+                calls = 0
+
+                def embed_batch(texts: list[str], *, client: httpx.Client | None = None) -> list[list[float]]:
+                    nonlocal calls
+                    calls += 1
+                    if fail and calls == 2:
+                        raise RuntimeError("batch failed")
+                    return [[0.0] * 768 for _ in texts]
+
+                with patch("httpx.Client") as client_factory, \
+                        patch.object(
+                            indexing,
+                            "embed_texts",
+                            side_effect=embed_batch,
+                        ) as embedder:
+                    client_factory.return_value.__enter__.return_value = client_instance
+                    if fail:
+                        with self.assertRaisesRegex(RuntimeError, "batch failed"):
+                            indexing.index_pdf()
+                    else:
+                        self.assertEqual(indexing.index_pdf(), 18)
+                    client_factory.assert_called_once_with()
+                    client_factory.return_value.__enter__.assert_called_once_with()
+                    client_factory.return_value.__exit__.assert_called_once()
+                    self.assertEqual(embedder.call_count, 2)
+                    self.assertTrue(all(call.kwargs["client"] is client_instance for call in embedder.call_args_list))
+
+    def test_later_batch_failure_preserves_chunks_and_provenance(self) -> None:
+        indexing.index_pdf()
+        original_chunks = [(row.page, row.text, row.embedding) for row in self.ordered_chunks()]
+        original_index = self.document_index()
+        self.pages = [
+            {"document": "sample.pdf", "page": page, "text": f"Replacement page {page}."}
+            for page in range(1, 19)
+        ]
+        messages: list[str] = []
+        calls = 0
+
+        def fail_second_batch(texts: list[str], *, client: httpx.Client | None = None) -> list[list[float]]:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OllamaResponseError("embedding")
+            return [[1.0] * 768 for _ in texts]
+
+        with patch.object(indexing, "embed_texts", side_effect=fail_second_batch):
+            with self.assertRaises(OllamaResponseError):
+                indexing.index_pdf(progress=messages.append)
+
+        self.assertEqual(calls, 2)
+        self.assertEqual([(row.page, row.text, row.embedding) for row in self.ordered_chunks()], original_chunks)
+        self.assertEqual(self.document_index(), original_index)
+        self.assertEqual(
+            [message for message in messages if message.startswith("Embedding chunks:")],
+            ["Embedding chunks: 0/18", "Embedding chunks: 16/18"],
+        )
+        self.assertNotIn("Saving index…", messages)
+
     def test_chunk_progress_is_bounded_and_handles_an_empty_pdf(self) -> None:
         self.pages[0]["text"] = "x" * 20_000
         messages: list[str] = []
@@ -167,7 +276,10 @@ class IndexPdfTests(unittest.TestCase):
         self.assertEqual(embedding_messages[-1], f"Embedding chunks: {count}/{count}")
         self.pages = []
         messages.clear()
-        self.assertEqual(indexing.index_pdf(progress=messages.append), 0)
+        with patch("httpx.Client") as client_factory, patch.object(indexing, "embed_texts") as embedder:
+            self.assertEqual(indexing.index_pdf(progress=messages.append), 0)
+        client_factory.assert_not_called()
+        embedder.assert_not_called()
         self.assertIn("Embedding chunks: 0/0", messages)
         self.assertEqual(messages[-1], "Saving index…")
 
@@ -180,7 +292,7 @@ class IndexPdfTests(unittest.TestCase):
             document.save(paper)
             document.close()
 
-            with patch.object(indexing, "extract_pages", extract_pages), patch.object(indexing, "MAX_PAGE_CHARS", 10), patch.object(indexing, "embed_text") as embedder:
+            with patch.object(indexing, "extract_pages", extract_pages), patch.object(indexing, "MAX_PAGE_CHARS", 10), patch.object(indexing, "embed_texts") as embedder:
                 with self.assertRaisesRegex(ValueError, "PDF page 1 exceeds"):
                     indexing.index_pdf(str(paper))
                 embedder.assert_not_called()
@@ -196,7 +308,7 @@ class IndexPdfTests(unittest.TestCase):
             document.save(paper)
             document.close()
 
-            with patch.object(indexing, "extract_pages", extract_pages), patch.object(indexing, "MAX_PDF_PAGES", 2), patch.object(indexing, "embed_text") as embedder:
+            with patch.object(indexing, "extract_pages", extract_pages), patch.object(indexing, "MAX_PDF_PAGES", 2), patch.object(indexing, "embed_texts") as embedder:
                 with self.assertRaisesRegex(ValueError, "2-page limit"):
                     indexing.index_pdf(str(paper))
                 embedder.assert_not_called()
@@ -206,7 +318,7 @@ class IndexPdfTests(unittest.TestCase):
         indexing.index_pdf()
         self.pages[0]["text"] = "x" * 2000
 
-        with patch.object(indexing, "MAX_CHUNKS", 1), patch.object(indexing, "embed_text") as embedder:
+        with patch.object(indexing, "MAX_CHUNKS", 1), patch.object(indexing, "embed_texts") as embedder:
             with self.assertRaisesRegex(ValueError, "1-chunk limit"):
                 indexing.index_pdf()
             embedder.assert_not_called()
