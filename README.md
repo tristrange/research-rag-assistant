@@ -221,6 +221,11 @@ curl -X POST http://127.0.0.1:8000/query \
   | jq
 ```
 
+The question is embedded once per request and reused across paper searches and
+overview fallbacks. Later requests compute a fresh vector. Each search retains
+its own filters and index compatibility checks; no reindexing is needed for this
+retrieval optimization.
+
 This overview mode retrieves passages from each paper independently, preferring its
 conclusion, then abstract, discussion, and results sections, with a document-wide
 fallback when those section labels are unavailable. It runs a separate

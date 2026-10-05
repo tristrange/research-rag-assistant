@@ -8,7 +8,9 @@ or download Hugging Face models.
 
 It also verifies unknown/mismatched index profiles, unique chunk locations,
 non-destructive duplicate detection during migration, and concurrent replacement
-and removal through the application indexer. Synthetic files use stub extraction
+and removal through the application indexer. Request-owned question vectors are
+checked across repeated scopes, including changed provenance after caching.
+Synthetic files use stub extraction
 and embedding; transaction locking and database writes are real PostgreSQL.
 
 The suite is opt-in. Without `RAG_TEST_POSTGRES_URL`, its tests skip. The URL is

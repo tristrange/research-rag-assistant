@@ -6,7 +6,7 @@ from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, merge_selected_chunks, render_context
 from app.retrieval.rerank import rerank_chunks, with_vector_reserve
-from app.retrieval.search import list_documents, search_chunks
+from app.retrieval.search import QuestionEmbedding, list_documents, search_chunks
 from app.types import AnswerClaim, AnswerResult, ChunkData
 
 
@@ -28,6 +28,7 @@ def answer_question(
     answer_mode: Literal["plain", "verified"] = "plain",
     document: str | None = None,
     overview: bool = False,
+    query_embedding: QuestionEmbedding | None = None,
 ) -> AnswerResult:
     limit = default_top_k(expand_context) if limit is None else limit
     if limit < 1:
@@ -37,6 +38,9 @@ def answer_question(
     if reserve_vector_candidate and limit >= CANDIDATE_COUNT:
         raise ValueError(f"vector reserve requires limit below {CANDIDATE_COUNT}")
     candidate_limit = max(CANDIDATE_COUNT, limit) if use_reranking else limit
+    embedding = QuestionEmbedding(question) if query_embedding is None else query_embedding
+    if embedding.question != question:
+        raise ValueError("The embedding must belong to the requested question")
     if overview:
         if document is None:
             raise ValueError("a paper overview requires a document")
@@ -45,15 +49,16 @@ def answer_question(
             candidates = search_chunks(
                 question, limit=candidate_limit, document=document,
                 sections=sections,
+                query_embedding=embedding,
             )
             if candidates:
                 break
         if not candidates:
             candidates = search_chunks(
-                question, limit=candidate_limit, document=document,
+                question, limit=candidate_limit, document=document, query_embedding=embedding,
             )
     else:
-        candidates = search_chunks(question, limit=candidate_limit, document=document)
+        candidates = search_chunks(question, limit=candidate_limit, document=document, query_embedding=embedding)
     if not candidates:
         return {
             "answer": INSUFFICIENT_EVIDENCE,
@@ -115,9 +120,11 @@ def answer_each_document(
     sections = [f"{heading} by paper, based on retrieved passages:"]
     sources: list[ChunkData] = []
     claim_evidence: list[AnswerClaim] = []
+    embedding = QuestionEmbedding(question)
     for document in documents:
         result = answer_question(
             question, document=document, answer_mode=answer_mode, overview=overview,
+            query_embedding=embedding,
         )
         sections.append(f"{document}:\n{result['answer']}")
         for claim in result.get("claim_evidence", []):
