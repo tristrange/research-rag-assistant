@@ -24,9 +24,11 @@ flowchart LR
     API --> UI
 ```
 
-Both embedding nodes use the same `embed_text()` helper. Only ingestion proceeds
-to index replacement; asking a question reads the stored chunks without changing
-the corpus.
+Both embedding nodes use the same embedding model and validation contract.
+Ingestion calls `embed_texts()` for batches; a request-owned `QuestionEmbedding`
+calls `embed_text()` once and reuses its vector across searches. Only ingestion
+proceeds to index replacement; asking a question reads the stored chunks without
+changing the corpus.
 
 ## Ingestion and stored data
 
@@ -147,7 +149,7 @@ content from instructions, structured output and quote checks constrain answers,
 and the browser inserts excerpts as text. These defenses do not guarantee that
 prompt injection or semantic verification errors are impossible. The model has
 no application tools to execute commands or mutate the library. Credentials
-are not included in prompts. See the README's security and limitation notes.
+are not included in prompts. See the [local security boundary](local-usage.md#local-security-boundary).
 
 Regression CI covers local logic with stubs and SQLite. The
 [fresh-install smoke test](install-smoke-test.md) additionally checks live
