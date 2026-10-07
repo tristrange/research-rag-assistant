@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "kind": "frozen-ai-authored-fresh-question-protocol",
+  "phase": "candidate_frozen_before_question_authorship",
+  "candidate_commit": "9d9bf08e901631c02ec73492ac3bb53715639321",
+  "application_sha256": "58c91d9d461a1768f609bc9d15d4944c31473de22e3dd44a01357b413c7bb421",
+  "grounding_fingerprint": "baebefd9dcdca21a919065a7adb064598278c271ea2bd5922dfd9b86daf82658",
+  "freeze_sha256": "acd47fca3b78d37c41602f3929cb4314d34a4cbee9abdeeb4525b43131dc2fee",
+  "local_artifact_directory": "evaluation-results/local-v1-fresh-check-r2-20261007T190121519224Z",
+  "settings": {
+    "strategy": "reranked",
+    "top_k": 6,
+    "answer_mode": "verified",
+    "verifier_model": "gpt-oss:20b",
+    "verifier_temperature": 1.0,
+    "verifier_think": "medium",
+    "grounding_context_tokens": 12288,
+    "grounding_output_tokens": 4096,
+    "grounding_sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "grounding_draft_timeout_seconds": 300.0,
+    "grounding_verifier_timeout_seconds": 300.0,
+    "candidate_count": 20,
+    "reserve_vector_page": true,
+    "generator_prompt_sha256": "baebefd9dcdca21a919065a7adb064598278c271ea2bd5922dfd9b86daf82658",
+    "generator_temperature": "1.0",
+    "generator_think": "low",
+    "judge_temperature": 0.0,
+    "judge_think": false,
+    "neighbor_radius": 0,
+    "max_context_chars": null,
+    "repair_think": "medium",
+    "repair_timeout_seconds": 300.0
+  },
+  "runtime": {
+    "ollama_version": "0.40.0",
+    "model_digests": {
+      "gpt-oss:20b": "9ba9cc2b4e02463b933096090530aef679d534dd91ecc9afadfb2dbfdc59f3c5",
+      "nomic-embed-text": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+    }
+  },
+  "corpus": {
+    "sha256": "92a2f8def85239a9dd06020d59c725f9dae52817de25e3561d6d0b8285e9b9b8",
+    "chunks_by_document": {
+      "activin-receptor-2025.pdf": 233,
+      "housing-temperature.pdf": 216,
+      "mitochondrial-dynamics-2023.pdf": 387,
+      "sample.pdf": 207
+    }
+  },
+  "paper_pdf_sha256": {
+    "activin-receptor-2025.pdf": "b60d1a5d4612320f50863460f11d763b524a20d45420ff8c8a0f62d97478f254",
+    "housing-temperature.pdf": "3b4d5ef35f05fe0840096236a6758d312d1b7bc6dfc5f4c6ab3b79f0a140ce8e",
+    "mitochondrial-dynamics-2023.pdf": "d9b9673dfe072f2327a5f3902807eb1168039a90a2cdb27c637cc017b21bc8a0",
+    "sample.pdf": "072e84623519c3de66e77c6137e4ff92dd315409a639406e5d767bc4d5b262ca"
+  },
+  "protocol": {
+    "case_count": 8,
+    "answerable_count": 6,
+    "unanswerable_count": 2,
+    "paper_allocation": {
+      "sample.pdf": [
+        2,
+        0
+      ],
+      "housing-temperature.pdf": [
+        1,
+        1
+      ],
+      "mitochondrial-dynamics-2023.pdf": [
+        2,
+        0
+      ],
+      "activin-receptor-2025.pdf": [
+        1,
+        1
+      ]
+    },
+    "passing_rule": {
+      "supported_complete_answers_at_least": 5,
+      "appropriate_control_refusals": 2,
+      "material_unsupported_claims": 0,
+      "attribution_errors": 0
+    },
+    "method": "New AI-authored questions on four known papers, semantic novelty checked against all prior questions and inspected development facts. Separate source-based label review and pre-generation reservation. Generate once each, normal document-scoped verified pipeline, no label/reference inputs or model judge, no tuning or selective retries. Preserve failures. Separate AI review of final approved claims, quotes, PDF context, requested qualifiers and attribution. App/corpus/PDF/settings/runtime unchanged before and after. Not human-authored or unseen-paper validation."
+  },
+  "cases": []
+}
