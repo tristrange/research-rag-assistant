@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "kind": "ai-reviewed-fresh-question-check-summary",
+  "protocol_manifest": "benchmarks/local-v1-fresh-check-2026-10-07-r2.json",
+  "protocol_manifest_sha256": "5f4a10bdb66bbea9fb3c0df39573fdb9f7dcecd744f1de7b247746ae056dc101",
+  "reservation_commit": "7b2f8690adfa0a9ed545a487dee9ea046eaa8576",
+  "candidate_commit": "9d9bf08e901631c02ec73492ac3bb53715639321",
+  "started_at": "2026-10-07T19:10:47.810341+00:00",
+  "finished_at": "2026-10-07T19:25:45.651936+00:00",
+  "run_status": "complete",
+  "review_mode": "AI-authored known-paper questions, separate AI source-based review of approved evidence; no human review or automated Ollama judge",
+  "question_authors": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "author_count": 2
+  },
+  "source_reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium"
+  },
+  "reviewer_configuration_source": "Agent dispatch recorded by controller; reviewer self-context does not expose exact model variant.",
+  "frozen_inputs_verified": true,
+  "reranker_weight_digest_pinned": false,
+  "local_artifact_directory": "evaluation-results/local-v1-fresh-check-r2-20261007T190121519224Z",
+  "artifact_sha256": {
+    "freeze.json": "acd47fca3b78d37c41602f3929cb4314d34a4cbee9abdeeb4525b43131dc2fee",
+    "reserved-cases.json": "390de4691c2d79527a4e02bd5748790b333155ce8526fb5d44c37e6380e625c8",
+    "label-review.json": "6a5f6db5330a253c9dcd85e3536d600ccdd6b3a99410dc49ffd56322fa18e2fc",
+    "run.json": "a0da09ecbe1818f999ed5773c13e73a9e03c9bc55f81c80c2e2b2d88daa851d2",
+    "answer-review.json": "e1bd730c759b4186d1c9e4f846cc244c594036621e57bc1320a244c05c482b2e"
+  },
+  "development_regression": {
+    "purpose": "Known development questions, not fresh validation",
+    "passed": 4,
+    "answerable_cases": 2,
+    "unanswerable_controls": 2,
+    "report_sha256": "01c36ef0dc36bc9df41b2d2f9f8b2be51088f3c91b31adf24777c1eb15c804c4",
+    "review_sha256": "368c81f41c33b53f050cf6191fec304e833fc16675c11faf359438445c26cc46"
+  },
+  "summary": {
+    "supported_complete_answerable_count": 1,
+    "appropriate_control_refusal_count": 2,
+    "answerable_refusal_count": 1,
+    "material_source_coverage_error_count": 4,
+    "attribution_error_count": 0,
+    "factual_hallucination_count": 0,
+    "stopping_rule_met": false,
+    "total_cases": 8,
+    "answerable_cases": 6,
+    "unanswerable_controls": 2,
+    "approved_claim_count": 5,
+    "approved_excerpt_count": 6,
+    "passing_rule": {
+      "supported_complete_answers_at_least": 5,
+      "appropriate_control_refusals": 2,
+      "material_unsupported_claims": 0,
+      "attribution_errors": 0
+    },
+    "failure_reason": "One of six answerable cases meets strict approved-evidence completeness; one false refusal and four accepted material qualifier/cohort coverage gaps. Both controls refuse; authorship attribution and full-paper factual correctness pass."
+  },
+  "cases": [
+    {
+      "case_id": "sample-c26-spleen-mass",
+      "answerable": true,
+      "outcome": "insufficient_evidence",
+      "decision": "needs_fix",
+      "category": "safe_answerable_refusal",
+      "elapsed_seconds": 28.5,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "sample-day14-insulin-independence",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "needs_fix",
+      "category": "material_source_coverage_error",
+      "elapsed_seconds": 389.3,
+      "built_in_repair_used": true
+    },
+    {
+      "case_id": "housing-fgf21-temperature-effect",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "needs_fix",
+      "category": "material_source_coverage_error",
+      "elapsed_seconds": 110.5,
+      "built_in_repair_used": true
+    },
+    {
+      "case_id": "housing-unreported-serca-inhibition-force",
+      "answerable": false,
+      "outcome": "insufficient_evidence",
+      "decision": "pass",
+      "category": "appropriate_control_refusal",
+      "elapsed_seconds": 10.2,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "mito-mitophagic-flux-knockdown-groups",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "needs_fix",
+      "category": "material_source_coverage_error",
+      "elapsed_seconds": 72.8,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "mito-slc25a33-fis1-drp1-expression",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 205.0,
+      "built_in_repair_used": true
+    },
+    {
+      "case_id": "activin-short-term-adipose-insulin-stimulated-uptake",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "needs_fix",
+      "category": "material_source_coverage_error",
+      "elapsed_seconds": 70.8,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "activin-metformin-cotreatment-pyruvate-response-control",
+      "answerable": false,
+      "outcome": "insufficient_evidence",
+      "decision": "pass",
+      "category": "appropriate_control_refusal",
+      "elapsed_seconds": 9.6,
+      "built_in_repair_used": false
+    }
+  ]
+}
