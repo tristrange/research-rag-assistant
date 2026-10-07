@@ -345,6 +345,22 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertIsNone(report["metrics"])
             generate_mock.assert_not_called()
 
+    def test_verified_reranked_selection_policy_is_recorded_and_bound_on_resume(self) -> None:
+        settings = settings_for("reranked", "verified")
+        self.assertEqual(settings["candidate_count"], 20)
+        self.assertTrue(settings["reserve_vector_page"])
+        for strategy, mode in (("reranked", "plain"), ("vector", "verified"),
+                               ("expanded", "verified"), ("vector_reserve", "verified")):
+            with self.subTest(strategy=strategy, mode=mode):
+                self.assertFalse(settings_for(strategy, mode).get("reserve_vector_page", False))
+        self.assertFalse(settings_for("reranked", "verified", top_k=1).get("reserve_vector_page", False))
+        case = ANSWER_CASES[0]
+        raw = self.base_report([case], answer_mode="verified")
+        cast(dict[str, object], raw["settings"])["reserve_vector_page"] = False
+        old_selection = ReportModel.model_validate(raw)
+        with self.assertRaisesRegex(ValueError, "settings"):
+            validate_resume_consistency(old_selection, [case], CORPUS, "reranked", MODEL_NAME, "verified")
+
     def test_verified_cutoff_default_and_override_are_generated_and_recorded(self) -> None:
         case = ANSWER_CASES[0]
         for explicit_top_k, expected in ((False, 6), (True, 3)):

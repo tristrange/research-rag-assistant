@@ -3,9 +3,9 @@ from typing import Literal
 from app.grounding import INSUFFICIENT_EVIDENCE, grounded_answer
 from app.llm.ollama import generate
 from app.prompts import answer_prompt
-from app.retrieval import CANDIDATE_COUNT, default_top_k
+from app.retrieval import CANDIDATE_COUNT, VERIFIED_CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, merge_selected_chunks, render_context
-from app.retrieval.rerank import rerank_chunks, with_vector_reserve
+from app.retrieval.rerank import rerank_chunks, rerank_with_page_reserve, with_vector_reserve
 from app.retrieval.search import QuestionEmbedding, list_documents, search_chunks
 from app.types import AnswerClaim, AnswerResult, ChunkData
 
@@ -42,7 +42,12 @@ def answer_question(
         raise ValueError("vector reserve requires unexpanded reranking")
     if reserve_vector_candidate and limit >= CANDIDATE_COUNT:
         raise ValueError(f"vector reserve requires limit below {CANDIDATE_COUNT}")
-    candidate_limit = max(CANDIDATE_COUNT, limit) if use_reranking else limit
+    balanced_verified = (
+        answer_mode == "verified" and use_reranking and not expand_context
+        and not overview and not reserve_vector_candidate
+    )
+    candidate_count = VERIFIED_CANDIDATE_COUNT if balanced_verified else CANDIDATE_COUNT
+    candidate_limit = max(candidate_count, limit) if use_reranking else limit
     embedding = QuestionEmbedding(question) if query_embedding is None else query_embedding
     if embedding.question != question:
         raise ValueError("The embedding must belong to the requested question")
@@ -71,7 +76,10 @@ def answer_question(
             "outcome": "insufficient_evidence",
         }
 
-    chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
+    if balanced_verified:
+        chunks = rerank_with_page_reserve(question, candidates, limit=limit)
+    else:
+        chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
     if reserve_vector_candidate:
         chunks = with_vector_reserve(chunks, candidates)
 

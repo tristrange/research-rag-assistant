@@ -25,11 +25,19 @@ def main() -> None:
     reserve_output(args.output)
     before = runtime_snapshot([GROUNDING_MODEL])
     results: list[dict[str, object]] = []
+    settings = settings_for(saved.settings.strategy, "verified", saved.settings.top_k)
+    # These passages were selected by the saved run, not today's retrieval policy.
+    settings.update({
+        "candidate_count": saved.settings.candidate_count,
+        "reserve_vector_page": saved.settings.reserve_vector_page,
+        "neighbor_radius": saved.settings.neighbor_radius,
+        "max_context_chars": saved.settings.max_context_chars,
+    })
     report: dict[str, object] = {
         "schema_version": 2,
         "status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
         "source_report": str(args.report), "corpus": saved.corpus.model_dump(),
-        "settings": settings_for(saved.settings.strategy, "verified", saved.settings.top_k), "results": results,
+        "settings": settings, "results": results,
         "runtime_before": before.model_dump(), "runtime_after": None,
         "methodology": "Fixed saved sources; new grounding only, no retrieval or evaluation judge. Inspect traces manually.",
     }

@@ -70,13 +70,20 @@ index. PDFs remain local and are ignored by Git.
 ## Retrieval and answering
 
 [`app.rag`](../app/rag.py) embeds the question, uses pgvector cosine distance to
-retrieve ten candidates, then reranks them with the locally loaded
-`BAAI/bge-reranker-base` cross-encoder. Normal verified targeted searches retain
-six passages, without neighbor expansion. Plain answering, vector-only retrieval,
+retrieve vector candidates, then reranks them with the locally loaded
+`BAAI/bge-reranker-base` cross-encoder. Normal verified targeted searches retrieve
+twenty candidates and retain five reranked passages plus the highest vector-ranked
+passage from a document/page absent from those five, within the six-source limit
+and without neighbor expansion. If no new page is available, use the highest
+vector-ranked unselected passage. This preserves a second selection signal for
+cohort and timing details.
+With an explicit cutoff, one slot is reserved within that cutoff; a one-source
+cutoff or a candidate pool no larger than the cutoff uses ordinary reranking.
+Plain answering, vector-only retrieval,
 overviews and the opt-in vector-reserve strategy retain their three-passage
-defaults. Explicit cutoffs override these defaults. See the
-[reviewed coverage follow-up](reviewed-answer-quality.md) for the development trial
-and its limitations.
+defaults. Other reranked paths still retrieve ten candidates. See the
+[qualifier retrieval follow-up](qualifier-retrieval.md) for development checks
+and limitations.
 Each request owns one lazy question embedding, reused across overview section
 probes and each-paper searches. Document/section filters, candidate limits and
 cosine ordering still run independently for each search. Every search rechecks
@@ -95,8 +102,9 @@ an installed Ollama model does not include the reranker weights.
 
 Each-paper answering is sequential and can take longer. It labels separate
 answers by filename and remaps accepted citation indexes into the combined
-source list. Neighbor expansion and a reserved vector candidate are optional
-experimental paths, not defaults in the browser/API.
+source list. Neighbor expansion and the experimental strategy that appends an
+extra vector candidate remain opt-in; normal verified targeted searches instead
+reserve a vector slot inside their source limit.
 
 [`app.grounding`](../app/grounding.py) asks the configured grounding model for a
 structured draft with claims, attribution and citations. The default is

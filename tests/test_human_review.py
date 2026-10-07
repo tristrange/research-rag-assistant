@@ -17,8 +17,8 @@ from scripts.prepare_human_review import (
 class HumanReviewTests(unittest.TestCase):
     def test_legacy_configuration_hash_keeps_unknown_inference_fields_absent(self) -> None:
         raw = json.loads(self.path.read_text())
-        for field in ("grounding_sampling", "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds"):
-            del raw["settings"][field]
+        for field in ("grounding_sampling", "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds", "reserve_vector_page"):
+            raw["settings"].pop(field, None)
         legacy = ReportModel.model_validate(raw)
         original_configuration = {"settings": raw["settings"],
                                   "generator_model": raw["generator_model"], "judge_model": raw["judge_model"],
