@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "kind": "frozen-ai-authored-fresh-question-protocol",
+  "candidate_commit": "783ed9f4fd3d53ea4ee98a0dafe96646ce658905",
+  "reservation_parent_commit": "783ed9f4fd3d53ea4ee98a0dafe96646ce658905",
+  "reserved_at": "2026-10-07T01:48:15.115334+00:00",
+  "application_sha256": "cdfabd25b269443076d0fa2e2f959f427798deb0ab9f91129e51a30e46a2c01b",
+  "grounding_fingerprint": "78fde4f4b1fea915eec9136f9572d85e4226ffc0f85d76220cf6c46d5e807106",
+  "freeze_sha256": "7f30e84c0168546de2cfea442dad51933bb319b3ff39341ef1a63c3ec482dae6",
+  "labels_sha256": "15adcd3055d56a944531b875a790baaf0fb1ef4ee541d813a6dda7baadcbd997",
+  "local_artifact_directory": "evaluation-results/local-v1-fresh-check-20261007T014134850187Z",
+  "settings": {
+    "strategy": "reranked",
+    "top_k": 6,
+    "answer_mode": "verified",
+    "verifier_model": "gpt-oss:20b",
+    "verifier_temperature": 1.0,
+    "verifier_think": "medium",
+    "grounding_context_tokens": 12288,
+    "grounding_output_tokens": 4096,
+    "grounding_sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "grounding_draft_timeout_seconds": 300.0,
+    "grounding_verifier_timeout_seconds": 300.0,
+    "candidate_count": 10,
+    "generator_prompt_sha256": "78fde4f4b1fea915eec9136f9572d85e4226ffc0f85d76220cf6c46d5e807106",
+    "generator_temperature": "1.0",
+    "generator_think": "low",
+    "judge_temperature": 0.0,
+    "judge_think": false,
+    "neighbor_radius": 0,
+    "max_context_chars": null
+  },
+  "runtime": {
+    "ollama_version": "0.35.1",
+    "model_digests": {
+      "gpt-oss:20b": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "nomic-embed-text": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+    }
+  },
+  "corpus": {
+    "sha256": "92a2f8def85239a9dd06020d59c725f9dae52817de25e3561d6d0b8285e9b9b8",
+    "chunks_by_document": {
+      "activin-receptor-2025.pdf": 233,
+      "housing-temperature.pdf": 216,
+      "mitochondrial-dynamics-2023.pdf": 387,
+      "sample.pdf": 207
+    }
+  },
+  "paper_pdf_sha256": {
+    "sample.pdf": "072e84623519c3de66e77c6137e4ff92dd315409a639406e5d767bc4d5b262ca",
+    "housing-temperature.pdf": "3b4d5ef35f05fe0840096236a6758d312d1b7bc6dfc5f4c6ab3b79f0a140ce8e",
+    "mitochondrial-dynamics-2023.pdf": "d9b9673dfe072f2327a5f3902807eb1168039a90a2cdb27c637cc017b21bc8a0",
+    "activin-receptor-2025.pdf": "b60d1a5d4612320f50863460f11d763b524a20d45420ff8c8a0f62d97478f254"
+  },
+  "protocol": {
+    "case_count": 8,
+    "answerable_count": 6,
+    "unanswerable_count": 2,
+    "paper_allocation": {
+      "sample.pdf": [
+        2,
+        0
+      ],
+      "housing-temperature.pdf": [
+        1,
+        1
+      ],
+      "mitochondrial-dynamics-2023.pdf": [
+        2,
+        0
+      ],
+      "activin-receptor-2025.pdf": [
+        1,
+        1
+      ]
+    },
+    "passing_rule": {
+      "supported_complete_answers_at_least": 5,
+      "appropriate_control_refusals": 2,
+      "material_unsupported_claims": 0,
+      "attribution_errors": 0
+    },
+    "method": "Create fresh questions and reserve their labels after this freeze; inspect all old questions for semantic overlap, exclude rewordings of previously tested facts. Commit the protocol and question/hash reservation before generating. One generation per case with existing built-in repair only; no tuning or selective retries, retain failures. Default document-scoped verified answer_question path against existing library. Reference labels never passed to retrieval or model; no model judge. Independently review final answers, quotes, PDF context, all material qualifiers and attribution. Retain all outputs and call traces. Freeze checks before and after; any drift invalidates the check. Any threshold failure requires development work and a different reserved set; this set becomes development data after use."
+  },
+  "cases": [
+    {
+      "id": "sample-longitudinal-assessment-schedule",
+      "document": "sample.pdf",
+      "question": "In the longitudinal C26/NC26 cohort, when did the authors perform glucose-tolerance testing and MRI?",
+      "answerable": true
+    },
+    {
+      "id": "sample-food-restriction-ptbc1d4",
+      "document": "sample.pdf",
+      "question": "In the three-day food-restriction cohort, how did insulin-stimulated pTBC1D4 Thr642 phosphorylation compare with control mice?",
+      "answerable": true
+    },
+    {
+      "id": "housing-temperature-plasma-il6",
+      "document": "housing-temperature.pdf",
+      "question": "Among C26-bearing mice, how did thermoneutral housing change circulating IL-6 relative to standard-temperature housing?",
+      "answerable": true
+    },
+    {
+      "id": "housing-il6-blockade-unreported",
+      "document": "housing-temperature.pdf",
+      "question": "In C26-bearing mice, what effect did IL-6 blockade have on glucose tolerance in this study?",
+      "answerable": false
+    },
+    {
+      "id": "mito-in-vivo-localized-inflammation",
+      "document": "mitochondrial-dynamics-2023.pdf",
+      "question": "What evidence led the authors to describe the inflammation in SkM-Mfn1KO mice as localized within muscle fibers?",
+      "answerable": true
+    },
+    {
+      "id": "mito-salicylate-il6-recovery",
+      "document": "mitochondrial-dynamics-2023.pdf",
+      "question": "After chronic sodium salicylate treatment, how did post-exercise plasma IL6 in SkM-Mfn1KO mice compare one and seven days after the treadmill trial?",
+      "answerable": true
+    },
+    {
+      "id": "activin-short-term-muscle-protein-content",
+      "document": "activin-receptor-2025.pdf",
+      "question": "After short-term αActRIIA/IIB treatment, what changes did the authors report in gastrocnemius AKT–TBC1D4 signaling protein content and in GLUT4 or HKII abundance?",
+      "answerable": true
+    },
+    {
+      "id": "activin-human-hba1c-control",
+      "document": "activin-receptor-2025.pdf",
+      "question": "What change in HbA1c did αActRIIA/IIB treatment produce in human participants in this study?",
+      "answerable": false
+    }
+  ]
+}

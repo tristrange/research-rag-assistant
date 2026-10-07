@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "kind": "ai-reviewed-fresh-question-check-summary",
+  "protocol_manifest": "benchmarks/local-v1-fresh-check-2026-10-07.json",
+  "protocol_manifest_sha256": "a259551e60b9d1396f2d71416e632ee8289487400f8456df65bf11d60ee40207",
+  "reservation_commit": "5da77564eb6233673a63633e04de7545787ed8c5",
+  "candidate_commit": "783ed9f4fd3d53ea4ee98a0dafe96646ce658905",
+  "started_at": "2026-10-07T01:48:32.416989+00:00",
+  "finished_at": "2026-10-07T02:00:34.346915+00:00",
+  "run_status": "complete",
+  "review_mode": "AI-authored known-paper questions, separate AI source-based review; no human review or model judge",
+  "question_authors": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "author_count": 2
+  },
+  "source_reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium"
+  },
+  "frozen_inputs_verified": true,
+  "reranker_weight_digest_pinned": false,
+  "local_artifact_directory": "evaluation-results/local-v1-fresh-check-20261007T014134850187Z",
+  "artifact_sha256": {
+    "freeze.json": "7f30e84c0168546de2cfea442dad51933bb319b3ff39341ef1a63c3ec482dae6",
+    "reserved-cases.json": "15adcd3055d56a944531b875a790baaf0fb1ef4ee541d813a6dda7baadcbd997",
+    "label-review.json": "1873d5b7075409d2d46d23b40e158e1cb9a5a5d2928fc7900c11743f695f78b0",
+    "run.json": "866f2d78ceb6f38a68a1014c8c67991c1c7acbf21731983df7d5b0dbe3972334",
+    "answer-review.json": "b7a79141c5432433bfd01419264928641970c957e789ce6c5991e66c623643fc"
+  },
+  "summary": {
+    "supported_complete_answerable_count": 4,
+    "appropriate_control_refusal_count": 2,
+    "answerable_refusal_count": 1,
+    "material_source_coverage_error_count": 1,
+    "attribution_error_count": 0,
+    "factual_hallucination_count": 0,
+    "stopping_rule_met": false,
+    "total_cases": 8,
+    "answerable_cases": 6,
+    "unanswerable_controls": 2,
+    "approved_claim_count": 5,
+    "passing_rule": {
+      "supported_complete_answers_at_least": 5,
+      "appropriate_control_refusals": 2,
+      "material_unsupported_claims": 0,
+      "attribution_errors": 0
+    },
+    "failure_reason": "Only four of six answerable cases satisfy strict supported completeness, below five; one approved material cohort-duration qualifier lacks returned evidence. Both controls refuse appropriately and attribution errors are zero."
+  },
+  "cases": [
+    {
+      "case_id": "sample-longitudinal-assessment-schedule",
+      "answerable": true,
+      "outcome": "insufficient_evidence",
+      "decision": "needs_fix",
+      "category": "safe_answerable_refusal",
+      "elapsed_seconds": 30.0,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "sample-food-restriction-ptbc1d4",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "needs_fix",
+      "category": "material_source_coverage_error",
+      "elapsed_seconds": 60.4,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "housing-temperature-plasma-il6",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 113.5,
+      "built_in_repair_used": true
+    },
+    {
+      "case_id": "housing-il6-blockade-unreported",
+      "answerable": false,
+      "outcome": "insufficient_evidence",
+      "decision": "pass",
+      "category": "appropriate_control_refusal",
+      "elapsed_seconds": 20.3,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "mito-in-vivo-localized-inflammation",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 132.2,
+      "built_in_repair_used": false
+    },
+    {
+      "case_id": "mito-salicylate-il6-recovery",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 194.6,
+      "built_in_repair_used": true
+    },
+    {
+      "case_id": "activin-short-term-muscle-protein-content",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 155.5,
+      "built_in_repair_used": true
+    },
+    {
+      "case_id": "activin-human-hba1c-control",
+      "answerable": false,
+      "outcome": "insufficient_evidence",
+      "decision": "pass",
+      "category": "appropriate_control_refusal",
+      "elapsed_seconds": 13.7,
+      "built_in_repair_used": false
+    }
+  ]
+}

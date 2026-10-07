@@ -33,6 +33,8 @@ of earlier development experiments.
   and isolated evaluation inputs. PDFs and raw reports remain local and ignored.
 - [Local v1 readiness](v1-readiness.md): accepted AI-assisted development review, optional human
   review, reserved final validation questions and the release stopping rule.
+- [Local v1 fresh-question check](local-v1-fresh-check.md): frozen configuration,
+  fresh question reservation, AI review mode and exact stopping criteria.
 
 ## Engineering studies
 
