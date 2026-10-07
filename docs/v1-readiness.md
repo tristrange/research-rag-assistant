@@ -46,8 +46,12 @@ startup check passed with an isolated PostgreSQL container, a synthetic PDF and
 the default verified model. Existing package/model caches were reused; cold model
 downloads were not tested. This completes the basic local setup/release-tooling
 milestone. Green CI and successful startup do not approve release or answer quality.
-The optional human worksheet remains pending. The fresh-question check did not
-meet the release stopping rule; see the [recorded results](local-v1-fresh-check.md).
+The optional human worksheet remains pending. The revised fresh-question check
+did not meet the release stopping rule: one of six answerable cases passed strict
+approved-evidence review, and both controls refused appropriately. Four correct
+full-paper answers lacked complete approved context, and one answerable question
+was refused. See the [current results](local-v1-fresh-check-r2.md) and the
+[original failed check](local-v1-fresh-check.md).
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 

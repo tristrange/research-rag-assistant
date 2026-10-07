@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "kind": "frozen-ai-authored-fresh-question-protocol",
+  "phase": "questions_reserved_before_generation",
+  "candidate_commit": "9d9bf08e901631c02ec73492ac3bb53715639321",
+  "application_sha256": "58c91d9d461a1768f609bc9d15d4944c31473de22e3dd44a01357b413c7bb421",
+  "grounding_fingerprint": "baebefd9dcdca21a919065a7adb064598278c271ea2bd5922dfd9b86daf82658",
+  "freeze_sha256": "acd47fca3b78d37c41602f3929cb4314d34a4cbee9abdeeb4525b43131dc2fee",
+  "local_artifact_directory": "evaluation-results/local-v1-fresh-check-r2-20261007T190121519224Z",
+  "settings": {
+    "strategy": "reranked",
+    "top_k": 6,
+    "answer_mode": "verified",
+    "verifier_model": "gpt-oss:20b",
+    "verifier_temperature": 1.0,
+    "verifier_think": "medium",
+    "grounding_context_tokens": 12288,
+    "grounding_output_tokens": 4096,
+    "grounding_sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "grounding_draft_timeout_seconds": 300.0,
+    "grounding_verifier_timeout_seconds": 300.0,
+    "candidate_count": 20,
+    "reserve_vector_page": true,
+    "generator_prompt_sha256": "baebefd9dcdca21a919065a7adb064598278c271ea2bd5922dfd9b86daf82658",
+    "generator_temperature": "1.0",
+    "generator_think": "low",
+    "judge_temperature": 0.0,
+    "judge_think": false,
+    "neighbor_radius": 0,
+    "max_context_chars": null,
+    "repair_think": "medium",
+    "repair_timeout_seconds": 300.0
+  },
+  "runtime": {
+    "ollama_version": "0.40.0",
+    "model_digests": {
+      "gpt-oss:20b": "9ba9cc2b4e02463b933096090530aef679d534dd91ecc9afadfb2dbfdc59f3c5",
+      "nomic-embed-text": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+    }
+  },
+  "corpus": {
+    "sha256": "92a2f8def85239a9dd06020d59c725f9dae52817de25e3561d6d0b8285e9b9b8",
+    "chunks_by_document": {
+      "activin-receptor-2025.pdf": 233,
+      "housing-temperature.pdf": 216,
+      "mitochondrial-dynamics-2023.pdf": 387,
+      "sample.pdf": 207
+    }
+  },
+  "paper_pdf_sha256": {
+    "activin-receptor-2025.pdf": "b60d1a5d4612320f50863460f11d763b524a20d45420ff8c8a0f62d97478f254",
+    "housing-temperature.pdf": "3b4d5ef35f05fe0840096236a6758d312d1b7bc6dfc5f4c6ab3b79f0a140ce8e",
+    "mitochondrial-dynamics-2023.pdf": "d9b9673dfe072f2327a5f3902807eb1168039a90a2cdb27c637cc017b21bc8a0",
+    "sample.pdf": "072e84623519c3de66e77c6137e4ff92dd315409a639406e5d767bc4d5b262ca"
+  },
+  "protocol": {
+    "case_count": 8,
+    "answerable_count": 6,
+    "unanswerable_count": 2,
+    "paper_allocation": {
+      "sample.pdf": [
+        2,
+        0
+      ],
+      "housing-temperature.pdf": [
+        1,
+        1
+      ],
+      "mitochondrial-dynamics-2023.pdf": [
+        2,
+        0
+      ],
+      "activin-receptor-2025.pdf": [
+        1,
+        1
+      ]
+    },
+    "passing_rule": {
+      "supported_complete_answers_at_least": 5,
+      "appropriate_control_refusals": 2,
+      "material_unsupported_claims": 0,
+      "attribution_errors": 0
+    },
+    "method": "New AI-authored questions on four known papers, semantic novelty checked against all prior questions and inspected development facts. Separate source-based label review and pre-generation reservation. Generate once each, normal document-scoped verified pipeline, no label/reference inputs or model judge, no tuning or selective retries. Preserve failures. Separate AI review of final approved claims, quotes, PDF context, requested qualifiers and attribution. App/corpus/PDF/settings/runtime unchanged before and after. Not human-authored or unseen-paper validation."
+  },
+  "cases": [
+    {
+      "id": "sample-c26-spleen-mass",
+      "document": "sample.pdf",
+      "question": "At termination, how did spleen mass in the weight-stable and cachectic C26 groups compare with controls?",
+      "answerable": true
+    },
+    {
+      "id": "sample-day14-insulin-independence",
+      "document": "sample.pdf",
+      "question": "In the day-14 C26 tumor-bearing cohort, were the glucose-tolerance changes accompanied by altered glucose-stimulated plasma insulin?",
+      "answerable": true
+    },
+    {
+      "id": "housing-fgf21-temperature-effect",
+      "document": "housing-temperature.pdf",
+      "question": "In C26-bearing mice, by how much did thermoneutral housing augment circulating FGF21 compared with standard-temperature housing?",
+      "answerable": true
+    },
+    {
+      "id": "housing-unreported-serca-inhibition-force",
+      "document": "housing-temperature.pdf",
+      "question": "What effect did pharmacological SERCA inhibition have on soleus force in C26 mice housed at standard temperature?",
+      "answerable": false
+    },
+    {
+      "id": "mito-mitophagic-flux-knockdown-groups",
+      "document": "mitochondrial-dynamics-2023.pdf",
+      "question": "In stable knockdown myoblasts, which knockdowns increased mitophagic flux and which left it unchanged?",
+      "answerable": true
+    },
+    {
+      "id": "mito-slc25a33-fis1-drp1-expression",
+      "document": "mitochondrial-dynamics-2023.pdf",
+      "question": "How did SLC25A33 expression differ between Fis1- and Drp1-deficient myoblasts?",
+      "answerable": true
+    },
+    {
+      "id": "activin-short-term-adipose-insulin-stimulated-uptake",
+      "document": "activin-receptor-2025.pdf",
+      "question": "After short-term αActRIIA/IIB treatment, did insulin-stimulated glucose uptake in adipose tissue change in lean mice?",
+      "answerable": true
+    },
+    {
+      "id": "activin-metformin-cotreatment-pyruvate-response-control",
+      "document": "activin-receptor-2025.pdf",
+      "question": "How did metformin co-treatment affect the pyruvate-tolerance response after αActRIIA/IIB administration?",
+      "answerable": false
+    }
+  ],
+  "candidate_freeze_commit": "cb2e4d9",
+  "reservation_parent_commit": "cb2e4d9085391fd2ac49e86299630214231fe081",
+  "reserved_cases_sha256": "390de4691c2d79527a4e02bd5748790b333155ce8526fb5d44c37e6380e625c8",
+  "question_authors": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "author_count": 2
+  },
+  "source_reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium"
+  },
+  "label_review_sha256": "6a5f6db5330a253c9dcd85e3536d600ccdd6b3a99410dc49ffd56322fa18e2fc"
+}
