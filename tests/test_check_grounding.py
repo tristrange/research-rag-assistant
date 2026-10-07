@@ -20,7 +20,7 @@ CLAIM = GroundedClaim.model_validate({
 def valid_verdict() -> dict[str, Any]:
     return {
         "requirements": [{"requirement": "Requested finding", "supported": True,
-                          "reason": "The passage answers the question."}],
+                          "reason": "The passage answers the question.", "supporting_evidence_ids": [1]}],
         "answers_question": True, "reason": "The passage supports the answer.",
         "verdicts": [{"claim_index": 1, "supported": True, "correct_attribution": True,
                       "relevant": True, "reason": "The passage supports the claim.",
@@ -56,9 +56,11 @@ class GroundingControlTests(unittest.TestCase):
         obsolete["question_coverage"] = {"species": "not_requested"}
         self.assertFalse(complete_verifier_verdict(QUESTION, [obsolete], [CLAIM], [RESULT]))
         for ids in [[], [99], [1, 1]]:
-            for field in ["requested_answer", "claim"]:
+            for field in ["requested_answer", "claim", "requirement"]:
                 malformed = valid_verdict()
-                pointer = malformed["requested_answer"] if field == "requested_answer" else malformed["verdicts"][0]
+                pointer = (malformed["requested_answer"] if field == "requested_answer"
+                           else malformed["requirements"][0] if field == "requirement"
+                           else malformed["verdicts"][0])
                 pointer["supporting_evidence_ids"] = ids
                 with self.subTest(ids=ids, field=field):
                     self.assertFalse(complete_verifier_verdict(QUESTION, [malformed], [CLAIM], [RESULT]))
