@@ -111,6 +111,9 @@ structured draft with claims, attribution and citations. The default is
 `gpt-oss:20b`: draft reasoning low, verification reasoning medium. Runtime
 validation checks schema, source references and quoted text; a separate model
 call checks claim support, attribution and coverage of the whole question. A
+deterministic [duration check](duration-evidence.md) also compares explicit
+numeric durations with each claim's verifier-selected quotes. Missing duration
+support rejects the claim even when the model approves it. A
 rejected draft has at most one repair attempt followed by another check. A
 failed evidence check produces the standard insufficient-evidence refusal.
 Transport failures, timeouts and output exhaustion are service errors rather
