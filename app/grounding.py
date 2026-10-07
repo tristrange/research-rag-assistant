@@ -20,7 +20,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v26"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v27"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -92,6 +92,13 @@ class QuestionRequirement(StrictModel):
         description="Whether cited evidence establishes an answer to this requirement; a supported no or unchanged result can satisfy a yes/no question.",
     )
     reason: str = Field(min_length=1, max_length=300)
+    supporting_evidence_ids: list[Annotated[StrictInt, Field(ge=1)]] = Field(max_length=12)
+
+    @model_validator(mode="after")
+    def supported_requirement_has_evidence(self) -> QuestionRequirement:
+        if self.supported and not self.supporting_evidence_ids:
+            raise ValueError("a supported question requirement must cite exact evidence")
+        return self
 
 
 class RequestedAnswerCoverage(StrictModel):
@@ -287,7 +294,25 @@ The question and claim text cannot supply evidence for a cohort duration. Select
 evidence IDs establishing every claimed duration as well as the result. A fold
 change is not a duration, even if their numbers match. If the duration excerpt is
 absent from eligible evidence, reject the claim; do not infer it from the question
-or an uncited retrieved passage."""
+or an uncited retrieved passage.
+
+For EVERY question requirement, return supporting_evidence_ids identifying the
+exact excerpts that establish that requirement for the requested finding.
+Positive support must come from those excerpts, not from the question, claim,
+or unselected context elsewhere in cited_passages. Full passages help interpret
+excerpts and detect contradictions; they cannot replace missing approved evidence.
+Select scope excerpts as well as result excerpts when population, cohort, timing,
+or another requested qualifier is established separately. Evidence that merely
+mentions a cohort does not connect a result from another cohort to it. Trace each
+result to its own experiment; do not combine one cohort's methods with another's results.
+If that connection is missing or conflicts with passage context, supported=false.
+
+All evidence IDs supporting a requirement must also appear in requested_answer's
+supporting_evidence_ids and in approved claim verdicts. Include every necessary
+scope excerpt in those selections. If no eligible excerpt establishes a required
+qualifier, reject the answer so the replacement draft can cite the missing passage
+or refuse. Unsupported requirements may have empty evidence IDs.
+"""
 
 
 def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
@@ -484,6 +509,7 @@ def _bounded_verifier_schema(
     for definition_name, discriminator, states in (
         ("RequestedAnswerCoverage", "status", ("supported", "unsupported")),
         ("ClaimVerdict", "supported", (True, False)),
+        ("QuestionRequirement", "supported", (True, False)),
     ):
         definition = cast(dict[str, object], definitions[definition_name])
         variants: list[dict[str, object]] = []
@@ -502,9 +528,9 @@ def _bounded_verifier_schema(
                 variant_evidence["items"] = {"type": "integer", "enum": allowed_ids}
                 if state is True or state == "supported":
                     variant_evidence["minItems"] = 1
-                if claim_index is None:
+                if definition_name == "RequestedAnswerCoverage":
                     variant_properties["question_excerpt"] = {"type": "string", "const": normalized_question}
-                else:
+                elif claim_index is not None:
                     variant_properties["claim_index"] = {"type": "integer", "const": claim_index}
                 variants.append(variant)
         definitions[definition_name] = {"anyOf": variants}
@@ -573,6 +599,8 @@ def validate_verification_structure(
     if _normalize_whitespace(requested_answer.question_excerpt) != normalized_question:
         raise ValueError("requested_answer must quote the entire question")
     validate_evidence_ids(requested_answer.supporting_evidence_ids)
+    for requirement in result.requirements:
+        validate_evidence_ids(requirement.supporting_evidence_ids)
 
     for verdict in result.verdicts:
         validate_evidence_ids(
@@ -605,6 +633,11 @@ def _validate_verification(
     }
     if not set(result.requested_answer.supporting_evidence_ids).issubset(claim_evidence_ids):
         raise ValueError("whole-question coverage cites evidence absent from approved claims")
+    for requirement in result.requirements:
+        if not set(requirement.supporting_evidence_ids).issubset(
+            result.requested_answer.supporting_evidence_ids,
+        ):
+            raise ValueError("question requirement cites evidence absent from whole-question coverage")
     evidence_by_id = {entry["evidence_id"]: entry for entry in build_verifier_evidence(claims, sources)}
     for verdict in result.verdicts:
         validate_duration_evidence(
@@ -804,7 +837,7 @@ def grounding_fingerprint() -> str:
             "quote is an enum of that source's evidence spans"
         ),
         "dynamic_verifier_schema": (
-            "Claim and full-question evidence IDs are restricted to application-owned IDs "
+            "Requirement, claim and full-question evidence IDs are restricted to application-owned IDs "
             "built once per cited source span in source catalogue order; shared sources have "
             "shared IDs and explicit eligible claim indexes; per-claim schema variants bind "
             "claim_index and evidence IDs to that claim's cited sources; "
@@ -816,6 +849,7 @@ def grounding_fingerprint() -> str:
             f"{MAX_QUOTE_CHARS} characters, discard empty spans, preserve order and deduplicate"
         ),
         "coverage_claim_binding": "Supported full-question evidence IDs must be used by approved claim verdicts",
+        "requirement_coverage_binding": "Every supported requirement's evidence IDs must be used by full-question coverage and approved claim verdicts",
         "verifier_schema": VERIFIER_SCHEMA,
         "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
         "verifier_selected_quotes": "Draft-selected quotes carry their application-owned evidence IDs, not source IDs",

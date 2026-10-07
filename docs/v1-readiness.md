@@ -52,6 +52,9 @@ approved-evidence review, and both controls refused appropriately. Four correct
 full-paper answers lacked complete approved context, and one answerable question
 was refused. See the [current results](local-v1-fresh-check-r2.md) and the
 [original failed check](local-v1-fresh-check.md).
+A [requirement-evidence guard](requirement-evidence.md) now binds each supported
+requirement's selected excerpts to the displayed claim evidence. This checks
+selection consistency; it does not prove that the excerpts establish a qualifier.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
