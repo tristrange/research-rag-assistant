@@ -114,6 +114,33 @@ uv run python -m scripts.compare_evidence_coverage \
   --output evaluation-results/coverage-sample.json
 ```
 
+For a focused retrieval diagnosis, select a question and widen the inspected
+candidate pool without generating an answer:
+
+```bash
+uv run python -m scripts.compare_evidence_coverage \
+  --benchmark benchmarks/activin-receptor-2025.json \
+  --pdf data/activin-receptor-2025.pdf \
+  --case activin-liver-tg-duration --candidates 30 --repetitions 1 \
+  --output evaluation-results/activin-qualifier-coverage.json
+```
+
+This coverage command can use your existing multi-paper library. Retrieval and
+PDF-text validation are scoped to the benchmark's exact filename; the saved
+fingerprint covers the full library, and any library change fails the run.
+Repeat `--case` to select more answerable questions. Unknown, duplicate or
+unanswerable selections are rejected. `--candidates` accepts 1–100 and must be
+at least the larger cutoff; the existing defaults remain ten candidates and
+three-versus-six seeds. The report saves all candidates, reranked order and the
+actual selection. It performs one warmup plus the requested measured repetitions,
+calling embeddings and the reranker but no answer generator or judge.
+
+Both numeric labels can match while a required population or diet qualifier is
+missing. Quote coverage is a retrieval diagnostic, not answer correctness; inspect
+the complete evidence chain. See the [Activin context investigation](activin-context-coverage.md).
+These scoped-library changes apply to the coverage command; other benchmark
+runners retain their documented isolation requirements.
+
 The default `reranked` strategy retrieves ten candidates and retains three for
 plain answering or six for verified answering, without neighbor expansion. The
 `vector` and `vector_reserve` strategies retain their three-passage defaults.

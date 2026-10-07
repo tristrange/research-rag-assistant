@@ -101,7 +101,8 @@ the successful cited-publication answer took approximately 319 seconds with repa
 compared with 131 seconds in the baseline. These single observations are not a
 controlled speed comparison.
 
-The Activin qualifier gap needs a separate context-retrieval investigation. A
+The [Activin context investigation](activin-context-coverage.md) records the
+remaining qualifier gap and retrieval-only follow-up. A
 cutoff change cannot recover evidence absent from the candidate pool. The
 200-character verifier-format rejection and unresolved ranking variation are
 also retained as diagnostics rather than silently discarded.
