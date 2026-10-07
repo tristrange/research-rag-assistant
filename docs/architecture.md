@@ -71,7 +71,12 @@ index. PDFs remain local and are ignored by Git.
 
 [`app.rag`](../app/rag.py) embeds the question, uses pgvector cosine distance to
 retrieve ten candidates, then reranks them with the locally loaded
-`BAAI/bge-reranker-base` cross-encoder. The normal path keeps three passages.
+`BAAI/bge-reranker-base` cross-encoder. Normal verified targeted searches retain
+six passages, without neighbor expansion. Plain answering, vector-only retrieval,
+overviews and the opt-in vector-reserve strategy retain their three-passage
+defaults. Explicit cutoffs override these defaults. See the
+[reviewed coverage follow-up](reviewed-answer-quality.md) for the development trial
+and its limitations.
 Each request owns one lazy question embedding, reused across overview section
 probes and each-paper searches. Document/section filters, candidate limits and
 cosine ordering still run independently for each search. Every search rechecks

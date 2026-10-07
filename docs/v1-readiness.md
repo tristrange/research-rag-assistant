@@ -6,7 +6,8 @@ Hosting, accounts, OCR, and advanced cross-paper synthesis are later extensions.
 
 ## Milestones
 
-- [ ] Human-reviewed answer quality and documented limitations.
+- [x] AI-assisted review of selected historical development answers and documented limitations.
+- [ ] Optional human review of the frozen answer worksheet.
 - [x] Cited evidence clearly distinguished from other retrieved passages.
 - [x] Straightforward library management, service checks, useful errors, and progress.
 - [x] Automated regression checks, current setup guide, architecture diagram,
@@ -16,7 +17,7 @@ The browser now exposes each final accepted claim's attribution and exact
 verifier-selected excerpts separately from all retrieved passages. Links open
 the corresponding page's context. Refused and rejected drafts expose no claim
 evidence. This completes the evidence-display implementation; it does not
-complete the deferred human quality review or establish answer reliability.
+establish answer reliability.
 
 Service-error guidance is implemented for the paper list and questions, including
 database failures, unavailable or missing Ollama models, timeouts and output-budget
@@ -44,7 +45,9 @@ startup check passed with an isolated PostgreSQL container, a synthetic PDF and
 the default verified model. Existing package/model caches were reused; cold model
 downloads were not tested. This completes the basic local setup/release-tooling
 milestone. Green CI and successful startup do not approve release or answer quality.
-Human review and the reserved final validation below remain outstanding before v1.
+The optional human worksheet and the reserved final validation below remain
+pending. The AI-assisted development review is complete; it is not independent
+validation, an assessment of current-code accuracy, or release approval.
 
 ## Development review protocol (frozen before new generation)
 
@@ -69,8 +72,17 @@ during development. They are not an independent validation set.
 
 All four reports completed on 2026-09-28 using application commit `e5b9c0f`.
 The selection protocol was committed as `085bcd6` before generation. Each
-selected question was generated once, with no selective retries. Thomas and
-Emma will review the packet together; their decisions are still pending.
+selected question was generated once, with no selective retries. The frozen
+answers and reports remain unchanged.
+
+An AI-assisted review of these historical answers recorded 12 passes out of 16:
+8 of 12 answerable cases and all 4 unanswerable controls passed. Four answerable
+cases were refused. Follow-up inspection found one with sufficient returned
+evidence and three with missing or partial context, including a population
+qualifier needed for the Activin comparison. This is a development review of
+historical outputs, not independent validation or a claim about current-code
+accuracy. It was accepted for this portfolio milestone; the human worksheet
+remains pending and is optional additional review.
 
 Prepare a local HTML packet and CSV worksheet from the completed reports. Pin
 report hashes and case IDs in `benchmarks/v1-development-review.json`. The packet
@@ -124,7 +136,7 @@ uv run python -m scripts.prepare_human_review \
 The review CSV is bound to the frozen selection; it cannot be reused after
 changing reports, case IDs, or configuration. Decisions and notes stay local.
 
-## Human review
+## Optional human review worksheet
 
 A human reviewer should read the question and answer first, then inspect the
 original PDF, cited passages, and reference label. Record one decision per case:
@@ -144,10 +156,12 @@ be established by the passages the answer cites. Alternative valid evidence is
 acceptable; a long label split across chunks is not automatically a retrieval
 failure. A fact-free refusal can be safe while still revealing missing retrieval.
 
-Human review remains outstanding until a person completes the worksheet. An
-assistant's inspection or a model-judge score does not complete this milestone.
-Resolve material issues in bounded follow-up changes, preserving original labels
-and reports. Version corrected labels rather than silently replacing history.
+The worksheet has not been completed by a human. It remains available for
+optional additional review; the accepted AI-assisted development review does not
+make it a prerequisite for this portfolio milestone. Any follow-up should preserve
+the original labels and reports. Version corrected labels rather than silently
+replacing history. See the [current-code coverage follow-up](reviewed-answer-quality.md)
+for reproduced failures and retrieval diagnostics.
 
 ## Final validation and stopping rule
 

@@ -31,8 +31,8 @@ of earlier development experiments.
 - [Report format](evaluation-report-format.md): schemas, provenance and compatibility.
 - [Benchmark corpus](benchmark-corpus.md): paper acquisition, attribution, licensing
   and isolated evaluation inputs. PDFs and raw reports remain local and ignored.
-- [Local v1 readiness](v1-readiness.md): deferred human review, reserved final
-  validation questions and the release stopping rule.
+- [Local v1 readiness](v1-readiness.md): accepted AI-assisted development review, optional human
+  review, reserved final validation questions and the release stopping rule.
 
 ## Engineering studies
 
@@ -57,6 +57,7 @@ model names, settings and outcomes remain as recorded; they do not override the
 - [Unexpanded third-paper evaluation](unexpanded-verified-third-paper.md)
 - [Vector reserve](vector-reserve-evaluation.md)
 - [Activin vector-reserve validation](activin-vector-reserve-validation.md)
+- [Reviewed answer coverage follow-up](reviewed-answer-quality.md)
 
 **Grounding and attribution investigations**
 
