@@ -7,6 +7,7 @@ Hosting, accounts, OCR, and advanced cross-paper synthesis are later extensions.
 ## Milestones
 
 - [x] AI-assisted review of selected historical development answers and documented limitations.
+- [ ] Meet the fresh-question stopping rule under the recorded review mode.
 - [ ] Optional human review of the frozen answer worksheet.
 - [x] Cited evidence clearly distinguished from other retrieved passages.
 - [x] Straightforward library management, service checks, useful errors, and progress.
@@ -45,8 +46,9 @@ startup check passed with an isolated PostgreSQL container, a synthetic PDF and
 the default verified model. Existing package/model caches were reused; cold model
 downloads were not tested. This completes the basic local setup/release-tooling
 milestone. Green CI and successful startup do not approve release or answer quality.
-The optional human worksheet and the reserved final validation below remain
-pending. The AI-assisted development review is complete; it is not independent
+The optional human worksheet remains pending. The fresh-question check did not
+meet the release stopping rule; see the [recorded results](local-v1-fresh-check.md).
+The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
 ## Development review protocol (frozen before new generation)
@@ -165,11 +167,19 @@ for reproduced failures and retrieval diagnostics.
 
 ## Final validation and stopping rule
 
-After development fixes, freeze the candidate configuration. A human should
-prepare six to eight fresh questions, including at least two unanswerable
-questions, and keep them out of tuning until that freeze. Existing papers may
-be reused, but this is then a fresh-question check in a known domain, not an
-unseen-paper or general scientific reliability benchmark.
+After development fixes, freeze the candidate configuration before preparing
+six to eight fresh questions, including at least two unanswerable questions.
+Keep the questions out of tuning, reserve them before generation and identify
+who authored and reviewed them. Existing papers may be reused, but this is then
+a fresh-question check in a known domain, not an unseen-paper or general scientific
+reliability benchmark.
+
+The [reserved local-v1 check](local-v1-fresh-check.md) uses AI-authored questions
+and separate AI source-based review, matching the portfolio's accepted AI-assisted
+review approach. It does not complete a human-authored validation or claim human
+review. A human-authored check remains available as additional confirmation.
+The prespecified completeness, refusal and unsupported-claim thresholds below
+remain unchanged.
 
 The local v1 target is no observed material unsupported claim or attribution
 error, appropriate refusal on every unanswerable control, and correct,

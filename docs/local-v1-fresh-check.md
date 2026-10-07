@@ -53,10 +53,68 @@ human review or independently certify scientific correctness.
 
 ## Results
 
-Pending. The [frozen question reservation](../benchmarks/local-v1-fresh-check-2026-10-07.json)
+The check did not meet the prespecified local-v1 stopping rule. All eight cases
+completed once on 2026-10-07. Four of six answerable cases passed source-based
+review, and both unanswerable controls received appropriate refusals. One
+answerable case was refused; another contained a material source-coverage gap.
+No attribution error was observed. The target required at least five supported,
+complete answers and zero material unsupported claims.
+
+| Reserved case | Final outcome | Source-based review |
+| --- | --- | --- |
+| `sample-longitudinal-assessment-schedule` | Refused | Fail: missing complete timing/MRI coverage |
+| `sample-food-restriction-ptbc1d4` | Answered | Fail: numeric comparison correct, cohort duration absent from cited context |
+| `housing-temperature-plasma-il6` | Answered | Pass |
+| `housing-il6-blockade-unreported` | Refused | Pass: unanswerable control |
+| `mito-in-vivo-localized-inflammation` | Answered | Pass |
+| `mito-salicylate-il6-recovery` | Answered | Pass |
+| `activin-short-term-muscle-protein-content` | Answered | Pass |
+| `activin-human-hba1c-control` | Refused | Pass: unanswerable control |
+
+The application, settings, 1,043-chunk corpus and Ollama runtime/model digests
+matched the freeze before and after generation; local PDF hashes also matched
+stored provenance. The run lasted about twelve minutes. Individual calls took
+13.7–194.6 seconds, including normal retrieval and any built-in repair. Three
+cases used that repair. These are single observations, not a controlled speed
+comparison. There were no selective retries, model-judge calls or mid-run fixes.
+
+The [frozen question reservation](../benchmarks/local-v1-fresh-check-2026-10-07.json)
 records the application, configuration, model/corpus fingerprints and label-file
-hash. It is a protocol manifest, not input to the legacy single-paper benchmark
-runner. The protocol and reservation are committed before generation.
+hash. Reservation commit `5da7756` preceded the first generation. It is a protocol
+manifest, not input to the legacy single-paper benchmark runner. Its settings
+retain legacy judge fields for provenance, but no judge was invoked.
+
+The [aggregate result record](../benchmarks/local-v1-fresh-check-results-2026-10-07.json)
+binds the completed run and separate review to SHA-256 hashes of `freeze.json`,
+`reserved-cases.json`, `label-review.json`, `run.json` and `answer-review.json`.
+Question authors used two GPT-6 Luna agents; a GPT-6.1 Sol agent reviewed source
+labels before generation and final emitted answers afterward. The authors did
+not generate the candidate answers. This is separate AI review, not blinded
+human evaluation.
+
 Source PDFs, labels with raw quotations, generated answers and traces remain in
-ignored `evaluation-results/`. Public question text and aggregate findings are
-recorded alongside hashes for the local artifacts.
+ignored `evaluation-results/local-v1-fresh-check-20261007T014134850187Z/`.
+The live diagnostic report uses its own schema-version-1 format; it is not a
+schema-v3 answer-evaluation report and cannot be resumed or exported through the
+legacy benchmark tools. Public question text and aggregate findings are recorded
+alongside hashes for the local artifacts.
+
+The longitudinal schedule question received a safe refusal despite being
+answerable from the complete paper. Its returned passages did not establish the
+complete glucose-tolerance/MRI schedule. This fails answer completeness.
+
+The food-restriction answer correctly reported the numeric comparison, but its
+approved claim also asserted the three-day cohort duration. That duration is
+true in the full paper and present in the question, but absent from the returned
+cited context. Under the frozen review rule it is a material source-coverage
+failure, rather than an invented experimental result. A question's premise is
+not evidence establishing a qualifier in an approved claim.
+
+## Next development work
+
+Keep local v1 open. Investigate retrieval coverage for timing and cohort
+qualifiers, and why the verifier accepted a qualifier not established by its
+selected evidence. Keep these eight outcomes as development evidence. After a
+bounded fix, freeze the revised candidate and reserve different questions for
+another stopping check. Passing replays of this set would be regression evidence,
+not a replacement for this failed validation attempt.
