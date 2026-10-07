@@ -14,8 +14,9 @@ unchanged.
 
 The check recognizes numbers before seconds, minutes, hours, days, weeks, months
 or years, including English cardinal words through ninety-nine, hyphens and exact
-ranges. Signed numbers, decimal values, grouped digits and fractions preserve their
-values. Fixed-unit equivalents such as one week and seven days compare exactly;
+ranges, including “between 16 and 18 days.” Signed numbers, decimal values,
+grouped digits and fractions (including “1 / 2 days”) preserve their values.
+Fixed-unit equivalents such as one week and seven days compare exactly;
 calendar months and years are not converted to a fixed number of days. A fold
 change supplies no duration evidence. The helper's implementation hash is included
 in the grounding fingerprint, so evaluations cannot resume across a changed guard.
@@ -53,7 +54,7 @@ unanswerable controls refused. The observed food repair remains inadequate;
 neither this trial nor the synthetic repair test establishes reliable live
 repair. These inspected cases do not complete the independent v1 fresh check.
 
-Local, Git-ignored trial:
+Local, Git-ignored live trial before the range/fraction review correction:
 `evaluation-results/duration-grounding-trial-20261007T150654399851Z.json`.
 Its SHA-256 is
 `fa3c964af7f1ee27d4b0802c34e28c5ae9451893a87f0c6d9f43b66ba7205550`;
@@ -67,3 +68,23 @@ An independent source-based agent review binds that exact trial hash in
 `evaluation-results/duration-grounding-review-20261007T151658786891Z.json`.
 It found no emitted unsupported answer and confirmed the food case's incomplete
 coverage and incorrect repair evidence selection; it made no model calls.
+
+## Review correction
+
+Automated review reproduced two suffix matches: “between 16 and 18 days” was
+read as “18 days,” and “1 / 2 days” as “2 days.” The parser now keeps both range
+bounds and the complete spaced fraction. Regression tests cover both directions:
+neither a compound claim nor compound evidence may silently become its final
+number. An independent agent review confirmed these valid forms and signed,
+word-number and fractional ranges.
+
+The original live trial and review retain their original fingerprints. A fresh
+deterministic replay against the corrected implementation again rejected the
+stored false-positive verdict, accepted the supported schedule repair, and
+rejected the invalid food repair. No new generations or model calls were made.
+Post-review artifact:
+`evaluation-results/duration-guard-postreview-check-20261007T152344825305Z.json`;
+SHA-256:
+`d377cc9e04a745619b3c32a3911e8cdfa57a11f7d5ae028fa35847aa9e6439a9`.
+Corrected application fingerprint:
+`6a9cc395d14b9683a40f11d14933239248673c7df8ccb29dc7c63f8884355080`.

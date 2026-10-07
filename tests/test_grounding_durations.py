@@ -73,6 +73,27 @@ class DurationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duration"):
             validate_duration_evidence("The cohort lasted three days.", ["The cohort was followed throughout."])
 
+    def test_and_ranges_preserve_both_bounds_in_claims_and_quotes(self) -> None:
+        for expression in ("between 16 and 18 days", "16 and 18 days"):
+            with self.subTest(expression=expression):
+                validate_duration_evidence(expression, ["16–18 days"])
+                validate_duration_evidence("16–18 days", [expression])
+                for scalar in ("16 days", "18 days"):
+                    with self.assertRaisesRegex(ValueError, "duration"):
+                        validate_duration_evidence(expression, [scalar])
+                    with self.assertRaisesRegex(ValueError, "duration"):
+                        validate_duration_evidence(scalar, [expression])
+
+    def test_spaced_fractions_preserve_the_complete_value(self) -> None:
+        for expression in ("1 / 2 days", "1/ 2 days", "1 /2 days"):
+            with self.subTest(expression=expression):
+                validate_duration_evidence(expression, ["12 hours"])
+                validate_duration_evidence("1/2 days", [expression])
+                with self.assertRaisesRegex(ValueError, "duration"):
+                    validate_duration_evidence(expression, ["2 days"])
+                with self.assertRaisesRegex(ValueError, "duration"):
+                    validate_duration_evidence("2 days", [expression])
+
 
 if __name__ == "__main__":
     unittest.main()

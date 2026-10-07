@@ -22,11 +22,11 @@ _WORD_NUMBER = (
     rf"|(?:{'|'.join(_SMALL_NUMBERS)})"
 )
 _DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
-_NUMERIC = rf"[+\-\u2212]?(?:{_DIGITS}/{_DIGITS}|{_DIGITS}(?:\.\d+)?|\.\d+)"
+_NUMERIC = rf"[+\-\u2212]?(?:{_DIGITS}\s*/\s*{_DIGITS}|{_DIGITS}(?:\.\d+)?|\.\d+)"
 _NUMBER = rf"(?:{_NUMERIC}|{_WORD_NUMBER})"
 _DURATION = re.compile(
     rf"(?<![\w.])(?<!\d[,/])(?<![+\-\u2212])(?P<start>{_NUMBER})"
-    rf"(?:\s*(?:[{_DASHES}]|to)\s*(?P<end>{_NUMBER}))?"
+    rf"(?:\s*(?:[{_DASHES}]|to|and)\s*(?P<end>{_NUMBER}))?"
     rf"\s*[{_DASHES}]?\s*(?P<unit>seconds?|minutes?|hours?|days?|weeks?|months?|years?)\b",
     re.IGNORECASE,
 )
@@ -36,7 +36,7 @@ type Duration = tuple[str, Fraction, Fraction]
 
 def _number(value: str) -> Fraction:
     if value[0].isdigit() or value[0] in "+-\u2212.":
-        return Fraction(value.replace(",", "").replace("\u2212", "-"))
+        return Fraction(re.sub(r"\s+", "", value).replace(",", "").replace("\u2212", "-"))
     words = re.split(rf"[\s{_DASHES}]+", value.casefold())
     return Fraction(sum((_SMALL_NUMBERS | _TENS)[word] for word in words))
 
