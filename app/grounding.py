@@ -12,6 +12,7 @@ from typing import Annotated, Literal, TypedDict, cast
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from app.config import SETTINGS
+from app.grounding_durations import duration_fingerprint, validate_duration_evidence
 from app.llm.ollama import generate_json
 from app.types import AnswerClaim, ChunkData
 
@@ -19,7 +20,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v24"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v25"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -173,6 +174,12 @@ Preserve all question qualifiers: population, sex, species, study, intervention,
 dose, comparison and time period. Evidence for a different or unspecified target
 cannot establish a specifically requested target, even if the measured outcome is
 similar. Do not silently omit these qualifiers from the answer.
+The question's wording is not evidence for these facts. When a cohort duration or
+other qualifier is established in a different passage from its result, cite both
+passages. A quote establishing a fold change cannot establish a duration merely
+because the same number occurs in both. Every explicit duration in a claim must
+be established by its approved quotes; select the cohort excerpt as well as the
+result excerpt when needed.
 Keep each numerical effect attached to its exact measured outcome. Regional tissue
 weight is not total body fat mass, and enzyme activity is not a concentration of its
 substrate. Do not substitute these related measurements unless the cited evidence
@@ -273,7 +280,12 @@ even when multiple claims cite its source. For a claim, use only its eligible_ev
 the catalogue's claim_indexes lists every claim allowed to use that excerpt. Sharing
 an ID is valid when both claims cite its source. Unsupported assessments may use empty IDs or point to
 nearby or conflicting evidence to explain the gap. An ID alone does not establish support;
-assess the passage's exact facts, target, and attribution as instructed above."""
+assess the passage's exact facts, target, and attribution as instructed above.
+The question and claim text cannot supply evidence for a cohort duration. Select
+evidence IDs establishing every claimed duration as well as the result. A fold
+change is not a duration, even if their numbers match. If the duration excerpt is
+absent from eligible evidence, reject the claim; do not infer it from the question
+or an uncited retrieved passage."""
 
 
 def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
@@ -586,6 +598,12 @@ def _validate_verification(
     }
     if not set(result.requested_answer.supporting_evidence_ids).issubset(claim_evidence_ids):
         raise ValueError("whole-question coverage cites evidence absent from approved claims")
+    evidence_by_id = {entry["evidence_id"]: entry for entry in build_verifier_evidence(claims, sources)}
+    for verdict in result.verdicts:
+        validate_duration_evidence(
+            claims[verdict.claim_index - 1].text,
+            [evidence_by_id[evidence_id]["quote"] for evidence_id in verdict.supporting_evidence_ids],
+        )
 
 
 def _render_claims(claims: list[GroundedClaim], sources: list[ChunkData]) -> str:
@@ -755,6 +773,7 @@ def grounding_fingerprint() -> str:
     """Hash the prompts, schemas, and deterministic rendering contract."""
     contract = {
         "version": GROUNDING_CONTRACT_VERSION,
+        "duration_guard_sha256": duration_fingerprint(),
         "model": GROUNDING_MODEL,
         "context_tokens": GROUNDING_CONTEXT_TOKENS,
         "output_tokens": GROUNDING_OUTPUT_TOKENS,

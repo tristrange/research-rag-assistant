@@ -82,3 +82,6 @@ Its application fingerprint is
 `21c4c9fa1a5f9091319281d1c9b160548f211c6a5b59250eb955bdd43866c193`.
 The review binds this exact trial hash. PDFs, raw passages, historical reports,
 labels and the optional human worksheet remain unchanged.
+
+The subsequent [duration grounding follow-up](duration-evidence.md) addresses
+the unsupported duration that remained in this development trial's approved answer.

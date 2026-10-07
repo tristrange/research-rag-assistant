@@ -418,6 +418,72 @@ class GroundingTests(unittest.TestCase):
         self.assertFalse(verify_draft(question, GroundedDraft.model_validate(DRAFT), [SOURCE],
                                      verifier=lambda _p, _s: verdict))
 
+    @staticmethod
+    def duration_sources() -> list[ChunkData]:
+        return [
+            ChunkData(document="paper.pdf", page=4, chunk_index=0, section="results",
+                      text="Treatment produced a 6-fold response versus a 3-fold control."),
+            ChunkData(document="paper.pdf", page=2, chunk_index=0, section="methods",
+                      text="The cohort lasted three days."),
+        ]
+
+    @staticmethod
+    def duration_claim(source_ids: list[int]) -> dict[str, object]:
+        citations = [
+            {"source_id": 1, "quote": "Treatment produced a 6-fold response versus a 3-fold control."}
+        ]
+        if 2 in source_ids:
+            citations.append({"source_id": 2, "quote": "The cohort lasted three days."})
+        return {"answerable": True, "claims": [{
+            "text": "In the three-day cohort, treatment produced a 6-fold response versus a 3-fold control.",
+            "attribution": "this_document_authors", "citations": citations,
+        }]}
+
+    @staticmethod
+    def duration_approval(question: str, evidence_ids: list[int]) -> dict[str, object]:
+        verdict = approved(question)
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = evidence_ids
+        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = evidence_ids
+        return verdict
+
+    def test_claim_duration_cannot_borrow_from_an_uncited_retrieved_chunk(self) -> None:
+        question = "What happened in the cohort?"
+        positive_verdict = self.duration_approval(question, [1])
+        with patch("app.grounding.generate_json", side_effect=[
+            self.duration_claim([1]), positive_verdict,
+            self.duration_claim([1]), positive_verdict,
+        ]) as model:
+            self.assertEqual(grounded_answer(question, self.duration_sources()), INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 4)
+
+    def test_duration_repair_must_add_duration_citation_and_expose_both_pages(self) -> None:
+        question = "What happened in the cohort?"
+        sources = self.duration_sources()
+        numeric_only = self.duration_claim([1])
+        complete = self.duration_claim([1, 2])
+        evidence: list[AnswerClaim] = []
+        with patch("app.grounding.generate_json", side_effect=[
+            numeric_only, self.duration_approval(question, [1]),
+            complete, self.duration_approval(question, [1, 2]),
+        ]) as model:
+            answer = grounded_answer(question, sources, claim_evidence=evidence)
+        self.assertEqual(model.call_count, 4)
+        self.assertIn("paper.pdf, page 4", answer)
+        self.assertIn("paper.pdf, page 2", answer)
+        self.assertEqual(
+            {citation["source_index"] for citation in evidence[0]["citations"]}, {0, 1},
+        )
+
+    def test_repair_with_uncorroborated_duration_selection_refuses_after_four_calls(self) -> None:
+        question = "What happened in the cohort?"
+        draft = self.duration_claim([1, 2])
+        positive_verdict = self.duration_approval(question, [1])
+        with patch("app.grounding.generate_json", side_effect=[
+            draft, positive_verdict, draft, positive_verdict,
+        ]) as model:
+            self.assertEqual(grounded_answer(question, self.duration_sources()), INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 4)
+
     def test_valid_negative_verdict_is_structurally_complete_but_not_accepted(self) -> None:
         question = "At what dose did treatment delay weight loss?"
         draft = GroundedDraft.model_validate(DRAFT)
