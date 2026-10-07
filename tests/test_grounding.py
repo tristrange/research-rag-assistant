@@ -81,6 +81,23 @@ class GroundingTests(unittest.TestCase):
         self.assertNotEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(evidence[0]["citations"], [{"source_index": 0, "quote": "Treatment delayed weight loss."}])
 
+    def test_repair_with_supported_result_and_rejected_commentary_refuses_whole_answer(self) -> None:
+        replacement = deepcopy(DRAFT)
+        claims = cast(list[dict[str, object]], replacement["claims"])
+        claims.append({**deepcopy(claims[0]), "text": "All requested qualifiers are satisfied."})
+        verdict = deepcopy(APPROVED)
+        cast(list[dict[str, object]], verdict["verdicts"]).append({
+            "claim_index": 2, "supported": False, "correct_attribution": False,
+            "relevant": False, "reason": "Checking commentary is not a source finding.",
+            "supporting_evidence_ids": [],
+        })
+        evidence: list[AnswerClaim] = []
+        with patch("app.grounding.generate_json", side_effect=[{}, replacement, verdict]) as model:
+            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(evidence, [])
+        self.assertEqual(model.call_count, 3)
+
     def test_display_evidence_binds_reordered_verdicts_to_their_claims(self) -> None:
         source = ChunkData(document="study.pdf", page=2, chunk_index=0,
                            text="Treatment reduced body mass. Glucose uptake was unchanged.")
@@ -155,7 +172,9 @@ class GroundingTests(unittest.TestCase):
             result = grounded_answer("What did the cited study report?", [SOURCE])
         self.assertIn("delayed weight loss", result)
         self.assertEqual(model.call_count, 3)
-        self.assertEqual([call.kwargs["timeout_seconds"] for call in model.call_args_list], [450.0, 450.0, 240.0])
+        self.assertEqual([call.kwargs["timeout_seconds"] for call in model.call_args_list], [450.0, 240.0, 240.0])
+        self.assertEqual([call.kwargs["think"] for call in model.call_args_list],
+                         [DRAFT_THINK, VERIFIER_THINK, VERIFIER_THINK])
         for call in model.call_args_list:
             self.assertEqual(call.kwargs["sampling"], {"temperature": 0.6, "top_k": 20})
 
@@ -318,6 +337,28 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification"])
         self.assertEqual(trace[1]["output"], approved("Question"))
         self.assertIn("evidence_catalogue", trace[1])
+
+    def test_verifier_selected_quotes_use_evidence_ids_instead_of_passage_ids(self) -> None:
+        sources = [
+            ChunkData(document="study.pdf", page=1, chunk_index=0,
+                      text="Outcome A increased seven-fold. Outcome B increased six-fold."),
+            ChunkData(document="study.pdf", page=2, chunk_index=0,
+                      text="The study lasted three days."),
+        ]
+        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
+            "text": "Outcome B increased six-fold in the three-day study.",
+            "attribution": "this_document_authors", "citations": [
+                {"source_id": 1, "quote": "Outcome B increased six-fold."},
+                {"source_id": 2, "quote": "The study lasted three days."},
+            ],
+        }]})
+        payload = json.loads(build_verifier_prompt("What happened to outcome B?", draft.claims, sources)
+                             .split("Verification input JSON:\n", 1)[1])
+        self.assertEqual(payload["claims"][0]["evidence_quotes"], [
+            {"evidence_id": 2, "quote": "Outcome B increased six-fold."},
+            {"evidence_id": 3, "quote": "The study lasted three days."},
+        ])
+        self.assertEqual(payload["claims"][0]["eligible_evidence_ids"], [1, 2, 3])
 
     def test_present_but_non_catalogue_quotes_cannot_bypass_generation_schema(self) -> None:
         for quote in ["Treatment", "Treatment  delayed weight loss."]:

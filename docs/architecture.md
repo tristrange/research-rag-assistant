@@ -108,9 +108,12 @@ reserve a vector slot inside their source limit.
 
 [`app.grounding`](../app/grounding.py) asks the configured grounding model for a
 structured draft with claims, attribution and citations. The default is
-`gpt-oss:20b`: draft reasoning low, verification reasoning medium. Runtime
+`gpt-oss:20b`: first-draft reasoning low, repair and verification reasoning medium.
+Repair reuses the configured verifier reasoning and timeout profile. Runtime
 validation checks schema, source references and quoted text; a separate model
 call checks claim support, attribution and coverage of the whole question. A
+draft-selected quote carries its [evidence ID](repair-evidence.md) in the verifier
+input, separately from the passage ID. A
 deterministic [duration check](duration-evidence.md) also compares explicit
 numeric durations with each claim's verifier-selected quotes. Missing duration
 support rejects the claim even when the model approves it. A

@@ -20,7 +20,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v25"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v26"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -274,6 +274,8 @@ Missing evidence is unsupported. Every listed requirement, requested_answer, and
 pass before the answer can be accepted.
 
 Evidence IDs in evidence_catalogue are application-owned pointers to exact cited excerpts.
+source_id identifies a passage, not an evidence ID. Each claim's evidence_quotes
+already labels its draft-selected quotes with their actual evidence_id values.
 For requested_answer and every claim verdict, return supporting_evidence_ids using only
 those IDs. A supported assessment must have at least one. Each excerpt has one ID,
 even when multiple claims cite its source. For a claim, use only its eligible_evidence_ids;
@@ -364,6 +366,7 @@ def build_verifier_prompt(
     evidence_catalogue = build_verifier_evidence(claims, sources)
     verification_claims: list[dict[str, object]] = []
     for claim_index, claim in enumerate(claims, start=1):
+        selected_quotes = {(citation.source_id, citation.quote) for citation in claim.citations}
         cited_passages = []
         seen_sources: set[int] = set()
         for citation in claim.citations:
@@ -384,7 +387,11 @@ def build_verifier_prompt(
                                       if claim_index in entry["claim_indexes"]],
             "text": claim.text,
             "attribution": claim.attribution,
-            "evidence_quotes": [citation.model_dump() for citation in claim.citations],
+            "evidence_quotes": [
+                {"evidence_id": entry["evidence_id"], "quote": entry["quote"]}
+                for entry in evidence_catalogue
+                if (entry["source_id"], entry["quote"]) in selected_quotes
+            ],
             "cited_passages": cited_passages,
         })
     payload = {
@@ -620,11 +627,14 @@ def _render_claims(claims: list[GroundedClaim], sources: list[ChunkData]) -> str
     return "\n".join(rendered)
 
 
-def generate_draft_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
-    """Reason about evidence and attribution before producing the structured draft."""
-    return generate_json(prompt, schema, think=DRAFT_THINK, model=GROUNDING_MODEL,
+def generate_draft_json(
+    prompt: str, schema: dict[str, object], *, repair: bool = False,
+) -> dict[str, object]:
+    """Draft normally; use the verifier's reasoning budget to correct rejected drafts."""
+    return generate_json(prompt, schema, think=VERIFIER_THINK if repair else DRAFT_THINK, model=GROUNDING_MODEL,
                          num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS,
-                         sampling=GROUNDING_SAMPLING.options(), timeout_seconds=GROUNDING_DRAFT_TIMEOUT_SECONDS)
+                         sampling=GROUNDING_SAMPLING.options(),
+                         timeout_seconds=GROUNDING_VERIFIER_TIMEOUT_SECONDS if repair else GROUNDING_DRAFT_TIMEOUT_SECONDS)
 
 
 def generate_verification_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
@@ -744,6 +754,7 @@ def grounded_answer(
         repair_data = generate_draft_json(
             build_repair_prompt(question, sources, draft_data, feedback),
             _bounded_draft_schema(sources),
+            repair=True,
         )
     except ValueError as error:
         if trace is not None:
@@ -779,9 +790,11 @@ def grounding_fingerprint() -> str:
         "output_tokens": GROUNDING_OUTPUT_TOKENS,
         "draft_think": DRAFT_THINK,
         "verifier_think": VERIFIER_THINK,
+        "repair_think": VERIFIER_THINK,
         "sampling": GROUNDING_SAMPLING.options(),
         "draft_timeout_seconds": GROUNDING_DRAFT_TIMEOUT_SECONDS,
         "verifier_timeout_seconds": GROUNDING_VERIFIER_TIMEOUT_SECONDS,
+        "repair_timeout_seconds": GROUNDING_VERIFIER_TIMEOUT_SECONDS,
         "draft_instructions": _DRAFT_INSTRUCTIONS,
         "repair_instructions": _REPAIR_INSTRUCTIONS,
         "verifier_instructions": _VERIFIER_INSTRUCTIONS,
@@ -805,6 +818,7 @@ def grounding_fingerprint() -> str:
         "coverage_claim_binding": "Supported full-question evidence IDs must be used by approved claim verdicts",
         "verifier_schema": VERIFIER_SCHEMA,
         "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
+        "verifier_selected_quotes": "Draft-selected quotes carry their application-owned evidence IDs, not source IDs",
         "insufficient_evidence": INSUFFICIENT_EVIDENCE,
         "render_labels": {
             "this_document_authors": "",
