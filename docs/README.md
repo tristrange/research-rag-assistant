@@ -58,6 +58,7 @@ model names, settings and outcomes remain as recorded; they do not override the
 - [Vector reserve](vector-reserve-evaluation.md)
 - [Activin vector-reserve validation](activin-vector-reserve-validation.md)
 - [Reviewed answer coverage follow-up](reviewed-answer-quality.md)
+- [Activin context coverage investigation](activin-context-coverage.md)
 
 **Grounding and attribution investigations**
 
