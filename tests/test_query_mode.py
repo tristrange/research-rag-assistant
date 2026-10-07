@@ -32,10 +32,13 @@ class QueryModeTests(unittest.TestCase):
                                       json={"private": "secret model output"})
             with self.subTest(operation=operation), self.assertLogs("app.main", level="WARNING") as logs:
                 with patch("httpx.post", return_value=malformed) as post, \
-                        patch("app.grounding.generate_verification_json") as verifier:
+                        patch("app.grounding.generate_verification_json") as verifier, \
+                        patch("app.retrieval.rerank.get_model", side_effect=AssertionError(
+                            "Provider-error tests must not load a reranker model"
+                        )):
                     if operation == "chat":
                         with patch("app.rag.search_chunks", return_value=[chunk]), \
-                                patch("app.rag.rerank_chunks", return_value=[chunk]):
+                                patch("app.rag.rerank_with_page_reserve", return_value=[chunk]):
                             response = client.post("/query", json={"question": "What changed?"})
                     else:
                         # Keep this a real embedding-path test, with storage

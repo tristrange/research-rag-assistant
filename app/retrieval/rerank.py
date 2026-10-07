@@ -47,3 +47,15 @@ def with_vector_reserve(reranked: list[Chunk], vector_ranked: list[Chunk]) -> li
         if (chunk.document, chunk.page, chunk.chunk_index) not in selected:
             return [*reranked, chunk]
     raise ValueError("vector reserve requires an unselected vector candidate")
+
+
+def rerank_with_page_reserve(query: str, chunks: list[Chunk], limit: int = 6) -> list[Chunk]:
+    """Reserve one vector candidate, preferring a page absent from the reranked set."""
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    if limit == 1 or len(chunks) <= limit:
+        return rerank_chunks(query, chunks, limit=limit)
+    selected = rerank_chunks(query, chunks, limit=limit - 1)
+    pages = {(chunk.document, chunk.page) for chunk in selected}
+    other_pages = [chunk for chunk in chunks if (chunk.document, chunk.page) not in pages]
+    return with_vector_reserve(selected, other_pages or chunks)

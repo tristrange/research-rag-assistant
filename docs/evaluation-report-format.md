@@ -70,6 +70,16 @@ normal API requests do not collect these records or probe runtime metadata.
 
 ## Older artifacts
 
+New answer reports record `settings.reserve_vector_page`: whether normal verified
+reranking reserves one vector-ranked passage within `top_k`, preferring a
+document/page absent from the reranked selection. If no new page exists, it uses
+the highest unselected vector candidate. The flag records the policy, not whether
+another page was actually found. Legacy reports load with this flag false, and
+frozen review configuration hashes omit it when it was absent. Resuming requires the same candidate count and selection policy; an old
+pure-rerank report cannot continue under today's verified retrieval defaults.
+Fixed-source replays retain the saved retrieval settings because they do not run
+retrieval, while recording the current grounding settings for the new generation.
+
 Schema-v2 end-to-end reports and unversioned older replays still load. Missing claim
 evidence, call records and runtime snapshots become `null`, never reconstructed
 from today's defaults or old traces. An explicitly captured empty call list means

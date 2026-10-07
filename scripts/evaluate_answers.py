@@ -32,7 +32,7 @@ from app.grounding import (
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_THINK, JUDGE_MODEL, MODEL, Thinking, generate_json
 from app.llm.telemetry import ModelCall, RuntimeSnapshot, capture_calls, runtime_snapshot
-from app.retrieval import CANDIDATE_COUNT, default_top_k
+from app.retrieval import CANDIDATE_COUNT, VERIFIED_CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
 from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
@@ -199,6 +199,7 @@ class SettingsModel(StrictModel):
     strategy: Literal["vector", "reranked", "expanded", "vector_reserve"]
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1)
+    reserve_vector_page: bool = False
     answer_mode: Literal["plain", "verified"]
     verifier_model: str | None
     verifier_temperature: float | None
@@ -414,6 +415,8 @@ def settings_for(strategy: str, answer_mode: str = "plain", top_k: int | None = 
         top_k = default_top_k(
             strategy == "expanded", verified=answer_mode == "verified" and strategy == "reranked",
         )
+    balanced_verified = strategy == "reranked" and answer_mode == "verified"
+    candidate_count = VERIFIED_CANDIDATE_COUNT if balanced_verified else CANDIDATE_COUNT
     return {
         "strategy": strategy, "top_k": top_k,
         "answer_mode": answer_mode,
@@ -425,7 +428,8 @@ def settings_for(strategy: str, answer_mode: str = "plain", top_k: int | None = 
         "grounding_sampling": GROUNDING_SAMPLING.options() if answer_mode == "verified" else None,
         "grounding_draft_timeout_seconds": GROUNDING_DRAFT_TIMEOUT_SECONDS if answer_mode == "verified" else None,
         "grounding_verifier_timeout_seconds": GROUNDING_VERIFIER_TIMEOUT_SECONDS if answer_mode == "verified" else None,
-        "candidate_count": top_k if strategy == "vector" else max(CANDIDATE_COUNT, top_k),
+        "candidate_count": top_k if strategy == "vector" else max(candidate_count, top_k),
+        "reserve_vector_page": balanced_verified and 1 < top_k < candidate_count,
         "generator_prompt_sha256": grounding_fingerprint() if answer_mode == "verified" else sha256(answer_prompt("Question?", render_context([ChunkData(
             document="paper.pdf", page=1, chunk_index=0, text="Evidence.", section="references",
         )])).encode()).hexdigest(),

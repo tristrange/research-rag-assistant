@@ -36,6 +36,10 @@ def saved_report() -> Mock:
     }
     saved.settings.strategy = "reranked"
     saved.settings.top_k = 3
+    saved.settings.candidate_count = 10
+    saved.settings.reserve_vector_page = False
+    saved.settings.neighbor_radius = 0
+    saved.settings.max_context_chars = None
     completed = Mock()
     completed.case.id = CASE["id"]
     completed.case.question = CASE["question"]
@@ -144,6 +148,7 @@ class ReplayGroundingTests(unittest.TestCase):
                 saved = saved_report()
                 saved.settings.strategy = strategy
                 saved.settings.top_k = top_k
+                saved.settings.candidate_count = candidates
                 output = Path(directory) / "replay.json"
                 with (
                     patch("sys.argv", ["replay_grounding", "saved.json", "--output", str(output)]),
@@ -156,6 +161,7 @@ class ReplayGroundingTests(unittest.TestCase):
                 self.assertEqual(report["settings"]["top_k"], top_k)
                 self.assertEqual(report["settings"]["candidate_count"], candidates)
                 self.assertEqual(report["settings"]["answer_mode"], "verified")
+                self.assertFalse(report["settings"]["reserve_vector_page"])
                 self.assertEqual(grounded.call_args.args[1], [SOURCE])
 
     def test_interrupted_run_retains_partial_trace_and_failed_status(self) -> None:

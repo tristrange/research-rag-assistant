@@ -142,10 +142,17 @@ These scoped-library changes apply to the coverage command; other benchmark
 runners retain their documented isolation requirements.
 
 The default `reranked` strategy retrieves ten candidates and retains three for
-plain answering or six for verified answering, without neighbor expansion. The
-`vector` and `vector_reserve` strategies retain their three-passage defaults.
-Use `--top-k 3` to reproduce the older verified cutoff; resumed reports preserve
-their recorded cutoff. The [coverage follow-up](reviewed-answer-quality.md) records
+plain answering. Verified answering retrieves twenty candidates and retains five
+reranked passages plus the highest vector-ranked passage from a document/page
+not already represented, falling back to the highest unselected vector candidate.
+The limit remains six sources, without neighbor expansion. Smaller explicit cutoffs reserve one slot
+within their limit; a one-source cutoff or a pool no larger than the cutoff uses
+ordinary reranking. See the [qualifier retrieval follow-up](qualifier-retrieval.md).
+The `vector` and `vector_reserve` strategies retain their three-passage defaults.
+Use `--top-k 3` for a three-source cutoff with today's selection policy. Reproducing
+the older selection also requires its historical application commit. Resumed
+reports preserve their recorded cutoff but reject a changed selection policy;
+use a fresh report for this change. The [coverage follow-up](reviewed-answer-quality.md) records
 the six-passage development trial and known gaps. Reference answers and labels go
 only to the judge.
 The FastAPI endpoint continues to use reranking without expansion. Expansion stays

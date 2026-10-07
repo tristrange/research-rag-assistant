@@ -4,6 +4,7 @@ DEFAULT_TOP_K = 3
 VERIFIED_TOP_K = 6
 EXPANDED_TOP_K = 6
 CANDIDATE_COUNT = 10
+VERIFIED_CANDIDATE_COUNT = 20
 
 
 def default_top_k(expanded: bool, *, verified: bool = False) -> int:
