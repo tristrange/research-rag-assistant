@@ -114,9 +114,13 @@ uv run python -m scripts.compare_evidence_coverage \
   --output evaluation-results/coverage-sample.json
 ```
 
-The default `reranked` strategy uses the assistant's existing top-10 → top-3 pipeline.
-The `vector` strategy retrieves the top 3 directly. Both use the same prompt and
-answer-generation function. Reference answers and labels go only to the judge.
+The default `reranked` strategy retrieves ten candidates and retains three for
+plain answering or six for verified answering, without neighbor expansion. The
+`vector` and `vector_reserve` strategies retain their three-passage defaults.
+Use `--top-k 3` to reproduce the older verified cutoff; resumed reports preserve
+their recorded cutoff. The [coverage follow-up](reviewed-answer-quality.md) records
+the six-passage development trial and known gaps. Reference answers and labels go
+only to the judge.
 The FastAPI endpoint continues to use reranking without expansion. Expansion stays
 opt-in because the previous trial improved retrieval but introduced an unsupported
 drug-treatment answer. See the [neighboring-context evaluation](neighbor-context-evaluation.md)

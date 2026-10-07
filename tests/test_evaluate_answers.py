@@ -345,6 +345,32 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertIsNone(report["metrics"])
             generate_mock.assert_not_called()
 
+    def test_verified_cutoff_default_and_override_are_generated_and_recorded(self) -> None:
+        case = ANSWER_CASES[0]
+        for explicit_top_k, expected in ((False, 6), (True, 3)):
+            with self.subTest(explicit_top_k=explicit_top_k), TemporaryDirectory() as directory, ExitStack() as stack:
+                output = Path(directory) / "verified.json"
+                arguments = ["evaluate_answers", "--case", case["id"],
+                             "--answer-mode", "verified", "--output", str(output)]
+                if explicit_top_k:
+                    arguments.extend(["--top-k", "3"])
+                stack.enter_context(patch("sys.argv", arguments))
+                self.patch_preflight(stack)
+                answer = stack.enter_context(patch("app.rag.answer_question", return_value={
+                    "answer": "Unknown", "sources": [],
+                }))
+
+                def judge(generated: GeneratedCaseAnswer, ignored: object) -> CaseEvaluation:
+                    return judged_answer(generated)
+
+                stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge))
+                with redirect_stdout(io.StringIO()):
+                    main()
+                answer.assert_called_once_with(case["question"], limit=expected,
+                                               use_reranking=True, expand_context=False,
+                                               answer_mode="verified")
+                self.assertEqual(load_report(output).settings.top_k, expected)
+
     def test_expanded_strategy_is_recorded_and_passed_to_answer_generation(self) -> None:
         case = ANSWER_CASES[0]
         with TemporaryDirectory() as directory, ExitStack() as stack:

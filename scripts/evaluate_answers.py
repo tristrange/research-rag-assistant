@@ -410,7 +410,10 @@ def cases_hash(cases: list[AnswerEvaluationCase]) -> str:
 
 
 def settings_for(strategy: str, answer_mode: str = "plain", top_k: int | None = None) -> dict[str, object]:
-    top_k = default_top_k(strategy == "expanded") if top_k is None else top_k
+    if top_k is None:
+        top_k = default_top_k(
+            strategy == "expanded", verified=answer_mode == "verified" and strategy == "reranked",
+        )
     return {
         "strategy": strategy, "top_k": top_k,
         "answer_mode": answer_mode,
@@ -547,7 +550,7 @@ def main() -> None:
     parser.add_argument("--strategy", choices=["vector", "reranked", "expanded", "vector_reserve"], default=None)
     parser.add_argument("--answer-mode", choices=["plain", "verified"], default=None)
     parser.add_argument("--top-k", type=int, choices=range(1, 11),
-                        help="seed passages to retain (default: 6 expanded, 3 otherwise)")
+                        help="seed passages to retain (default: 6 expanded or verified reranked, 3 otherwise)")
     args = parser.parse_args()
     benchmark: BenchmarkMetadata | None = None
     available_cases = ANSWER_CASES
@@ -599,8 +602,10 @@ def main() -> None:
         requested_ids = saved.requested_case_ids
     else:
         strategy = args.strategy or "reranked"
-        top_k = args.top_k if args.top_k is not None else default_top_k(strategy == "expanded")
         answer_mode = args.answer_mode or "plain"
+        top_k = args.top_k if args.top_k is not None else default_top_k(
+            strategy == "expanded", verified=answer_mode == "verified" and strategy == "reranked",
+        )
         selected_ids = set(args.case_ids) if args.case_ids else None
         requested_ids = [
             case["id"] for case in available_cases

@@ -142,7 +142,7 @@ class HumanReviewTests(unittest.TestCase):
 
     def test_other_settings_are_rejected_even_with_a_matching_report_hash(self) -> None:
         report = json.loads(self.path.read_text())
-        report["settings"]["top_k"] = 6
+        report["settings"]["top_k"] += 1
         self.path.write_text(json.dumps(report))
         self.manifest.selections[0].sha256 = sha256(self.path.read_bytes()).hexdigest()
         with self.assertRaisesRegex(ValueError, "configuration differs"):

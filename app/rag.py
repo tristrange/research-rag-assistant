@@ -30,7 +30,12 @@ def answer_question(
     overview: bool = False,
     query_embedding: QuestionEmbedding | None = None,
 ) -> AnswerResult:
-    limit = default_top_k(expand_context) if limit is None else limit
+    if limit is None:
+        limit = default_top_k(
+            expand_context,
+            verified=answer_mode == "verified" and use_reranking
+            and not overview and not reserve_vector_candidate,
+        )
     if limit < 1:
         raise ValueError("limit must be positive")
     if reserve_vector_candidate and (not use_reranking or expand_context):

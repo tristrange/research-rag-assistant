@@ -1,4 +1,5 @@
 import unittest
+from typing import Literal
 from unittest.mock import ANY, MagicMock, call, patch
 
 from app.db.models import Chunk
@@ -6,9 +7,65 @@ from app.grounding import INSUFFICIENT_EVIDENCE
 from app.rag import OVERVIEW_SECTION_PRIORITY, answer_each_document, answer_question
 from app.retrieval.rerank import with_vector_reserve
 from app.retrieval.search import QuestionEmbedding
+from app.types import AnswerClaim, ChunkData
 
 
 class RagTests(unittest.TestCase):
+    def test_verified_default_retains_six_seeds_and_their_citation_indexes(self) -> None:
+        candidates = [Chunk(document="paper.pdf", page=2, chunk_index=index,
+                            text=f"Result {index}.", section="results") for index in range(10)]
+
+        def retain(query: str, chunks: list[Chunk], limit: int) -> list[Chunk]:
+            return chunks[:limit]
+
+        def approve(question: str, sources: list[ChunkData],
+                    *, claim_evidence: list[AnswerClaim]) -> str:
+            claim_evidence.append({"text": "Supported comparison.",
+                                   "attribution": "this_document_authors",
+                                   "citations": [{"source_index": 5, "quote": "Result 5."}]})
+            return "Supported comparison."
+
+        with patch("app.rag.search_chunks", return_value=candidates) as search, \
+                patch("app.rag.rerank_chunks", side_effect=retain), \
+                patch("app.rag.grounded_answer", side_effect=approve), \
+                patch("app.rag.expand_chunks") as expand:
+            result = answer_question("Comparison?", answer_mode="verified", document="paper.pdf")
+        self.assertEqual(len(result["sources"]), 6)
+        self.assertEqual(result["sources"][5]["text"], "Result 5.")
+        self.assertEqual(result["claim_evidence"][0]["citations"][0]["source_index"], 5)
+        self.assertEqual(search.call_args.kwargs["document"], "paper.pdf")
+        self.assertEqual(search.call_args.kwargs["limit"], 10)
+        expand.assert_not_called()
+
+    def test_wider_verified_default_preserves_explicit_cutoffs_and_other_modes(self) -> None:
+        candidates = [Chunk(document="paper.pdf", page=2, chunk_index=index,
+                            text=f"Result {index}.", section="results") for index in range(10)]
+
+        def retain(query: str, chunks: list[Chunk], limit: int) -> list[Chunk]:
+            return chunks[:limit]
+
+        configurations: list[tuple[Literal["plain", "verified"], int | None, bool, bool, bool]] = [
+            ("verified", 3, True, False, False),
+            ("plain", None, True, False, False),
+            ("verified", None, False, False, False),
+            ("verified", None, True, True, False),
+            ("verified", None, True, False, True),
+        ]
+        for mode, limit, reranked, overview, reserve in configurations:
+            with self.subTest(mode=mode, limit=limit, reranked=reranked,
+                              overview=overview, reserve=reserve), \
+                    patch("app.rag.search_chunks", return_value=candidates) as search, \
+                    patch("app.rag.rerank_chunks", side_effect=retain) as rerank, \
+                    patch("app.rag.grounded_answer", return_value=INSUFFICIENT_EVIDENCE), \
+                    patch("app.rag.generate", return_value="Answer"):
+                answer_question("Question?", document="paper.pdf", answer_mode=mode,
+                                limit=limit, use_reranking=reranked, overview=overview,
+                                reserve_vector_candidate=reserve)
+            if not reranked:
+                self.assertEqual(search.call_args.kwargs["limit"], 3)
+            else:
+                self.assertEqual(rerank.call_args.kwargs["limit"], 3)
+
     def test_verified_mode_uses_selected_sources_without_free_text_regeneration(self) -> None:
         source = Chunk(document="paper.pdf", page=10, chunk_index=1,
                        text="A cited study.", section="references")
