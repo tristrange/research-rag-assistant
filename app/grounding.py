@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from app.config import SETTINGS
 from app.grounding_durations import duration_fingerprint, validate_duration_evidence
+from app.ingestion.chunking import _ABBREVIATION_PERIOD, _SENTENCE_END, _is_abbreviation_period
 from app.llm.ollama import generate_json
 from app.types import AnswerClaim, ChunkData
 
@@ -20,7 +21,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v30"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v34"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -329,8 +330,8 @@ mentions a cohort does not connect a result from another cohort to it. Trace eac
 result to its own experiment; do not combine one cohort's methods with another's results.
 If that connection is missing or conflicts with passage context, supported=false.
 
-All evidence IDs supporting a requirement must also appear in requested_answer's
-supporting_evidence_ids and in approved claim verdicts. Include every necessary
+All evidence IDs supporting a requirement or requested_answer must also appear
+in approved claim verdicts. Include every necessary
 scope excerpt in those selections. If no eligible excerpt establishes a required
 qualifier, reject the answer so the replacement draft can cite the missing passage
 or refuse. Unsupported requirements may have empty evidence IDs.
@@ -457,9 +458,6 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
-
-
 def _evidence_spans(text: str) -> list[str]:
     """Extract deterministic quote choices after the validator's normalization."""
     normalized = _normalize_whitespace(text)
@@ -467,9 +465,14 @@ def _evidence_spans(text: str) -> list[str]:
         return []
     spans: list[str] = []
     seen: set[str] = set()
-    for sentence in _SENTENCE_SPLIT.split(normalized):
-        for start in range(0, len(sentence), MAX_QUOTE_CHARS):
-            span = sentence[start:start + MAX_QUOTE_CHARS]
+    boundaries = [match.end() for match in _SENTENCE_END.finditer(normalized)
+                  if not _is_abbreviation_period(normalized, match)]
+    start = 0
+    for end in [*boundaries, len(normalized)]:
+        sentence = normalized[start:end].strip()
+        start = end
+        for offset in range(0, len(sentence), MAX_QUOTE_CHARS):
+            span = sentence[offset:offset + MAX_QUOTE_CHARS]
             if span and span not in seen:
                 seen.add(span)
                 spans.append(span)
@@ -657,9 +660,9 @@ def _validate_verification(
         raise ValueError("whole-question coverage cites evidence absent from approved claims")
     for requirement in result.requirements:
         if not set(requirement.supporting_evidence_ids).issubset(
-            result.requested_answer.supporting_evidence_ids,
+            claim_evidence_ids,
         ):
-            raise ValueError("question requirement cites evidence absent from whole-question coverage")
+            raise ValueError("question requirement cites evidence absent from approved claims")
     evidence_by_id = {entry["evidence_id"]: entry for entry in build_verifier_evidence(claims, sources)}
     for verdict in result.verdicts:
         validate_duration_evidence(
@@ -888,11 +891,13 @@ def grounding_fingerprint() -> str:
             "entire whitespace-normalized original question"
         ),
         "evidence_span_rule": (
-            "whitespace-normalize, split on (?<=[.!?])\\s+, hard-split spans every "
+            "whitespace-normalize, split at ingestion sentence boundaries except known abbreviations, hard-split spans every "
             f"{MAX_QUOTE_CHARS} characters, discard empty spans, preserve order and deduplicate"
         ),
+        "sentence_end_pattern": _SENTENCE_END.pattern,
+        "abbreviation_pattern": _ABBREVIATION_PERIOD.pattern,
         "coverage_claim_binding": "Supported full-question evidence IDs must be used by approved claim verdicts",
-        "requirement_coverage_binding": "Every supported requirement's evidence IDs must be used by full-question coverage and approved claim verdicts",
+        "requirement_coverage_binding": "Every supported requirement's evidence IDs must be used by approved claim verdicts; whole-question coverage is independently required",
         "verifier_schema": VERIFIER_SCHEMA,
         "proof_instructions": _PROOF_INSTRUCTIONS,
         "proof_schema": PROOF_SCHEMA,

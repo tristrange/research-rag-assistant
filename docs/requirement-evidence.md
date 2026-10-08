@@ -251,3 +251,78 @@ These findings change documentation only; application behavior and indexing are
 unchanged. Artifact hashes and frozen inputs were checked. A full Python baseline
 run was stopped before test execution while blocked reading an installed
 Transformers file; it is not a passing test result.
+
+## Scientific quotes and scope evidence
+
+Contract v34 fixes two deterministic false rejections found during development:
+
+- Quote choices reuse ingestion's sentence boundaries and abbreviation rules.
+  `vs.`, `Fig.` and `et al.` stay attached to their sentence. The previous
+  splitter rejected a valid repaired housing quote and detached figure identities
+  from results. Whitespace normalization, exact catalogue-entry matching and the
+  4,000-character quote cap remain unchanged. Synthetic control quotes now include
+  the author prefix in the same sentence; source text and expected decisions are unchanged.
+- Requirement evidence IDs must appear directly in approved claim evidence.
+  They no longer have to be duplicated in the whole-question verdict. An observed
+  complete housing bundle failed solely because that redundant copy was absent.
+  Whole-question evidence must still belong to approved claims. Supported
+  requirements, full-question approval, the original question anchor, attribution,
+  duration checks and the isolated approved-excerpt proof remain required.
+
+Draft/repair instructions, verifier source eligibility, model settings, retrieval,
+indexing and the single repair limit otherwise retain v30 behavior. No additional
+inference stage or reindex is needed. These changes remove specific blockers;
+they do not establish reliable model source selection or local-v1 readiness.
+
+A broader v33 candidate offered uncited retrieved passages from the same paper
+and added draft/repair schema guidance. One normal generation per inspected case,
+with unchanged recorded passages, completed with these reviewed results:
+
+| Development case | Outcome |
+| --- | --- |
+| C26 day-14 insulin | Safe incomplete refusal: inconsistent verifier IDs, then repair changed an exact quote. |
+| Housing FGF21 | Correct full-paper answer, incomplete displayed cohort proof: a leptin quote does not establish the FGF21 cohort. |
+| Mitophagic flux | Complete supported answer after repair selected stable-knockdown scope and all four results. |
+| Activin adipose uptake | Safe incomplete refusal: repaired result excerpt omitted lean-cohort scope. |
+| SERCA-inhibition control | Appropriate refusal with valid model output. |
+| Metformin co-treatment control | Appropriate refusal with valid model output. |
+
+Strict completeness stayed at 1/4; both controls passed. No full-paper factual or
+attribution error was found, but the housing isolated proof falsely approved an
+incomplete display bundle. All four answerable passage pools were sufficient.
+The cases took 223, 305, 351, 262, 12 and 11 seconds across 18 calls. Application,
+settings, source passages and model/runtime identity stayed frozen. The broader
+candidate was discarded; these results **do not evaluate the shipped v34 code**.
+
+The v31 and v32 preliminary runs were interrupted and remain preserved with raw
+responses, candidate patches and runners. Neither is a complete six-case result.
+A fixed-input v30 Activin probe returned parseable but schema-invalid JSON; the
+earlier parsing failure has not been tied to one specific provider bug. No
+provider workaround, selective retry or model-setting change is included here.
+
+Preserved v33 artifacts in the primary checkout's ignored `evaluation-results/`:
+
+- Run: `v33-generation-check-20261008T144731440649Z.json`;
+  SHA-256 `a1e6189069f2662608767192a60d4052a15011f018fe7b5a97e366a961e10d30`.
+- Separate AI source review: `v33-generation-check-20261008T144731440649Z-source-review.json`;
+  SHA-256 `930d04b184373b1bfb68425734c6caf97ca87875c969605e6d391c1421ca2a05`.
+- Runner: `v33-generation-check-20261008T144731440649Z-runner.py`;
+  SHA-256 `6f3ffb43601ee19657cb21710a601d8ecef43162e4ac43ab0bffc9ec0cd9bc73`.
+
+The final v34 check replayed the unchanged saved v31 housing repair draft once.
+Its exact quotes now pass deterministic validation, reproducing removal of the
+`vs.` blocker. The normal full verifier exhausted its 4,096-token output budget
+before returning content (242 seconds); isolated proof did not run.
+This is an inference error, not a semantic refusal or a passing verifier check.
+No answer was approved, no retry was made, and the raw response is preserved.
+
+- Fixed-draft report: `v34-fixed-quote-recovery-20261008T151135224754Z.json`;
+  SHA-256 `3dc4efae128c03827eda429ce36ad5d57f210a8739023ff3a04c93431300afa0`.
+- Runner: `v34-fixed-quote-recovery-20261008T151135224754Z-runner.py`;
+  SHA-256 `43b230810b4c878a347b1d4b90aee4f8c903347144e526cf8ac1e7a765659daf`.
+
+Final-code checks: 423 Python tests passed (17 skipped), strict mypy passed for
+78 files, and independent focused diff review found no actionable issue.
+
+These inspected cases remain development evidence. Reserve different questions
+for the final check; do not count repeated or fixed-draft trials as fresh validation.

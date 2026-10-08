@@ -20,7 +20,7 @@ from app.types import AnswerClaim, ChunkData
 
 
 SOURCE = ChunkData(document="paper.pdf", page=10, chunk_index=2,
-                   section="references", text="Asp et al. Treatment delayed weight loss.")
+                   section="references", text="Asp et al. reported the study. Treatment delayed weight loss.")
 DRAFT: dict[str, object] = {
     "answerable": True,
     "claims": [{"text": "The cited treatment delayed weight loss.",
@@ -62,6 +62,13 @@ class GroundingTests(unittest.TestCase):
         proof.start()
         self.addCleanup(proof.stop)
 
+    def test_scientific_abbreviations_preserve_exact_quote_choices(self) -> None:
+        text = "Asp et al. observed 3.9% uptake (Fig. 1F). Values differed vs. ST mice. Final result."
+        self.assertEqual(_evidence_spans(text), [
+            "Asp et al. observed 3.9% uptake (Fig. 1F).",
+            "Values differed vs. ST mice.", "Final result.",
+        ])
+
     def test_supported_requirement_without_evidence_ids_fails_closed(self) -> None:
         verdict = approved()
         cast(list[dict[str, object]], verdict["requirements"])[0].pop("supporting_evidence_ids", None)
@@ -69,7 +76,7 @@ class GroundingTests(unittest.TestCase):
                                      GroundedDraft.model_validate(DRAFT), [SOURCE],
                                      verifier=lambda _p, _s: verdict))
 
-    def test_qualifier_evidence_must_appear_in_whole_question_and_approved_claims(self) -> None:
+    def test_qualifier_evidence_must_appear_in_approved_claims(self) -> None:
         question = "How did uptake change in male mice?"
         source = ChunkData(document="study.pdf", page=1, chunk_index=0,
                            text="We studied male mice. Uptake increased.")
@@ -90,6 +97,12 @@ class GroundingTests(unittest.TestCase):
         self.assertFalse(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
         cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
         self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [2]
+        self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        with patch("app.grounding.generate_approved_proof_json", return_value={
+            "supported": False, "reason": "Different cohort.",
+        }):
+            self.assertFalse(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
 
     def test_display_evidence_uses_verifier_selections_and_exact_source_indexes(self) -> None:
         source = ChunkData(document="study.pdf", page=2, chunk_index=7, section="results",
@@ -708,7 +721,7 @@ class GroundingTests(unittest.TestCase):
         first_citation(bad_id)["source_id"] = 13
         split_source = ChunkData(
             document="paper.pdf", page=10, chunk_index=2, section="references",
-            text="Asp et al. Treatment delayed weight-\nloss.",
+            text="Asp et al. reported the study. Treatment delayed weight-\nloss.",
         )
         bad_quote = deepcopy(DRAFT)
         first_citation(bad_quote)["quote"] = "Treatment delayed weight loss."
@@ -804,7 +817,7 @@ class GroundingTests(unittest.TestCase):
 
         prompt = build_draft_prompt("Question", [SOURCE, blank, third])
         self.assertIn(
-            '"evidence_quotes": ["Asp et al.", "Treatment delayed weight loss."]',
+            '"evidence_quotes": ["Asp et al. reported the study.", "Treatment delayed weight loss."]',
             prompt,
         )
         self.assertIn('"evidence_quotes": []', prompt)
@@ -952,7 +965,7 @@ class ApprovedProofTests(unittest.TestCase):
         self.assertNotEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(model.call_count, 6)
         self.assertEqual(evidence[0]["citations"], [
-            {"source_index": 0, "quote": "Asp et al."},
+            {"source_index": 0, "quote": "Asp et al. reported the study."},
             {"source_index": 0, "quote": "Treatment delayed weight loss."},
         ])
         self.assertEqual(trace[-1]["stage"], "repair_verification_proof")
