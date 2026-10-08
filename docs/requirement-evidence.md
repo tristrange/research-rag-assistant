@@ -146,3 +146,48 @@ checks, final displayed evidence, invalid verdicts, parse failures and propagate
 transport failures. Live controls preserve proof traces and cannot pass merely
 because proof generation produced invalid content. The final Python suite passed
 422 tests with 17 skips; strict mypy passed for 78 source files.
+
+## Complete proof selection at the output field
+
+The v29 repair found the stable-knockdown scope excerpt and selected it for
+whole-question coverage, but omitted it from the claim verdict. The application
+correctly refused that mismatch. Contract v30 explains directly in the claim
+verdict's evidence-ID field that its list owns the displayed proof: include
+all necessary scope and result excerpts there, even when the scope IDs also
+appear under requirements or whole-question coverage. The bounded response
+schema and verifier prompt retain this field description.
+
+This changes guidance only. Evidence eligibility, validation, the isolated proof
+check, model settings, retrieval and the single repair limit remain unchanged;
+there are no new inference calls or reindexing requirements.
+
+A two-case fixed-draft check reused the exact earlier mitophagy draft and its six
+recorded passages, plus the earlier mixed-cohort control. Each was checked once,
+with no new draft generation, repair, retrieval, judge, reference answer or
+selective retry. These are inspected development cases, not fresh validation.
+The mitophagy verdict selected both scope and result IDs for the displayed claim;
+the isolated check accepted that complete bundle. The two calls took 124 seconds,
+including 31 seconds for the proof check. This is not comparable to the full-query
+v29 timing, which also includes drafting and repair. One successful selection does
+not establish repeatability or attribute the improvement conclusively to guidance.
+
+The mixed-cohort control was rejected with a valid verdict distinguishing C26
+from KPC, in 111 seconds. One auxiliary measurement requirement was incorrectly
+marked unsupported despite the measurement sentence; its explanation demanded
+additional outcome information. That rationale is imperfect, while the decisive
+cohort-mismatch rejection is correct. Separate AI source review confirmed the
+complete mitophagy bundle and the overall control decision.
+
+Application code, configuration and observed Ollama runtime stayed unchanged
+throughout generation. Artifacts remain under ignored `evaluation-results/`:
+
+- Run: `complete-claim-trial-20261008T012157210945Z.json`;
+  SHA-256 `ad568c4b2886d92291d7d9bed2d28668a85e22eca964777b7679bd0dce4c777c`.
+- Review: `complete-claim-trial-20261008T012157210945Z-review.json`;
+  SHA-256 `09d059f29e12ce574b811810a56626ecdbbc32486b247f1717a966871f240191`.
+
+The existing Python suite passed 422 tests with 17 skips, including refusal on
+missing scope selections and rejection of malformed proof on both initial and
+repaired drafts. Strict mypy passed for 78 source files. These fixed-draft results
+do not establish normal-query improvement, repeatability or a broad accuracy
+claim. Local v1 remains open pending a new reserved fresh-question check.

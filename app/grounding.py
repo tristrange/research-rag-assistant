@@ -20,7 +20,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v29"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v30"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -74,7 +74,10 @@ class ClaimVerdict(StrictModel):
     correct_attribution: bool
     relevant: bool
     reason: str = Field(min_length=1, max_length=300)
-    supporting_evidence_ids: list[Annotated[StrictInt, Field(ge=1)]] = Field(max_length=12)
+    supporting_evidence_ids: list[Annotated[StrictInt, Field(ge=1)]] = Field(
+        max_length=12,
+        description="The claim's displayed evidence: include every excerpt needed for its facts and requested scope, including separate scope and result excerpts. Evidence listed only under requirements or requested_answer is not displayed for this claim; include the relevant scope IDs here too.",
+    )
 
     @model_validator(mode="after")
     def supported_claim_has_evidence(self) -> ClaimVerdict:
