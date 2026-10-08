@@ -69,6 +69,26 @@ class GroundingTests(unittest.TestCase):
             "Values differed vs. ST mice.", "Final result.",
         ])
 
+    def test_sentence_final_abbreviation_preserves_separate_attribution_quotes(self) -> None:
+        external = "The effect was reported by Smith et al."
+        current = "Our experiments found no effect."
+        text = f"{external} {current}"
+        spans = _evidence_spans(text)
+        self.assertEqual(spans, [text, external, current])
+        source = ChunkData(document="study.pdf", page=1, chunk_index=0, text=text)
+        question = "What did the cited study report?"
+        verdict = self.approval_for_single_span(question)
+        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [2]
+        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [2]
+        cast(list[dict[str, object]], verdict["requirements"])[0]["supporting_evidence_ids"] = [2]
+        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
+            "text": "The cited study reported the effect.", "attribution": "external_publication",
+            "citations": [{"source_id": 1, "quote": external}],
+        }]})
+        self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        for quote in (external, current, text):
+            self.assertIn(json.dumps(quote), json.dumps(_bounded_draft_schema([source])))
+
     def test_supported_requirement_without_evidence_ids_fails_closed(self) -> None:
         verdict = approved()
         cast(list[dict[str, object]], verdict["requirements"])[0].pop("supporting_evidence_ids", None)

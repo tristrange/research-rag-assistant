@@ -254,10 +254,14 @@ Transformers file; it is not a passing test result.
 
 ## Scientific quotes and scope evidence
 
-Contract v34 fixes two deterministic false rejections found during development:
+Contract v35 fixes two deterministic false rejections found during development:
 
 - Quote choices reuse ingestion's sentence boundaries and abbreviation rules.
-  `vs.`, `Fig.` and `et al.` stay attached to their sentence. The previous
+  `vs.`, `Fig.` and `et al.` stay attached to their sentence. When an abbreviation
+  precedes a possible new sentence starting with a capitalized word, the catalogue
+  also offers the separate excerpts. Both choices remain exact source text, so
+  a sentence ending in `et al.` need not merge cited and current-study results.
+  The previous
   splitter rejected a valid repaired housing quote and detached figure identities
   from results. Whitespace normalization, exact catalogue-entry matching and the
   4,000-character quote cap remain unchanged. Synthetic control quotes now include
@@ -321,7 +325,7 @@ No answer was approved, no retry was made, and the raw response is preserved.
 - Runner: `v34-fixed-quote-recovery-20261008T151135224754Z-runner.py`;
   SHA-256 `43b230810b4c878a347b1d4b90aee4f8c903347144e526cf8ac1e7a765659daf`.
 
-Final-code checks: 423 Python tests passed (17 skipped), strict mypy passed for
+Final-code checks: 424 Python tests passed (17 skipped), strict mypy passed for
 78 files, and independent focused diff review found no actionable issue.
 
 These inspected cases remain development evidence. Reserve different questions

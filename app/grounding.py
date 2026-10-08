@@ -21,7 +21,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v34"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v35"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -458,6 +458,9 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+_POSSIBLE_SENTENCE_START = re.compile(r"\s+[\"'“‘(]*[A-Z][a-z]")
+
+
 def _evidence_spans(text: str) -> list[str]:
     """Extract deterministic quote choices after the validator's normalization."""
     normalized = _normalize_whitespace(text)
@@ -465,17 +468,25 @@ def _evidence_spans(text: str) -> list[str]:
         return []
     spans: list[str] = []
     seen: set[str] = set()
-    boundaries = [match.end() for match in _SENTENCE_END.finditer(normalized)
-                  if not _is_abbreviation_period(normalized, match)]
-    start = 0
-    for end in [*boundaries, len(normalized)]:
-        sentence = normalized[start:end].strip()
-        start = end
-        for offset in range(0, len(sentence), MAX_QUOTE_CHARS):
-            span = sentence[offset:offset + MAX_QUOTE_CHARS]
-            if span and span not in seen:
-                seen.add(span)
-                spans.append(span)
+    boundaries: list[int] = []
+    possible_boundaries: list[int] = []
+    for match in _SENTENCE_END.finditer(normalized):
+        if not _is_abbreviation_period(normalized, match):
+            boundaries.append(match.end())
+            possible_boundaries.append(match.end())
+        elif _POSSIBLE_SENTENCE_START.match(normalized, match.end()):
+            possible_boundaries.append(match.end())
+    # ponytail: title-case continuations are ambiguous; offer both quote choices.
+    for ends in (boundaries, possible_boundaries):
+        start = 0
+        for end in [*ends, len(normalized)]:
+            sentence = normalized[start:end].strip()
+            start = end
+            for offset in range(0, len(sentence), MAX_QUOTE_CHARS):
+                span = sentence[offset:offset + MAX_QUOTE_CHARS]
+                if span and span not in seen:
+                    seen.add(span)
+                    spans.append(span)
     return spans
 
 
@@ -891,11 +902,12 @@ def grounding_fingerprint() -> str:
             "entire whitespace-normalized original question"
         ),
         "evidence_span_rule": (
-            "whitespace-normalize, split at ingestion sentence boundaries except known abbreviations, hard-split spans every "
+            "whitespace-normalize, split at ingestion sentence boundaries except known abbreviations; also offer separate quotes after title-case abbreviation continuations; hard-split spans every "
             f"{MAX_QUOTE_CHARS} characters, discard empty spans, preserve order and deduplicate"
         ),
         "sentence_end_pattern": _SENTENCE_END.pattern,
         "abbreviation_pattern": _ABBREVIATION_PERIOD.pattern,
+        "possible_sentence_start_pattern": _POSSIBLE_SENTENCE_START.pattern,
         "coverage_claim_binding": "Supported full-question evidence IDs must be used by approved claim verdicts",
         "requirement_coverage_binding": "Every supported requirement's evidence IDs must be used by approved claim verdicts; whole-question coverage is independently required",
         "verifier_schema": VERIFIER_SCHEMA,
