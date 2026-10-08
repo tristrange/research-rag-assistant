@@ -10,7 +10,7 @@ from time import perf_counter
 from pydantic import ValidationError
 
 from app.grounding import (
-    GroundedClaim, GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
+    ApprovedProof, GroundedClaim, GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
     build_verifier_evidence, generate_verification_json, grounding_fingerprint,
     validate_verification_structure, verify_draft,
     GROUNDING_SAMPLING, GROUNDING_VERIFIER_TIMEOUT_SECONDS, GROUNDING_OUTPUT_TOKENS,
@@ -272,6 +272,7 @@ DETERMINISTIC_CONTROLS = frozenset({"reference_as_current_study"})
 
 def complete_verifier_verdict(
     question: str, outputs: list[dict[str, object]], claims: list[GroundedClaim], sources: list[ChunkData],
+    trace: list[dict[str, object]] | None = None,
 ) -> bool:
     """Require a schema- and evidence-valid complete semantic verdict."""
     if len(outputs) != 1:
@@ -279,6 +280,9 @@ def complete_verifier_verdict(
     try:
         result = VerificationResult.model_validate(outputs[0])
         validate_verification_structure(question, result, claims, sources)
+        for entry in trace or []:
+            if entry["stage"] == "verification_proof":
+                ApprovedProof.model_validate(entry["output"])
     except (ValidationError, TypeError, ValueError):
         return False
     indexes = [verdict.claim_index for verdict in result.verdicts]
@@ -326,15 +330,16 @@ def main() -> None:
                 return response
 
             start = perf_counter()
-            accepted = verify_draft(question, draft, sources, verifier=record)
-            verdict_complete = complete_verifier_verdict(question, outputs, draft.claims, sources)
+            trace: list[dict[str, object]] = []
+            accepted = verify_draft(question, draft, sources, verifier=record, trace=trace)
+            verdict_complete = complete_verifier_verdict(question, outputs, draft.claims, sources, trace)
             passed = control_passed(identifier, fixture.expected, accepted, verdict_complete)
             results.append({"id": identifier, "expected": fixture.expected, "accepted": accepted,
                             "passed": passed, "verifier_called": bool(outputs),
                             "verifier_verdict_complete": verdict_complete, "question": question,
                             "draft": draft.model_dump(), "sources": sources,
                             "verifier_evidence": verifier_evidence,
-                            "verifier_outputs": outputs, "elapsed_ms": (perf_counter()-start)*1000})
+                            "verifier_outputs": outputs, "trace": trace, "elapsed_ms": (perf_counter()-start)*1000})
             report["results"] = results
             args.output.write_text(json.dumps(report, indent=2) + "\n")
             print(f"{'PASS' if passed else 'FAIL'} {identifier}: accepted={accepted}", flush=True)

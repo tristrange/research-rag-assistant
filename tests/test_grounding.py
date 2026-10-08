@@ -53,6 +53,15 @@ def first_citation(draft: dict[str, object]) -> dict[str, object]:
 
 
 class GroundingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # These tests isolate the existing full-context checks; ApprovedProofTests
+        # exercise the real proof stage and combined pipeline separately.
+        proof = patch("app.grounding.generate_approved_proof_json", return_value={
+            "supported": True, "reason": "Complete evidence.",
+        })
+        proof.start()
+        self.addCleanup(proof.stop)
+
     def test_supported_requirement_without_evidence_ids_fails_closed(self) -> None:
         verdict = approved()
         cast(list[dict[str, object]], verdict["requirements"])[0].pop("supporting_evidence_ids", None)
@@ -364,7 +373,7 @@ class GroundingTests(unittest.TestCase):
         trace: list[dict[str, object]] = []
         with patch("app.grounding.generate_json", side_effect=[DRAFT, approved("Question")]):
             grounded_answer("Question", [SOURCE], trace=trace)
-        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification"])
+        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification", "verification_proof"])
         self.assertEqual(trace[1]["output"], approved("Question"))
         self.assertIn("evidence_catalogue", trace[1])
 
@@ -648,7 +657,7 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(model.call_count, 2)
         self.assertIn("six hours", answer)
         self.assertIn("0, 15 and 30", answer)
-        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification"])
+        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification", "verification_proof"])
 
     def test_shared_source_ids_are_stable_across_claim_and_citation_order(self) -> None:
         other = ChunkData(document="other.pdf", page=1, chunk_index=0, section="results", text="Uptake increased.")
@@ -734,7 +743,7 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(model.call_count, 4)
         self.assertEqual(
             [entry["stage"] for entry in trace],
-            ["draft", "verification", "rejected", "repair_draft", "repair_verification"],
+            ["draft", "verification", "rejected", "repair_draft", "repair_verification", "repair_verification_proof"],
         )
         repair_prompt = model.call_args_list[2].args[0]
         self.assertIn("The draft omitted the requested comparison.", repair_prompt)
@@ -898,3 +907,84 @@ class GroundingTests(unittest.TestCase):
             model.assert_not_called()
         with self.assertRaisesRegex(ValueError, "nonempty source"):
             _bounded_draft_schema(blank_sources)
+
+
+class ApprovedProofTests(unittest.TestCase):
+    def test_proof_sees_only_displayed_excerpts_and_not_prior_approval(self) -> None:
+        source = ChunkData(document="study.pdf", page=1, chunk_index=0,
+                           text="We studied male mice. Uptake increased.")
+        question = "How did uptake change in male mice?"
+        draft = {"answerable": True, "claims": [{
+            "text": "Uptake increased in male mice.", "attribution": "this_document_authors",
+            "citations": [{"source_id": 1, "quote": "Uptake increased."}],
+        }]}
+        verdict = approved(question)
+        trace: list[dict[str, object]] = []
+        with patch("app.grounding.generate_json", side_effect=[draft, verdict, {
+            "supported": False, "reason": "The approved excerpt omits the male cohort.",
+        }, {"answerable": False, "claims": []}]) as model:
+            answer = grounded_answer(question, [source], trace=trace)
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 4)
+        proof_prompt = model.call_args_list[2].args[0]
+        payload = json.loads(proof_prompt.split("Untrusted input JSON:\n", 1)[1])
+        self.assertEqual(payload, {"question": question, "claims": [{
+            "text": "Uptake increased in male mice.", "attribution": "this_document_authors",
+            "citations": [{"source_index": 0, "quote": "Uptake increased."}],
+        }]})
+        self.assertNotIn("We studied male mice.", proof_prompt)
+        self.assertNotIn("Established by source.", proof_prompt)
+        self.assertEqual(trace[2]["stage"], "verification_proof")
+        self.assertIn("male cohort", str(trace[3]["reason"]))
+
+    def test_repair_must_pass_proof_and_only_final_evidence_is_exposed(self) -> None:
+        verdict = approved()
+        complete = deepcopy(verdict)
+        cast(list[dict[str, object]], complete["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
+        evidence: list[AnswerClaim] = []
+        trace: list[dict[str, object]] = []
+        with patch("app.grounding.generate_json", side_effect=[DRAFT, verdict,
+            {"supported": False, "reason": "Missing study identity."}, DRAFT, complete,
+            {"supported": True, "reason": "Complete evidence."},
+        ]) as model:
+            answer = grounded_answer("What did the cited study report?", [SOURCE],
+                                     trace=trace, claim_evidence=evidence)
+        self.assertNotEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 6)
+        self.assertEqual(evidence[0]["citations"], [
+            {"source_index": 0, "quote": "Asp et al."},
+            {"source_index": 0, "quote": "Treatment delayed weight loss."},
+        ])
+        self.assertEqual(trace[-1]["stage"], "repair_verification_proof")
+        self.assertIn("Missing study identity.", model.call_args_list[3].args[0])
+
+    def test_invalid_proof_and_rejected_repair_fail_closed(self) -> None:
+        for proof in [{}, {"supported": "true", "reason": "Wrong type."},
+                      {"supported": True, "reason": "Extra key.", "extra": 1},
+                      {"supported": False, "reason": "Missing scope."}]:
+            with self.subTest(proof=proof), patch("app.grounding.generate_json", side_effect=[
+                DRAFT, APPROVED, proof, DRAFT, APPROVED, proof,
+            ]) as model:
+                evidence: list[AnswerClaim] = []
+                self.assertEqual(grounded_answer("What did the cited study report?", [SOURCE],
+                                                claim_evidence=evidence), INSUFFICIENT_EVIDENCE)
+                self.assertEqual(evidence, [])
+                self.assertEqual(model.call_count, 6)
+
+    def test_proof_parse_failure_is_recorded_and_cannot_count_as_a_control_pass(self) -> None:
+        from scripts.check_grounding import complete_verifier_verdict
+
+        trace: list[dict[str, object]] = []
+        with patch("app.grounding.generate_json", side_effect=[APPROVED, ValueError("Invalid JSON")]):
+            self.assertFalse(verify_draft("What did the cited study report?",
+                                         GroundedDraft.model_validate(DRAFT), [SOURCE], trace=trace))
+        self.assertEqual(trace[1], {"stage": "verification_proof", "output": None})
+        self.assertFalse(complete_verifier_verdict("What did the cited study report?", [APPROVED],
+                                                  GroundedDraft.model_validate(DRAFT).claims, [SOURCE], trace))
+
+    def test_proof_transport_failure_propagates_without_repair(self) -> None:
+        with patch("app.grounding.generate_json", side_effect=[DRAFT, APPROVED,
+            httpx.ConnectError("offline"),
+        ]) as model, self.assertRaises(httpx.ConnectError):
+            grounded_answer("What did the cited study report?", [SOURCE])
+        self.assertEqual(model.call_count, 3)

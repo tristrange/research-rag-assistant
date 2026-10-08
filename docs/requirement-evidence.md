@@ -72,3 +72,77 @@ is omitted from either whole-question coverage or displayed claim evidence,
 and accepts it when both include that evidence. Another regression rejects a
 supported requirement with no evidence IDs. The Python suite passed 416 tests
 with 17 skips; strict mypy passed for 78 source files.
+
+## Discarded selected-bundle experiment
+
+An unshipped v28 candidate restricted proof IDs to draft-selected bundles and
+kept full source text in a separate contradiction field. Its six-case replay
+still made all three qualifier mistakes. Two extra refusals arose from malformed
+outputs rather than correct scope checks. The candidate was discarded; raw
+results and its patch remain under ignored `evaluation-results/`:
+
+- `excerpt-bundle-trial-20261008T002254661891Z.json`;
+  SHA-256 `762800af235e53456bcdb98d060df6759df486033e8231024ac6a1b26ffbcd39`.
+- Review: `excerpt-bundle-trial-20261008T002254661891Z-review.json`;
+  SHA-256 `14a300756f2a07bfa26b51605b8bb79e5bd2144f736b418877c37239c2b3d34d`.
+- Patch: `excerpt-bundle-trial-20261008T002254661891Z-candidate.patch`;
+  SHA-256 `a362d0a28dcd9cd9e5f67b0b3c25950976d98dee59177563f95532d53b6c1af4`.
+
+## Isolated approved-excerpt check
+
+Contract v29 adds a small proof check after the existing full-context verifier
+approves a draft. It receives only the question, claim targets and the exact
+approved excerpts that would be displayed. Full passages and earlier verifier
+verdicts or explanations are excluded. Missing scope can trigger the existing
+single repair; repaired drafts must pass both checks before evidence is exposed.
+The full-context verifier remains responsible for contradiction and attribution
+checks. Invalid proof output fails closed; transport failures still propagate.
+
+A four-case fixed-input probe rejected all three result-only bundles missing
+C26, stable-knockdown or lean-cohort scope, and accepted the mitophagy bundle
+with stable-knockdown scope included. All four responses were schema-valid;
+separate AI source review confirmed the bundle decisions. The positive reason
+misidentified which excerpt established scope, so its explanation is imperfect.
+These are inspected development controls, run once each, not fresh validation.
+Prompt and response shape changed alongside context isolation, so the probe
+does not establish which change alone caused the improvement.
+
+- Probe: `quote-proof-probe-20261008T004719072349Z.json`;
+  SHA-256 `3a8cb401415145d3304120d58b4b6c584748a2a28482df257c18e54be16f7bb8`.
+- Review: `quote-proof-probe-20261008T004719072349Z-review.json`;
+  SHA-256 `56020ea7927380a617488b7e3e36a4887d46e7b0110cafdc6e4ceadcc2cc053b`.
+
+The probe's extra check took 19–32 seconds per case on this machine. Production
+adds one verifier call for each draft that passes full-context verification,
+including a repaired draft if needed. Model settings and retrieval are unchanged;
+reindexing is unnecessary. This check can still make semantic mistakes and does
+not establish answer verification accuracy at scale. Local v1 remains open.
+
+The integrated mitophagy replay used the normal draft, full verifier and existing
+single repair on six unchanged recorded passages. The first full verifier again
+approved a result-only quote; the isolated check correctly rejected its missing
+stable-knockdown scope. Repair selected scope evidence for whole-question coverage
+but omitted it from approved claim evidence, so the existing v27 binding check
+rejected it. Final result: a safe, incomplete refusal rather than a coverage
+failure. Sufficient returned evidence still goes unused. The run took 341 seconds
+across five model calls, including 41 seconds for the new proof check. No selective
+retry, retrieval, judge or reference answer was used.
+
+The fixed cohort-conflict control was correctly rejected by the full-context
+verifier with a schema-valid explanation distinguishing C26 from KPC; it took
+85 seconds and did not call the proof stage. Application code, configuration and
+observed Ollama runtime stayed unchanged during both live cases. A subsequent
+trace-only change records proof attempts before generation so parse failures
+cannot count as passing controls; final prompts, schemas and settings retain
+the run's grounding fingerprint.
+
+- Integrated run: `approved-proof-trial-20261008T005106000172Z.json`;
+  SHA-256 `c1011230a873e6184c5ccc0934bb1b827f1b4fa0556598199968e85aa8d4d702`.
+- Review: `approved-proof-trial-20261008T005106000172Z-review.json`;
+  SHA-256 `c6b5329beca771b3cff0347fcc615adbc98c5264877dc7d1a33d147cd364df3c`.
+
+Regression tests cover the isolated input boundary, initial and repaired proof
+checks, final displayed evidence, invalid verdicts, parse failures and propagated
+transport failures. Live controls preserve proof traces and cannot pass merely
+because proof generation produced invalid content. The final Python suite passed
+422 tests with 17 skips; strict mypy passed for 78 source files.

@@ -31,6 +31,17 @@ def valid_verdict() -> dict[str, Any]:
 
 
 class GroundingControlTests(unittest.TestCase):
+    def test_malformed_proof_cannot_count_as_a_successful_negative_control(self) -> None:
+        proofs: list[dict[str, object]] = [{}, {"supported": "false", "reason": "Wrong type."},
+                                         {"supported": False, "reason": "Missing population."}]
+        for output in proofs:
+            with self.subTest(output=output):
+                trace: list[dict[str, object]] = [{"stage": "verification_proof", "output": output}]
+                complete = complete_verifier_verdict(QUESTION, [valid_verdict()], [CLAIM], [RESULT], trace)
+                self.assertEqual(complete, output.get("supported") is False)
+                self.assertEqual(control_passed("unsupported_requested_population", False, False, complete),
+                                 output.get("supported") is False)
+
     def test_every_non_deterministic_control_requires_valid_complete_verdict(self) -> None:
         self.assertEqual(DETERMINISTIC_CONTROLS, {"reference_as_current_study"})
         for fixture in all_control_fixtures():
