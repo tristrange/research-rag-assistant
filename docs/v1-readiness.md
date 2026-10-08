@@ -55,6 +55,11 @@ was refused. See the [current results](local-v1-fresh-check-r2.md) and the
 A [requirement-evidence guard](requirement-evidence.md) now binds each supported
 requirement's selected excerpts to the displayed claim evidence. This checks
 selection consistency; it does not prove that the excerpts establish a qualifier.
+The [normal-generation follow-up](requirement-evidence.md#normal-generation-follow-up)
+passed one of four inspected answerable cases. Three safely refused despite
+sufficient supplied evidence: two failed scope selection and one failed on invalid
+model output. This development replay does not meet the fresh-question gate;
+complete evidence selection and structured-output reliability remain open.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
