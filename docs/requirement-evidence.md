@@ -326,7 +326,7 @@ No answer was approved, no retry was made, and the raw response is preserved.
   SHA-256 `43b230810b4c878a347b1d4b90aee4f8c903347144e526cf8ac1e7a765659daf`.
 
 Final-code checks: 424 Python tests passed (17 skipped), strict mypy passed for
-78 files, and independent focused diff review found no actionable issue.
+78 files.
 
 These inspected cases remain development evidence. Reserve different questions
 for the final check; do not count repeated or fixed-draft trials as fresh validation.
