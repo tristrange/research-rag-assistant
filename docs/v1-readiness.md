@@ -60,6 +60,11 @@ passed one of four inspected answerable cases. Three safely refused despite
 sufficient supplied evidence: two failed scope selection and one failed on invalid
 model output. This development replay does not meet the fresh-question gate;
 complete evidence selection and structured-output reliability remain open.
+[Scientific-quote and scope-evidence fixes](requirement-evidence.md#scientific-quotes-and-scope-evidence)
+remove two deterministic false rejections. A broader evidence-selection candidate
+showed no strict completeness gain and was discarded. Its development replay is
+not a current-code accuracy result; final validation and model-selection reliability
+remain open.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
