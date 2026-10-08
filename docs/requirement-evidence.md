@@ -191,3 +191,63 @@ missing scope selections and rejection of malformed proof on both initial and
 repaired drafts. Strict mypy passed for 78 source files. These fixed-draft results
 do not establish normal-query improvement, repeatability or a broad accuracy
 claim. Local v1 remains open pending a new reserved fresh-question check.
+
+## Normal-generation follow-up
+
+The four inspected qualifier failures were each generated once on the unchanged
+six passages saved in the revised fresh-question report. This used normal
+drafting, verification, the isolated proof check and the existing single repair.
+There was no retrieval, database access, reference answer, judge, tuning or
+selective retry. Separate AI source review assessed final displayed evidence
+against the passages and papers. These are development cases, not new validation.
+
+| Case | Final displayed answer | Source review |
+| --- | --- | --- |
+| C26 day-14 insulin | Refusal | Safe but incomplete: the draft cited the insulin result without day-14 scope; verification rejected it and repair abandoned the answer. |
+| Housing FGF21 | Refusal | Safe but incomplete: the full verifier approved the result-only excerpt; the isolated proof rejected its missing C26 scope and repair abandoned the answer. |
+| Mitophagic flux | Answer after repair | Supported and complete: displayed excerpts pair stable-knockdown scope with the increased and unchanged flux results from the same experiment. |
+| Activin adipose uptake | Refusal | Safe but incomplete: the initial draft violated the schema; repair corrected its shape, but verification returned content that failed JSON parsing. |
+
+The mitophagy initial draft used an invalid field name. The built-in repair
+corrected its schema, and the final verifier selected both scope and result
+excerpts. This successful normal-generation case extends the earlier fixed-draft
+observation; it does not establish repeatability or prove that v30 caused the
+improvement.
+
+All four supplied six-passage pools contain sufficient evidence. The first two
+failures arise after retrieval: scope passages go uncited, and repair returns
+insufficient evidence rather than completing those citations. Activin is a
+model-output failure, not a completed semantic rejection. Its repaired draft
+also lacks lean-cohort evidence, but no valid verifier verdict was obtained;
+do not count this as proof that a semantic gate caught that omission.
+
+One of four answerable cases passed; three safely refused. No unsupported claim
+or attribution error was displayed. This check contains no unanswerable controls
+and makes no claim about current control performance. The four cases took
+102, 110, 184 and 105 seconds respectively, across 14 model calls in total.
+The run used GPT-OSS 20B, draft thinking low, verifier/repair thinking medium,
+temperature and top-p of 1, a 12,288-token context, a 4,096-token output budget,
+and 300-second per-call timeouts. The observed Ollama version was 0.40.0.
+Application files, settings and observed model/runtime identity stayed unchanged
+throughout the run; the raw report records the model digest and input hashes.
+
+The next development targets are complete scope selection from the existing
+catalogue and reliable structured output, without weakening either verification
+gate or adding selective retries. Keep local v1 open and reserve a different
+fresh-question set after addressing those gaps. Earlier failed checks retain
+their original results. This four-case replay does not establish repeatability,
+end-to-end retrieval quality or a broad accuracy improvement.
+
+Preserved artifacts in the primary checkout's ignored `evaluation-results/`:
+
+- Run: `v30-generation-check-20261008T124532713650Z.json`;
+  SHA-256 `98fe07fc9a56b5ed23a286f688e278a91a44d43b41d9afbafe8e8cbd5041f262`.
+- Source review: `v30-generation-check-20261008T124532713650Z-source-review.json`;
+  SHA-256 `d5627dad52e6d96979bac4ea41bfa93c2ec19cf7cf2d9db37dc2a8431e1a6bcc`.
+- Runner: `v30-generation-check-20261008T124532713650Z-runner.py`;
+  SHA-256 `50153b5f91f6ddf7d21b60ebf0fe633fe93e06667c39190b20df248ccb3e528d`.
+
+These findings change documentation only; application behavior and indexing are
+unchanged. Artifact hashes and frozen inputs were checked. A full Python baseline
+run was stopped before test execution while blocked reading an installed
+Transformers file; it is not a passing test result.
