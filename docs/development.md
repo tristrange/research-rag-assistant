@@ -35,7 +35,7 @@ with synthetic backend results. It checks scoped submission, emphasis rendering,
 literal HTML safety, evidence/citation links, copy-button output, refusal/partial
 guidance, paper refresh and service-error retry. One flow uses a narrow viewport.
 It also checks keyboard access to collapsed service diagnostics, visible focus,
-and layout reflow with doubled text size at mobile and desktop widths.
+and readable answer width with doubled text size at mobile, intermediate and desktop widths.
 Theme checks cover Light/Dark/Auto, live system changes, saved choices, invalid
 settings and unavailable browser storage.
 The Clipboard API is stubbed so the host clipboard stays unchanged. The test server

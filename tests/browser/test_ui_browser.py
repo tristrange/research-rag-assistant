@@ -170,11 +170,14 @@ class BrowserSmokeTests(unittest.TestCase):
         page.emulate_media(reduced_motion="reduce")
         page.evaluate("document.documentElement.style.fontSize = '200%'")
         expect(page.locator("html")).to_have_css("font-size", "32px")
-        for width in (320, 850, 1280):
+        for width in (320, 850, 900, 1100, 1280):
             with self.subTest(width=width):
                 page.set_viewport_size({"width": width, "height": 950})
                 page.evaluate("scrollTo(0, 0)")
                 expect(page.locator(".site-header a")).to_be_in_viewport(ratio=1)
+                if width > 850:
+                    self.assertGreaterEqual(page.locator("#answer-text").evaluate(
+                        "node => node.getBoundingClientRect().width"), 256)
                 self.assertFalse(page.evaluate("document.documentElement.scrollWidth > innerWidth"))
                 for control in ("#question", "#document", "#ask-button"):
                     self.assertGreaterEqual(page.locator(control).evaluate(

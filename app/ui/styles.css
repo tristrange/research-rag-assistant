@@ -113,7 +113,7 @@ h1 { margin: 0; font-size: clamp(2.35rem, 5vw, 3.6rem); font-weight: 650; line-h
 h1 span { color: var(--accent); }
 .intro-copy { max-width: 660px; margin: 0.8rem 0 0; color: var(--muted); font-size: 1.03rem; }
 
-.workspace { display: grid; grid-template-columns: minmax(0, 24rem) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.workspace { display: grid; grid-template-columns: minmax(0, min(24rem, 40%)) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .panel { min-width: 0; padding: 1.5rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--paper); box-shadow: 0 5px 20px #1d2c3c0a; }
 .result-panel { min-height: 470px; }
 .panel-heading { margin-bottom: 1.25rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--line); }
