@@ -76,6 +76,10 @@ incomplete scope selection. An explicit draft-schema trial improved structure
 but accepted a housing answer without displayed C26 support; it was discarded.
 Final-excerpt proof can still infer missing scope, so answer reliability remains
 open. This documents development evidence without changing runtime behavior.
+A [question-identifier guard](question-identifiers.md) now requires explicitly
+named alphanumeric targets in final approved excerpts before proof. It closes
+that lexical omission without establishing cohort-to-result linkage or word-only
+qualifiers; the remaining answer-quality and fresh-question gates stay open.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 

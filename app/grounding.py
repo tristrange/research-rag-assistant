@@ -21,7 +21,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v36"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v39"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -33,6 +33,7 @@ GROUNDING_DRAFT_TIMEOUT_SECONDS = SETTINGS.grounding_draft_timeout_seconds
 GROUNDING_VERIFIER_TIMEOUT_SECONDS = SETTINGS.grounding_verifier_timeout_seconds
 MAX_CLAIMS = 3
 MAX_QUOTE_CHARS = 4000
+_IDENTIFIER_TOKEN = re.compile(r"\w+")
 
 
 class StrictModel(BaseModel):
@@ -624,6 +625,26 @@ def validate_verification_structure(
         )
 
 
+def _validate_question_identifiers(question: str, evidence_quotes: list[str]) -> None:
+    """Require explicit alphanumeric question identifiers in displayed evidence.
+
+    This is a necessary lexical condition, not proof of experiment identity.
+    Acronyms, aliases and word-only qualifiers still need semantic verification.
+    """
+    identifiers = {match.group().casefold(): match.group() for match in _IDENTIFIER_TOKEN.finditer(question)
+                   if match.group().isascii() and match.group()[0].isalpha() and match.group().isalnum()
+                   and any(character.isdigit() for character in match.group())}
+    observed = {match.group().casefold() for quote in evidence_quotes
+                for match in _IDENTIFIER_TOKEN.finditer(quote)}
+    missing = [label for identifier, label in identifiers.items() if identifier not in observed]
+    if missing:
+        raise ValueError(
+            f"approved evidence does not contain question identifier(s): {', '.join(missing)}. "
+            "Select exact scope excerpts as well as result excerpts; question text, claims, "
+            "metadata and unselected source context cannot supply the missing identifiers."
+        )
+
+
 def _validate_verification(
     question: str,
     result: VerificationResult,
@@ -654,11 +675,23 @@ def _validate_verification(
         ):
             raise ValueError("question requirement cites evidence absent from approved claims")
     evidence_by_id = {entry["evidence_id"]: entry for entry in build_verifier_evidence(claims, sources)}
-    for verdict in result.verdicts:
-        validate_duration_evidence(
-            claims[verdict.claim_index - 1].text,
-            [evidence_by_id[evidence_id]["quote"] for evidence_id in verdict.supporting_evidence_ids],
+    failures: list[str] = []
+    try:
+        _validate_question_identifiers(
+            question, [evidence_by_id[evidence_id]["quote"] for evidence_id in sorted(claim_evidence_ids)],
         )
+    except ValueError as error:
+        failures.append(str(error))
+    for verdict in result.verdicts:
+        try:
+            validate_duration_evidence(
+                claims[verdict.claim_index - 1].text,
+                [evidence_by_id[evidence_id]["quote"] for evidence_id in verdict.supporting_evidence_ids],
+            )
+        except ValueError as error:
+            failures.append(f"Claim {verdict.claim_index}: {error}")
+    if failures:
+        raise ValueError("\n".join(failures))
 
 
 def _render_claims(claims: list[AnswerClaim], sources: list[ChunkData]) -> str:
@@ -855,6 +888,10 @@ def grounding_fingerprint() -> str:
     contract = {
         "version": GROUNDING_CONTRACT_VERSION,
         "duration_guard_sha256": duration_fingerprint(),
+        "question_identifier_pattern": _IDENTIFIER_TOKEN.pattern,
+        "question_identifier_filter": "Scan maximal Unicode word tokens, then require ASCII, letter-leading, alphanumeric question tokens containing a digit",
+        "question_identifier_guard": "Letter-leading contiguous ASCII alphanumeric question tokens containing a digit must occur as case-insensitive whole tokens in final approved claim quotes; lexical presence never replaces semantic proof",
+        "deterministic_repair_feedback": "Collect missing question identifiers and every claim's duration failures before the single repair",
         "model": GROUNDING_MODEL,
         "context_tokens": GROUNDING_CONTEXT_TOKENS,
         "output_tokens": GROUNDING_OUTPUT_TOKENS,
