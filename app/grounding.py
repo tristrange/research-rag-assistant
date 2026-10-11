@@ -21,7 +21,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v35"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v36"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -40,10 +40,9 @@ class StrictModel(BaseModel):
 
 
 class ClaimCitation(StrictModel):
-    """A verbatim evidence quote keyed to the supplied, 1-based source catalogue."""
+    """A source selected by the draft; evidence text is application-owned."""
 
     source_id: Annotated[StrictInt, Field(ge=1)]
-    quote: str = Field(min_length=1, max_length=4000)
 
 
 class GroundedClaim(StrictModel):
@@ -175,10 +174,10 @@ Each claim must be a self-contained sentence naming its subject and requested fa
 Use the MINIMUM number of claims needed to answer the question, normally ONE claim.
 The maximum of three is a ceiling, not a target. Do not add related findings, extra
 background, mechanisms, or comparisons that were not asked for. Every claim must cite one or
-more catalogue source IDs. For each citation, select exactly one string from that source's
-evidence_quotes and copy it unchanged as quote. Prefer one citation when it fully supports
-the claim; avoid redundant citations. Never shorten, merge, repair, or paraphrase an
-evidence_quotes string. Claim text must not contain
+more catalogue source IDs. Cite every passage needed to establish the requested scope
+and result in the same experiment. Each citation contains only source_id; do not
+return quotes or evidence text. Exact evidence excerpts are selected and supplied
+by the application during verification. Claim text must not contain
 page, document, source-number, or bracketed citation markers; citation display is added
 later by the application.
 
@@ -208,8 +207,8 @@ The question's wording is not evidence for these facts. When a cohort duration o
 other qualifier is established in a different passage from its result, cite both
 passages. A quote establishing a fold change cannot establish a duration merely
 because the same number occurs in both. Every explicit duration in a claim must
-be established by its approved quotes; select the cohort excerpt as well as the
-result excerpt when needed.
+be established by its approved evidence; select the cohort source as well as the
+result source when needed.
 Keep each numerical effect attached to its exact measured outcome. Regional tissue
 weight is not total body fat mass, and enzyme activity is not a concentration of its
 substrate. Do not substitute these related measurements unless the cited evidence
@@ -227,10 +226,9 @@ the initial draft.
 
 Use only source_id values that appear as source_catalogue[].source_id in the input. These
 are catalogue positions starting at 1. Numbers such as [13] inside passage text are
-bibliography labels, not source IDs. Copy every evidence quote exactly from the selected
-source_catalogue entry's evidence_quotes list; never shorten, merge, or paraphrase it.
-Preserve capitalization, punctuation, and hyphenation, including hyphens introduced by
-extracted line breaks. Correct every issue
+bibliography labels, not source IDs. Each citation contains only source_id; do not
+return quotes or evidence text. Select scope sources as well as result sources
+when the requested qualifier is established separately. Correct every issue
 identified by deterministic validation or semantic verification. The replacement must
 answer every part of the original question with fully supported claims, or set
 answerable=false with no claims. Do not return a partial answer or discuss the repair."""
@@ -304,8 +302,9 @@ Missing evidence is unsupported. Every listed requirement, requested_answer, and
 pass before the answer can be accepted.
 
 Evidence IDs in evidence_catalogue are application-owned pointers to exact cited excerpts.
-source_id identifies a passage, not an evidence ID. Each claim's evidence_quotes
-already labels its draft-selected quotes with their actual evidence_id values.
+source_id identifies a passage, not an evidence ID. Each claim's source_ids selects
+its candidate passages. The application supplies
+all exact excerpts in evidence_catalogue with their evidence_id values.
 For requested_answer and every claim verdict, return supporting_evidence_ids using only
 those IDs. A supported assessment must have at least one. Each excerpt has one ID,
 even when multiple claims cite its source. For a claim, use only its eligible_evidence_ids;
@@ -347,7 +346,6 @@ def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
             "chunk_index": source["chunk_index"],
             "section": source.get("section", "unknown"),
             "text": source["text"],
-            "evidence_quotes": _evidence_spans(source["text"]),
         }
         for index, source in enumerate(sources, start=1)
     ]
@@ -414,7 +412,6 @@ def build_verifier_prompt(
     evidence_catalogue = build_verifier_evidence(claims, sources)
     verification_claims: list[dict[str, object]] = []
     for claim_index, claim in enumerate(claims, start=1):
-        selected_quotes = {(citation.source_id, citation.quote) for citation in claim.citations}
         cited_passages = []
         seen_sources: set[int] = set()
         for citation in claim.citations:
@@ -435,11 +432,7 @@ def build_verifier_prompt(
                                       if claim_index in entry["claim_indexes"]],
             "text": claim.text,
             "attribution": claim.attribution,
-            "evidence_quotes": [
-                {"evidence_id": entry["evidence_id"], "quote": entry["quote"]}
-                for entry in evidence_catalogue
-                if (entry["source_id"], entry["quote"]) in selected_quotes
-            ],
+            "source_ids": [passage["source_id"] for passage in cited_passages],
             "cited_passages": cited_passages,
         })
     payload = {
@@ -502,24 +495,22 @@ def _is_reference_source(source: ChunkData) -> bool:
 
 
 def _bounded_draft_schema(sources: list[ChunkData]) -> dict[str, object]:
-    """Return a fresh schema pairing each usable source with exact quotes."""
+    """Return a fresh schema restricting drafts to usable source IDs."""
     if not sources:
         raise ValueError("a bounded draft schema requires at least one source")
     schema = GroundedDraft.model_json_schema()
     definitions = cast(dict[str, object], schema["$defs"])
     variants: list[dict[str, object]] = []
     for source_id, source in enumerate(sources, start=1):
-        quotes = _evidence_spans(source["text"])
-        if not quotes:
+        if not _normalize_whitespace(source["text"]):
             continue
         variants.append({
             "type": "object",
             "additionalProperties": False,
             "properties": {
                 "source_id": {"type": "integer", "const": source_id},
-                "quote": {"type": "string", "enum": quotes},
             },
-            "required": ["source_id", "quote"],
+            "required": ["source_id"],
         })
     if not variants:
         raise ValueError("a bounded draft schema requires at least one nonempty source")
@@ -582,21 +573,9 @@ def _validate_draft(draft: GroundedDraft, sources: list[ChunkData]) -> None:
         for citation in claim.citations:
             if citation.source_id > len(sources):
                 raise ValueError("citation source ID is outside the source catalogue")
-            quote = _normalize_whitespace(citation.quote)
-            if not quote:
-                raise ValueError("citation quote is empty")
             source = sources[citation.source_id - 1]
-            if quote not in _normalize_whitespace(source["text"]):
-                raise ValueError(
-                    f"citation quote for source_id={citation.source_id} is not an exact source substring. "
-                    "Select one unchanged string from that source's evidence_quotes list, or "
-                    "remove this citation if another valid citation already supports the entire claim."
-                )
-            if citation.quote not in _evidence_spans(source["text"]):
-                raise ValueError(
-                    f"citation quote for source_id={citation.source_id} must equal one unchanged "
-                    "entry from that source's evidence_quotes list"
-                )
+            if not _normalize_whitespace(source["text"]):
+                raise ValueError("citation source is empty")
             if claim.attribution == "this_document_authors" and _is_reference_source(source):
                 raise ValueError("a current-study claim cites a reference entry")
 
@@ -682,17 +661,17 @@ def _validate_verification(
         )
 
 
-def _render_claims(claims: list[GroundedClaim], sources: list[ChunkData]) -> str:
+def _render_claims(claims: list[AnswerClaim], sources: list[ChunkData]) -> str:
     rendered: list[str] = []
     labels = {"this_document_authors": "", "external_publication": "Cited literature: ", "non_study_context": "Context: "}
     for claim in claims:
         locations: list[str] = []
-        for citation in claim.citations:
-            source = sources[citation.source_id - 1]
+        for citation in claim["citations"]:
+            source = sources[citation["source_index"]]
             location = f'{source["document"]}, page {source["page"]}'
             if location not in locations:
                 locations.append(location)
-        rendered.append(f"{labels[claim.attribution]}{claim.text} ({'; '.join(locations)})")
+        rendered.append(f"{labels[claim["attribution"]]}{claim["text"]} ({'; '.join(locations)})")
     return "\n".join(rendered)
 
 
@@ -816,6 +795,7 @@ def grounded_answer(
     """Render only wholly approved claims; propagate model transport errors."""
     if claim_evidence is not None:
         claim_evidence.clear()
+    approved_evidence: list[AnswerClaim] = claim_evidence if claim_evidence is not None else []
     if not sources or not any(_evidence_spans(source["text"]) for source in sources):
         return INSUFFICIENT_EVIDENCE
     draft_schema = _bounded_draft_schema(sources)
@@ -837,8 +817,8 @@ def grounded_answer(
             question, draft, sources, trace=trace,
         )
         if accepted:
-            _record_accepted_evidence(draft, sources, feedback, claim_evidence)
-            return _render_claims(draft.claims, sources)
+            _record_accepted_evidence(draft, sources, feedback, approved_evidence)
+            return _render_claims(approved_evidence, sources)
 
     try:
         repair_data = generate_draft_json(
@@ -866,8 +846,8 @@ def grounded_answer(
     )
     if not accepted:
         return INSUFFICIENT_EVIDENCE
-    _record_accepted_evidence(repaired_draft, sources, feedback, claim_evidence)
-    return _render_claims(repaired_draft.claims, sources)
+    _record_accepted_evidence(repaired_draft, sources, feedback, approved_evidence)
+    return _render_claims(approved_evidence, sources)
 
 
 def grounding_fingerprint() -> str:
@@ -890,8 +870,8 @@ def grounding_fingerprint() -> str:
         "verifier_instructions": _VERIFIER_INSTRUCTIONS,
         "draft_schema": DRAFT_SCHEMA,
         "dynamic_citation_schema": (
-            "ClaimCitation is anyOf one object per nonempty source; source_id is const and "
-            "quote is an enum of that source's evidence spans"
+            "ClaimCitation is anyOf one object per nonempty source; source_id is const, "
+            "only source_id is required and additional fields including quotes are forbidden"
         ),
         "dynamic_verifier_schema": (
             "Requirement, claim and full-question evidence IDs are restricted to application-owned IDs "
@@ -915,15 +895,16 @@ def grounding_fingerprint() -> str:
         "proof_schema": PROOF_SCHEMA,
         "proof_input": "Question and claim targets with only final approved display excerpts; no full sources or previous verifier output",
         "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
-        "verifier_selected_quotes": "Draft-selected quotes carry their application-owned evidence IDs, not source IDs",
+        "verifier_source_selection": "Draft selects source IDs; application supplies exact source excerpts and eligible evidence IDs",
         "insufficient_evidence": INSUFFICIENT_EVIDENCE,
+        "render_citations": "Locations come only from final approved evidence selections, even without evidence capture",
         "render_labels": {
             "this_document_authors": "",
             "external_publication": "Cited literature: ",
             "non_study_context": "Context: ",
         },
         "citation_render": "{document}, page {page}",
-        "quote_match": "exact membership in source-specific whitespace-normalized evidence spans",
+        "evidence_text": "Application-owned whitespace-normalized source spans selected by verifier evidence IDs; drafts cannot supply quotes",
         "inline_citation_pattern": _INLINE_CITATION.pattern,
     }
     encoded = json.dumps(contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

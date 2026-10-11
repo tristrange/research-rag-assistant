@@ -65,6 +65,11 @@ remove two deterministic false rejections. A broader evidence-selection candidat
 showed no strict completeness gain and was discarded. Its development replay is
 not a current-code accuracy result; final validation and model-selection reliability
 remain open.
+The [source-only draft follow-up](draft-source-selection.md) removes model quote
+copying while retaining exact application-owned excerpts and verification gates.
+Both inspected answerable cases passed final-excerpt review and both controls
+refused appropriately; one draft needed repair. These four development cases do
+not meet the fresh-question release gate.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
