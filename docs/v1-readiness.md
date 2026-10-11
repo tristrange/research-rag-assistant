@@ -70,6 +70,12 @@ copying while retaining exact application-owned excerpts and verification gates.
 Both inspected answerable cases passed final-excerpt review and both controls
 refused appropriately; one draft needed repair. These four development cases do
 not meet the fresh-question release gate.
+The [remaining-case diagnostic](remaining-evidence-check.md) found two safe
+refusals despite sufficient saved evidence, with malformed drafts followed by
+incomplete scope selection. An explicit draft-schema trial improved structure
+but accepted a housing answer without displayed C26 support; it was discarded.
+Final-excerpt proof can still infer missing scope, so answer reliability remains
+open. This documents development evidence without changing runtime behavior.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
