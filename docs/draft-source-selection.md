@@ -78,3 +78,58 @@ without evidence capture. Existing grounding rejection/proof controls remain.
 This change removes model quote copying; source selection and semantic
 verification can still fail. A separately reserved fresh-question check remains
 necessary before claiming local v1 answer reliability.
+
+## Explicit draft schema: v40
+
+Initial draft and repair prompts now include the same compact, source-bounded
+JSON schema supplied through the Ollama API, following the verifier prompt's
+existing pattern. This makes the required `citations` / `source_id` structure
+visible to the model. Empty sources stay ineligible without renumbering other
+IDs, and additional fields stay forbidden. The single-repair limit is unchanged.
+
+The earlier [v37 schema trial](remaining-evidence-check.md#candidate-v37) was
+discarded after a housing answer omitted displayed C26 evidence. This change
+restores the format improvement on top of the merged
+[question-identifier guard](question-identifiers.md). Lexical identifier presence
+remains only a necessary condition: semantic support, scope-to-result linkage,
+duration checks and isolated proof of final displayed excerpts are still required.
+The generation fingerprint binds this prompt change as contract v40. Models,
+inference settings, retrieval and indexing are unchanged; no reindexing is needed.
+
+The once-only development check uses the same inspected housing FGF21,
+stable-knockdown mitophagy and SERCA-force control questions and six saved
+passages per question. Only questions and sources reach generation; the existing
+repair is allowed, without selective retries or prompt variants. This is a
+generation check, not current retrieval evaluation or fresh release validation.
+
+| Inspected case | v40 outcome | Calls / elapsed |
+| --- | --- | --- |
+| Housing FGF21 | Answer after repair adds C26 methods alongside the 86% temperature result | 5 / 385 s |
+| Stable-knockdown mitophagy | Answer includes stable-KD scope and all four knockdown results without repair | 3 / 180 s |
+| SERCA force control | Valid `answerable=false, claims=[]` refusal | 1 / 8 s |
+
+All three initial drafts were schema-valid. The housing identifier guard rejected
+the first numeric-only evidence selection before the single repair. These
+observations do not measure repeatability or prove that schema text caused the
+improvement. Inference latency remains substantial.
+
+The ignored report and saved runner are
+`evaluation-results/v40-schema-check-20261011T224901588847Z.json` and its sibling
+`-runner.py`. Report SHA256 is
+`45d0337898045400b075996f47b0e5f2eaebc0209897acaf96c7b5acfd0fc332`;
+the generation fingerprint is
+`7fc12d70de30cb7acdf1e546d284833b5ab7585cc2247ed8f86873672c916482`.
+The report binds the application hash, unchanged saved-source corpus, raw calls,
+settings and runtime metadata. Application, fingerprint and runtime matched
+before and after generation. Ollama 0.40.3 served the same `gpt-oss:20b` digest and
+inference settings recorded above for v36. No retrieval, model judge or label
+input was used. Regression checks pass: 434 Python tests (17 skipped) and strict
+typing across 79 files.
+
+Independent AI final-excerpt review accepted both answers and the valid refusal.
+Housing combines the result with methods defining the cohort and temperature
+groups; mitophagy displays stable-KD scope and all four results. Exact excerpt
+binding and attribution pass. The sibling `-source-review.json` has SHA256
+`c3f84d6b2aadd297eae0f49009c161442f78525cefff28763a1a04eda052170c`.
+This is not human review, PDF inspection or independent release validation;
+the separately reserved fresh-question gate remains open.

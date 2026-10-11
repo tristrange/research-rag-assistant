@@ -15,6 +15,29 @@ from app.types import AnswerClaim, ChunkData
 
 
 class DraftSourceTests(unittest.TestCase):
+    def test_draft_and_repair_prompts_match_the_bounded_api_schema(self) -> None:
+        sources = [ChunkData(document="study.pdf", page=1, chunk_index=0, text="First result."),
+                   ChunkData(document="blank.pdf", page=2, chunk_index=0, text="  "),
+                   ChunkData(document="study.pdf", page=3, chunk_index=0, text="Third result.")]
+        malformed = {"answerable": True, "claims": [{
+            "text": "Result.", "attribution": "this_document_authors", "source_ids": [1],
+        }]}
+        with patch("app.grounding.generate_json", side_effect=[
+            malformed, {"answerable": False, "claims": []},
+        ]) as model:
+            self.assertEqual(grounded_answer("What happened?", sources), INSUFFICIENT_EVIDENCE)
+        self.assertEqual(model.call_count, 2)
+        for call in model.call_args_list:
+            prompt, api_schema = call.args
+            schema_text = prompt.split("Response shape JSON schema:\n", 1)[1].split("\n\n", 1)[0]
+            prompt_schema = json.loads(schema_text)
+            self.assertEqual(prompt_schema, api_schema)
+            citations = prompt_schema["$defs"]["ClaimCitation"]["anyOf"]
+            self.assertEqual([item["properties"]["source_id"]["const"] for item in citations], [1, 3])
+            for item in citations:
+                self.assertEqual(item["required"], ["source_id"])
+                self.assertFalse(item["additionalProperties"])
+
     def test_source_only_draft_preserves_exact_approved_text_and_locations(self) -> None:
         question = "What happened?"
         sources = [ChunkData(document="unused.pdf", page=1, chunk_index=0, text="We measured uptake."),

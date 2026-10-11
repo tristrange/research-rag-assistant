@@ -21,7 +21,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v39"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v40"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -382,7 +382,11 @@ def build_verifier_evidence(
 def build_draft_prompt(question: str, sources: list[ChunkData]) -> str:
     """Build the auditable first-pass prompt with stable, application-owned IDs."""
     payload = {"question": question, "source_catalogue": _source_catalogue(sources)}
-    return f"{_DRAFT_INSTRUCTIONS}\n\nInput JSON:\n{json.dumps(payload, ensure_ascii=False)}"
+    return (
+        f"{_DRAFT_INSTRUCTIONS}\n\nResponse shape JSON schema:\n"
+        f"{json.dumps(_bounded_draft_schema(sources), ensure_ascii=False, separators=(',', ':'))}\n\n"
+        f"Input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
+    )
 
 
 def build_repair_prompt(
@@ -400,6 +404,8 @@ def build_repair_prompt(
     }
     return (
         f"{_DRAFT_INSTRUCTIONS}\n\n{_REPAIR_INSTRUCTIONS}\n\n"
+        f"Response shape JSON schema:\n"
+        f"{json.dumps(_bounded_draft_schema(sources), ensure_ascii=False, separators=(',', ':'))}\n\n"
         f"Repair input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
     )
 
@@ -906,6 +912,7 @@ def grounding_fingerprint() -> str:
         "repair_instructions": _REPAIR_INSTRUCTIONS,
         "verifier_instructions": _VERIFIER_INSTRUCTIONS,
         "draft_schema": DRAFT_SCHEMA,
+        "draft_prompt_schema": "Draft and repair serialize the same bounded response schema before untrusted input and send it to the API",
         "dynamic_citation_schema": (
             "ClaimCitation is anyOf one object per nonempty source; source_id is const, "
             "only source_id is required and additional fields including quotes are forbidden"

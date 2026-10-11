@@ -80,6 +80,10 @@ A [question-identifier guard](question-identifiers.md) now requires explicitly
 named alphanumeric targets in final approved excerpts before proof. It closes
 that lexical omission without establishing cohort-to-result linkage or word-only
 qualifiers; the remaining answer-quality and fresh-question gates stay open.
+The [v40 draft-schema follow-up](draft-source-selection.md#explicit-draft-schema-v40)
+shows the bounded response shape in draft and repair prompts while preserving
+these guards. Its saved-source development check does not replace the
+fresh-question gate.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 
