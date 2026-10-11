@@ -10,7 +10,7 @@ from app.grounding import (
     DRAFT_SCHEMA, DRAFT_THINK, GROUNDING_CONTEXT_TOKENS, GROUNDING_MODEL,
     GROUNDING_OUTPUT_TOKENS, MAX_QUOTE_CHARS, VERIFIER_THINK, VERIFIER_SCHEMA, GroundedDraft, VerificationResult,
     INSUFFICIENT_EVIDENCE, _bounded_draft_schema, _evidence_spans,
-    _normalize_whitespace, build_draft_prompt, build_verifier_prompt,
+    _normalize_whitespace, _validate_question_identifiers, build_draft_prompt, build_verifier_prompt,
     build_verifier_evidence, _bounded_verifier_schema, validate_verification_structure,
     generate_draft_json, generate_verification_json, grounded_answer, grounding_fingerprint, verify_draft,
 )
@@ -939,6 +939,43 @@ class GroundingTests(unittest.TestCase):
 
 
 class ApprovedProofTests(unittest.TestCase):
+    def test_single_repair_receives_both_missing_identifier_and_duration(self) -> None:
+        question = "How did FGF21 change in C26-bearing mice after three days?"
+        sources = [ChunkData(document="study.pdf", page=1, chunk_index=0, text="FGF21 increased by 86%."),
+                   ChunkData(document="study.pdf", page=2, chunk_index=0, text="We studied C26-bearing mice."),
+                   ChunkData(document="study.pdf", page=3, chunk_index=0, text="These mice were observed for three days.")]
+        draft = {"answerable": True, "claims": [{
+            "text": "After three days, FGF21 increased by 86% in C26-bearing mice.",
+            "attribution": "this_document_authors", "citations": [{"source_id": 1}],
+        }]}
+        numeric_verdict = approved(question)
+        for item in [numeric_verdict["requested_answer"], *cast(list[object], numeric_verdict["requirements"]),
+                     *cast(list[object], numeric_verdict["verdicts"])]:
+            cast(dict[str, object], item)["supporting_evidence_ids"] = [1]
+        repaired = deepcopy(draft)
+        cast(list[dict[str, object]], repaired["claims"])[0]["citations"] = [{"source_id": i} for i in [1, 2, 3]]
+        complete_verdict = deepcopy(numeric_verdict)
+        cast(list[dict[str, object]], complete_verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2, 3]
+        evidence: list[AnswerClaim] = []
+        with patch("app.grounding.generate_json", side_effect=[
+            draft, numeric_verdict, repaired, complete_verdict,
+        ]) as model, patch("app.grounding.generate_approved_proof_json", return_value={
+            "supported": True, "reason": "Same cohort, duration and result.",
+        }) as proof:
+            self.assertNotEqual(grounded_answer(question, sources, claim_evidence=evidence), INSUFFICIENT_EVIDENCE)
+        repair_input = json.loads(model.call_args_list[2].args[0].split("Repair input JSON:\n", 1)[1])
+        reason = repair_input["rejection_feedback"][-1]["reason"]
+        self.assertIn("question identifier(s): C26", reason)
+        self.assertIn("claimed duration(s): three days", reason)
+        proof.assert_called_once()
+        self.assertEqual([c["source_index"] for c in evidence[0]["citations"]], [0, 1, 2])
+
+    def test_long_word_and_unicode_boundaries_cannot_supply_partial_identifiers(self) -> None:
+        long_word = "A" * 100_000 + "1_tail"
+        with self.assertRaisesRegex(ValueError, "C26"):
+            _validate_question_identifiers(f"{long_word} What happened in C26?", ["éC26 C26_other"])
+        _validate_question_identifiers(f"{long_word} What happened in C26?", ["(c26)-bearing mice."])
+
     def test_missing_question_identifier_cannot_borrow_unselected_context_or_model_approval(self) -> None:
         question = "How did FGF21 change in C26-bearing mice?"
         sources = [ChunkData(document="C26.pdf", page=1, chunk_index=0,

@@ -1,6 +1,6 @@
 # Named identifiers in approved evidence
 
-Contract v38 adds a deterministic necessary condition before final-excerpt proof:
+Contract v39 retains v38's deterministic necessary condition before final-excerpt proof:
 letter-leading contiguous ASCII alphanumeric question tokens containing a digit,
 such as `C26`, `FGF21`, or `Fis1`, must occur in the approved claim excerpts.
 Matching ignores case but preserves whole-token boundaries. `C260`, `C26A`,
@@ -8,6 +8,8 @@ document names, claim text and unselected source context cannot establish `C26`.
 Quotes are checked individually; fragments across excerpts cannot form a name.
 
 Missing identifiers trigger the existing single repair with specific feedback.
+Identifier and claim-duration errors are collected together so neither hides
+actionable feedback from that single attempt.
 Repair must select the supporting scope excerpt so it reaches final display.
 Identifier presence does not approve the answer: attribution, claim support,
 requirement coverage, duration validation and isolated semantic proof remain.
@@ -39,7 +41,7 @@ The ignored regression report is
 SHA256 `bb54332c760b075fbd80f5b4ad8fb682c65038c54678ac46c1e9fbbc3de5c7ae`.
 This proves deterministic guard behavior, not improved model accuracy.
 
-## Live development check
+## Live development check (v38)
 
 Housing FGF21, the previously supported SLC25A33 gene comparison, and the SERCA
 force control are preselected for one normal-generation run each, with their six
@@ -82,6 +84,35 @@ matched before and after generation. The application hash is
 the generation fingerprint is
 `c5632c4dfd34b1fdeefd9d966e4a1d711f2aadb80312f16b908e77f19bf85d06`.
 
-Regression checks pass: 431 Python tests (17 skipped) and strict typing across
+The v38 candidate passed 431 Python tests (17 skipped) and strict typing across
 79 files. Local v1 remains open for reliable evidence selection and a separately
 reserved fresh-question check.
+
+## Review follow-up (v39)
+
+The identifier scanner now reads maximal word tokens with `\w+`, then filters
+question tokens using ordinary ASCII/letter/alphanumeric/digit checks. This
+removes the lookaround pattern flagged by CodeQL while preserving the identifier
+and boundary rules. A long-word regression covers a 100,000-character input and
+Unicode/underscore boundaries without imposing a flaky timing threshold.
+
+Deterministic rejection now collects missing question identifiers and duration
+failures from every approved claim before raising. A regression verifies that
+the single repair receives both the missing cohort and missing duration, selects
+both scope excerpts and the result, and exposes all of them after semantic approval.
+
+One synthetic fixed-draft check supplies a deliberately permissive initial
+verifier to exercise both failures, then runs live repair, verification and proof
+once. Repair selected all three sources; live verification selected all three
+excerpts and both deterministic guards passed. Final proof still rejected the
+ambiguous connection between the result and its three-day measurement. That
+failure is preserved without a retry. This is repair-path evidence, not a normal
+generation or answer-quality result.
+
+The ignored report and runner are
+`evaluation-results/v39-combined-repair-20261011T202236133559Z.json` and its
+`-runner.py` sibling. Report SHA256:
+`d76a00fb9a54e0ec382da359f5fa100c52e7bc7d725d9ee6763e5aefddcb97e2`.
+Application/runtime metadata and generation fingerprint matched before and after
+the run. Regression checks pass: 433 Python tests (17 skipped) and strict typing
+across 79 files. The earlier v38 reports remain unchanged.
