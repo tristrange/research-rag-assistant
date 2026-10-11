@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "kind": "ai-reviewed-fresh-question-check-summary",
+  "protocol_manifest": "benchmarks/local-v1-fresh-check-2026-10-12-r3.json",
+  "protocol_manifest_sha256": "d9ddd97024d804e1e4777d476b1018c2b2ed93b859c3d2df365531ba39285086",
+  "reservation_commit": "ac5faaa452d1c3eb4401b478a9d53300dc8b2ffa",
+  "candidate_commit": "6b33f221e6e07a97cc1ddfa609f1fa1d0218f634",
+  "started_at": "2026-10-11T23:14:53.014228+00:00",
+  "finished_at": "2026-10-11T23:40:43.885520+00:00",
+  "run_status": "complete",
+  "review_mode": "AI-authored known-paper questions and separate AI source-based review; no human review or Ollama judge",
+  "question_authors": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "author_count": 2
+  },
+  "source_reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium"
+  },
+  "reviewer_configuration_source": "Existing reviewer agent dispatch recorded by controller; exact variant is not exposed in reviewer self-context.",
+  "frozen_inputs_verified": true,
+  "reranker_weight_digest_pinned": false,
+  "local_artifact_directory": "evaluation-results/local-v1-fresh-check-r3-20261011T230800679291Z",
+  "artifact_sha256": {
+    "freeze.json": "8f63ed6a3ff94111e829e8a0d3ebcb23c4a7535e3f345d099345efaa684e040a",
+    "prior-questions.json": "6100a5955e31f98e2d2fd230b14bb1f981c13f2e120333a45c3625ba7e1971c2",
+    "reserved-cases.json": "5d36bedfa11ff519053eb69e6acd246d97eb38d55e7ae783567b6291fca29764",
+    "label-review.json": "e13a15239b61a93333f5ad490e0e0f5f2535b68434761c9a2cfb8da3ec53e4ed",
+    "run.json": "532c8c020784bd64715b477d60296ba43ec3edd7c4c8a4bd47c5cefbd71af146",
+    "answer-review.json": "5af5138955b042f713b29796a1aa51389556580ad38066773845808fd34072c6",
+    "runner.py": "26d841429772a1de271b39d21c41883587262dc8ad504ae2b376c968eb99b466",
+    "runner-support.py": "5e6f94bd616027ea7db924bdb5a16f48ed529a06d8101ee4fd92b76ab4a125bc"
+  },
+  "summary": {
+    "supported_complete_answerable_count": 2,
+    "appropriate_control_refusal_count": 2,
+    "answerable_refusal_count": 3,
+    "material_unsupported_claim_count": 0,
+    "attribution_error_count": 0,
+    "service_error_count": 1,
+    "total_cases": 8,
+    "answerable_cases": 6,
+    "unanswerable_controls": 2,
+    "stopping_rule_met": false,
+    "output_budget_error_count": 1,
+    "transport_error_count": 0,
+    "answerable_cases_with_sufficient_retrieved_input": 6,
+    "passing_rule": {
+      "supported_complete_answers_at_least": 5,
+      "appropriate_control_refusals": 2,
+      "material_unsupported_claims": 0,
+      "attribution_errors": 0
+    }
+  },
+  "cases": [
+    {
+      "case_id": "r3-sample-cohort2-inoculum",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 243.9,
+      "built_in_repair_used": true,
+      "reason": "Final approved methods excerpt explicitly identifies cohort 2 and one million NC26/C26 cells for tumor-bearing mice, distinguishing PBS controls. The displayed generic tumor-cell count is complete and avoids conflating doses in other C26/KPC cohorts. Both approved quotes bind to returned source 0 and original PDF page 2; attribution to the current paper authors is supported."
+    },
+    {
+      "case_id": "r3-sample-c26-grip-response",
+      "answerable": true,
+      "outcome": "insufficient_evidence",
+      "decision": "needs_fix",
+      "category": "safe_answerable_refusal",
+      "elapsed_seconds": 238.6,
+      "built_in_repair_used": true,
+      "reason": "Returned sources supply both C26 weight-stable/cachectic identity and the 17%/27% grip reductions. Initial approved selection omitted cohort identity. Repair cited the cohort source, but verifier placed its scope excerpt only under question coverage while approving just the numeric excerpt for claim display. Binding validation correctly rejected whole-question coverage citing evidence absent from approved claims. Final refusal is safe, but complete supported retrieval was not converted into an answer."
+    },
+    {
+      "case_id": "r3-housing-ucp1-expression",
+      "answerable": true,
+      "outcome": "insufficient_evidence",
+      "decision": "needs_fix",
+      "category": "safe_answerable_refusal",
+      "elapsed_seconds": 9.5,
+      "built_in_repair_used": false,
+      "reason": "First returned result passage gives C26 Ucp1 mRNA reductions of 27%,88%,45% in scWAT,gWAT,BAT at ST and enhancement at TN, covering all requested tissues and housing comparison. Ordinary ST/TN expansion suffices. Other returned passages distinguish mRNA from nearby protein findings. Initial refusal despite this sufficient evidence is a generation failure; its trace states no rationale, so no narrower cause is established."
+    },
+    {
+      "case_id": "r3-housing-adiponectin-control",
+      "answerable": false,
+      "outcome": "insufficient_evidence",
+      "decision": "pass",
+      "category": "appropriate_control_refusal",
+      "elapsed_seconds": 8.3,
+      "built_in_repair_used": false,
+      "reason": "Frozen original-paper label remains valid: the paper and returned passages do not establish a plasma adiponectin outcome. Final output is a valid initial insufficient-evidence refusal, not a no-effect claim or a schema/transport failure. No claims displayed."
+    },
+    {
+      "case_id": "r3-mito-vdac1-bax-ppid",
+      "answerable": true,
+      "outcome": "insufficient_evidence",
+      "decision": "needs_fix",
+      "category": "safe_answerable_refusal",
+      "elapsed_seconds": 351.1,
+      "built_in_repair_used": true,
+      "reason": "Returned source 0 directly supplies the complete Mfn1KD comparison: VDAC1 rescue, partial Bax rescue and no PPID rescue. Initial isolated proof correctly rejected approval of only the VDAC1 sentence. Repair selected both adjacent complete-comparison sentences, exactly bound to source 0 and PDF page 12; those excerpts establish same-experiment population and authorship. Repaired proof incorrectly rejected, claiming Bax and population context were absent from the second excerpt: Bax is explicitly named, and Mfn1KD context carries from its immediately preceding sentence. Final refusal is safe; this is overstrict/incorrect final-proof rejection, not retrieval or label failure."
+    },
+    {
+      "case_id": "r3-mito-endosome-proximity",
+      "answerable": true,
+      "outcome": "answered",
+      "decision": "pass",
+      "category": "supported_complete_answer",
+      "elapsed_seconds": 136.5,
+      "built_in_repair_used": false,
+      "reason": "The single approved result excerpt directly assigns mean distances 150 nm/63 nm and fractions of contacts under 30 nm 2%/47% to control/Mfn1KD cells in respective order. Final answer preserves both comparisons, the requested mitochondrial/Rab5-positive endosome context and population. Its quote binds exactly to returned source 0 and original PDF page 6. The original Results context supports current-paper authors attribution."
+    },
+    {
+      "case_id": "r3-activin-dio-adipose-depots",
+      "answerable": true,
+      "outcome": "error",
+      "decision": "needs_fix",
+      "category": "service_error",
+      "elapsed_seconds": 548.1,
+      "built_in_repair_used": true,
+      "reason": "No final answer or approved display exists: repair verification exhausted the fixed 4096-token output budget, raising OllamaOutputLimitError. Raw final response is retained with done_reason=length and eval_count=4096; this is output-budget exhaustion, not network transport failure. Recorded initial draft incorrectly turned the PBS groups 34% fat gain into 34% smaller treatment gain and omitted duration sources, but that draft was never displayed. Initial verifier output omitted mandatory requested_answer.supporting_evidence_ids. Repair removed the unsupported 34% treatment magnitude and cited the retrieved 21-day regimen plus depot result, but repair-verifier completion failed. Six retrieved passages in the retained initial prompt include full result and explicit duration, so original label is valid and retrieval sufficient."
+    },
+    {
+      "case_id": "r3-activin-bone-density-control",
+      "answerable": false,
+      "outcome": "insufficient_evidence",
+      "decision": "pass",
+      "category": "appropriate_control_refusal",
+      "elapsed_seconds": 12.9,
+      "built_in_repair_used": false,
+      "reason": "Frozen original-paper label remains valid: no DIO bone-mineral-density outcome is reported. Returned passages cover other long-term body-composition, muscle and metabolic outcomes without that measurement. Valid initial refusal with no displayed claims; no schema or service failure."
+    }
+  ]
+}

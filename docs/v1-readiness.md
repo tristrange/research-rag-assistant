@@ -84,6 +84,13 @@ The [v40 draft-schema follow-up](draft-source-selection.md#explicit-draft-schema
 shows the bounded response shape in draft and repair prompts while preserving
 these guards. Its saved-source development check does not replace the
 fresh-question gate.
+The [third reserved fresh-question check](local-v1-fresh-check-r3.md) on v40
+also missed the unchanged target: two of six supported complete answers, both
+control refusals, three safe answerable refusals and one output-budget error.
+All six answerable cases retrieved sufficient evidence; no material unsupported
+displayed claim or attribution error was observed. Generation, evidence
+selection, incorrect proof rejection and verifier output limits remain open.
+These different fresh questions do not establish a trend against earlier sets.
 The AI-assisted development review is complete; it is not independent
 validation, an assessment of current-code accuracy, or release approval.
 

@@ -6,7 +6,7 @@ claim-level evidence checks in a FastAPI application with a browser interface.
 
 **Status:** local v1 engineering and AI-assisted development review are complete.
 The fresh-question check did not meet the v1 quality target; this remains an
-experimental research tool. See the [recorded results](docs/local-v1-fresh-check.md).
+experimental research tool. See the [latest recorded results](docs/local-v1-fresh-check-r3.md).
 
 ![Browser interface showing a synthetic answer and its selected evidence](docs/assets/research-assistant.png)
 
