@@ -48,6 +48,11 @@ evaluation inputs; preserve earlier reports and use fresh ones.
 
 ## Search scopes and API
 
+The header's **Appearance** selector offers **Light**, **Dark**, and **Auto
+(system)**. Auto follows system changes while the page is open. The browser
+remembers your choice when local storage is available; it also applies to the
+local API documentation page.
+
 FastAPI serves the UI directly. Open `/docs` for local API documentation and
 `/openapi.json` for the schema. The API exposes verified answering only;
 `answer_mode: "plain"` is rejected.

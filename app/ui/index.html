@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css?v=9">
+    <script src="/static/theme.js?v=1"></script>
+    <link rel="stylesheet" href="/static/styles.css?v=10">
     <script src="/static/app.js?v=15" defer></script>
   </head>
   <body>
@@ -13,7 +14,17 @@
         <span class="brand-mark" aria-hidden="true">R</span>
         <span>Research RAG <small>Local research assistant</small></span>
       </div>
-      <a href="/docs">API docs <span aria-hidden="true">↗</span></a>
+      <div class="header-actions">
+        <div class="theme-control">
+          <label for="theme-select">Appearance</label>
+          <select id="theme-select" name="theme">
+            <option value="auto">Auto (system)</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+        <a href="/docs">API docs <span aria-hidden="true">↗</span></a>
+      </div>
     </header>
 
     <main class="page-shell">
