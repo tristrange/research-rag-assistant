@@ -110,10 +110,13 @@ reserve a vector slot inside their source limit.
 structured draft with claims, attribution and citations. The default is
 `gpt-oss:20b`: first-draft reasoning low, repair and verification reasoning medium.
 Repair reuses the configured verifier reasoning and timeout profile. Runtime
-validation checks schema, source references and quoted text; a separate model
-call checks claim support, attribution and coverage of the whole question. A
-draft-selected quote carries its [evidence ID](repair-evidence.md) in the verifier
-input, separately from the passage ID. A
+validation checks schema and source references. Draft and repair citations select
+only source IDs; the application constructs exact evidence excerpts from those
+passages. A separate model call selects excerpt IDs and checks claim support,
+attribution and coverage of the whole question. The final excerpts also undergo
+an isolated full-question proof check. Rendered locations and public claim
+evidence include only the approved selections, not unused draft sources. See
+[source selection](draft-source-selection.md) for the contract and development check. A
 deterministic [duration check](duration-evidence.md) also compares explicit
 numeric durations with each claim's verifier-selected quotes. Missing duration
 support rejects the claim even when the model approves it. A

@@ -261,8 +261,8 @@ def draft_for_fixture(fixture: ControlFixture) -> GroundedDraft:
         "claims": [{
             "text": text,
             "attribution": attribution,
-            "citations": [{"source_id": 1, "quote": quote}],
-        } for text, attribution, quote in fixture.claims],
+            "citations": [{"source_id": 1}],
+        } for text, attribution, _quote in fixture.claims],
     })
 
 # This one control is intentionally rejected by deterministic validation because

@@ -13,7 +13,7 @@ QUESTION = "How much mass did the mice lose?"
 CLAIM = GroundedClaim.model_validate({
     "text": "The authors found a loss of 1.2 g after three days of food restriction.",
     "attribution": "this_document_authors",
-    "citations": [{"source_id": 1, "quote": RESULT["text"]}],
+    "citations": [{"source_id": 1}],
 })
 
 
@@ -167,7 +167,7 @@ class GroundingControlTests(unittest.TestCase):
         self.assertEqual(len(controls), 30)
         self.assertTrue(all(isinstance(fixture, tuple) and len(fixture) == 7 for fixture in FIXTURES))
 
-    def test_all_verifier_fixtures_use_exact_source_quotes(self) -> None:
+    def test_all_verifier_fixtures_use_valid_source_ids(self) -> None:
         for fixture in all_control_fixtures():
             if fixture.identifier in DETERMINISTIC_CONTROLS:
                 continue

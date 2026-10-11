@@ -70,3 +70,4 @@ model names, settings and outcomes remain as recorded; they do not override the
 - [Grounding refusal diagnostics](grounding-refusal-diagnostics.md)
 - [Question coverage and evidence](question-coverage-evidence.md)
 - [Shared verifier evidence](shared-evidence-verification.md)
+- [Draft source selection](draft-source-selection.md)
