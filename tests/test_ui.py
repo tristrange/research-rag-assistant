@@ -23,8 +23,9 @@ class BrowserUiTests(unittest.TestCase):
             'id="refresh-papers-button" type="button"',
             'id="check-services-button" type="button"',
             'id="service-status" class="field-note" role="status"',
-            'src="/static/app.js?v=14"',
-            'href="/static/styles.css?v=8"',
+            'src="/static/app.js?v=15"',
+            'href="/static/styles.css?v=11"',
+            'src="/static/theme.js?v=1"',
             'id="copy-answer-button" type="button" aria-describedby="copy-status" disabled',
             'id="copy-status" class="copy-status" role="status" aria-live="polite"',
             'id="answer-guidance" class="field-note" hidden',
@@ -37,8 +38,8 @@ class BrowserUiTests(unittest.TestCase):
 
     def test_browser_assets_and_local_api_docs_are_served(self) -> None:
         client = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000))
-        script = client.get("/static/app.js?v=14")
-        stylesheet = client.get("/static/styles.css?v=8")
+        script = client.get("/static/app.js?v=15")
+        stylesheet = client.get("/static/styles.css?v=11")
         docs = client.get("/docs")
         self.assertEqual(script.status_code, 200)
         self.assertIn("javascript", script.headers["content-type"])
@@ -46,7 +47,7 @@ class BrowserUiTests(unittest.TestCase):
         self.assertIn("text/css", stylesheet.headers["content-type"])
         self.assertEqual(docs.status_code, 200)
         self.assertIn("/openapi.json", docs.text)
-        self.assertNotIn("<script", docs.text)
+        self.assertIn('src="/static/theme.js?v=1"', docs.text)
         self.assertNotIn("cdn.", docs.text)
         self.assertEqual(client.get("/redoc").status_code, 404)
         self.assertEqual(client.get("/docs/oauth2-redirect").status_code, 404)

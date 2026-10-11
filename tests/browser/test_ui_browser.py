@@ -98,6 +98,91 @@ class BrowserSmokeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.assertEqual(self.page_errors, [], "Unexpected browser JavaScript error")
 
+    def test_theme_follows_system_and_remembers_explicit_overrides(self) -> None:
+        page = self.page
+        page.emulate_media(color_scheme="dark")
+        theme = page.get_by_label("Appearance")
+        self.assertEqual(theme.count(), 1)
+        expect(theme).to_have_value("auto")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        theme.select_option("light")
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        page.reload()
+        expect(theme).to_have_value("light")
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        theme.select_option("dark")
+        page.emulate_media(color_scheme="light")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        page.goto(self.base_url + "/docs")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        page.goto(self.base_url)
+        expect(theme).to_have_value("dark")
+        theme.select_option("auto")
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        page.emulate_media(color_scheme="dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        expect(page.locator("html")).to_have_css("color-scheme", "dark")
+        page.reload()
+        expect(theme).to_have_value("auto")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+
+    def test_theme_works_when_saved_preference_is_invalid_or_storage_is_blocked(self) -> None:
+        page = self.page
+        page.evaluate("localStorage.setItem('research-rag-theme', 'invalid')")
+        page.reload()
+        expect(page.get_by_label("Appearance")).to_have_value("auto")
+        page.add_init_script("""
+            Storage.prototype.getItem = () => { throw new Error('storage blocked'); };
+            Storage.prototype.setItem = () => { throw new Error('storage blocked'); };
+        """)
+        page.reload()
+        page.get_by_label("Appearance").select_option("dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        expect(page.locator("#question")).to_be_enabled()
+
+    def test_service_summary_stays_visible_with_keyboard_access_to_details(self) -> None:
+        page = self.page
+        diagnostics = page.locator(".service-details")
+        self.assertEqual(diagnostics.count(), 1)
+        expect(page.locator("#service-status")).to_be_visible()
+        expect(page.locator("#service-checks")).to_be_hidden()
+        summary = diagnostics.locator("summary")
+        summary.focus()
+        summary.press("Enter")
+        expect(page.locator("#service-checks")).to_be_visible()
+        page.locator("#check-services-button").click()
+        expect(page.locator("#service-status")).to_contain_text("Service checks passed")
+        summary.focus()
+        summary.press("Enter")
+        expect(page.locator("#service-checks")).to_be_hidden()
+        expect(page.locator("#service-status")).to_be_visible()
+
+    def test_layout_reflows_with_enlarged_text_and_visible_keyboard_focus(self) -> None:
+        page = self.page
+        page.locator("#question").focus()
+        page.keyboard.press("Tab")
+        expect(page.locator("#refresh-papers-button")).to_be_focused()
+        self.assertEqual(page.locator("#refresh-papers-button").evaluate(
+            "node => getComputedStyle(node).outlineStyle"), "solid")
+        page.locator("#question").fill("What happened?")
+        page.locator("#ask-button").click()
+        expect(page.locator("#answer-panel")).to_be_visible()
+        page.emulate_media(reduced_motion="reduce")
+        page.evaluate("document.documentElement.style.fontSize = '200%'")
+        expect(page.locator("html")).to_have_css("font-size", "32px")
+        for width in (320, 850, 900, 1100, 1280):
+            with self.subTest(width=width):
+                page.set_viewport_size({"width": width, "height": 950})
+                page.evaluate("scrollTo(0, 0)")
+                expect(page.locator(".site-header a")).to_be_in_viewport(ratio=1)
+                if width > 850:
+                    self.assertGreaterEqual(page.locator("#answer-text").evaluate(
+                        "node => node.getBoundingClientRect().width"), 256)
+                self.assertFalse(page.evaluate("document.documentElement.scrollWidth > innerWidth"))
+                for control in ("#question", "#document", "#ask-button"):
+                    self.assertGreaterEqual(page.locator(control).evaluate(
+                        "node => node.getBoundingClientRect().height"), 44)
+
     def test_question_evidence_links_and_clipboard(self) -> None:
         page = self.page
         expect(page.locator("#ask-button")).to_be_disabled()
