@@ -4,23 +4,23 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Research RAG Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css?v=8">
-    <script src="/static/app.js?v=14" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=9">
+    <script src="/static/app.js?v=15" defer></script>
   </head>
   <body>
     <header class="site-header">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">R</span>
-        <span>Research RAG <small>LOCAL ASSISTANT</small></span>
+        <span>Research RAG <small>Local research assistant</small></span>
       </div>
       <a href="/docs">API docs <span aria-hidden="true">↗</span></a>
     </header>
 
     <main class="page-shell">
       <div class="intro">
-        <p class="eyebrow">YOUR RESEARCH LIBRARY</p>
+        <p class="eyebrow">Research workspace</p>
         <h1>Ask your <span>papers.</span></h1>
-        <p class="intro-copy">Explore answers alongside passages retrieved from your indexed PDFs. Choose a paper to keep retrieval focused, or search the whole library.</p>
+        <p class="intro-copy">Find answers in your research library, with the passages behind them. Focus on one paper or explore across your indexed PDFs.</p>
       </div>
 
       <div class="workspace">
@@ -29,13 +29,8 @@
             <h2 id="question-heading">Your question</h2>
           </div>
           <form id="query-form">
-            <div class="service-heading">
-              <span>Local services</span>
-              <button id="check-services-button" type="button">Check services</button>
-            </div>
-            <p id="service-status" class="field-note" role="status" aria-live="polite">Services have not been checked.</p>
-            <ul id="service-checks" class="service-checks"></ul>
-            <p class="field-note">Checks test database access and installed models. They do not run inference, check answer quality, or guarantee that a question will succeed.</p>
+            <label for="question">Question</label>
+            <textarea id="question" name="question" rows="5" maxlength="2000" placeholder="What methods were used in the study?" required></textarea>
 
             <div class="library-heading">
               <label for="document">Search scope</label>
@@ -49,13 +44,20 @@
             <p id="library-status" class="field-note" role="status" aria-live="polite">Loading indexed papers…</p>
             <p id="scope-help" class="field-note">Across papers searches top matches; some papers may not appear. For main findings from every paper, choose Each paper (overview).</p>
 
-            <label for="question">Question</label>
-            <textarea id="question" name="question" rows="5" maxlength="2000" placeholder="What methods were used in the study?" required></textarea>
-
-            <p class="field-note">Answers are checked against retrieved passages. This can take several minutes and may refuse an answer even when evidence exists. Always inspect the source passages before relying on an answer.</p>
-
             <button id="ask-button" type="submit" disabled>Ask question <span aria-hidden="true">→</span></button>
+            <p class="field-note">Answers can take several minutes and may be refused even when evidence exists. Check the passages before relying on an answer.</p>
           </form>
+          <div class="service-area">
+            <p id="service-status" class="field-note" role="status" aria-live="polite">Services have not been checked.</p>
+            <details class="service-details">
+              <summary>Local services</summary>
+              <div class="service-heading">
+                <button id="check-services-button" type="button">Check services</button>
+              </div>
+              <ul id="service-checks" class="service-checks"></ul>
+              <p class="field-note">Checks test database access and installed models. They do not run inference, check answer quality, or guarantee that a question will succeed.</p>
+            </details>
+          </div>
         </section>
 
         <section class="panel result-panel" aria-labelledby="result-heading">

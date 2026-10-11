@@ -98,6 +98,46 @@ class BrowserSmokeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.assertEqual(self.page_errors, [], "Unexpected browser JavaScript error")
 
+    def test_service_summary_stays_visible_with_keyboard_access_to_details(self) -> None:
+        page = self.page
+        diagnostics = page.locator(".service-details")
+        self.assertEqual(diagnostics.count(), 1)
+        expect(page.locator("#service-status")).to_be_visible()
+        expect(page.locator("#service-checks")).to_be_hidden()
+        summary = diagnostics.locator("summary")
+        summary.focus()
+        summary.press("Enter")
+        expect(page.locator("#service-checks")).to_be_visible()
+        page.locator("#check-services-button").click()
+        expect(page.locator("#service-status")).to_contain_text("Service checks passed")
+        summary.focus()
+        summary.press("Enter")
+        expect(page.locator("#service-checks")).to_be_hidden()
+        expect(page.locator("#service-status")).to_be_visible()
+
+    def test_layout_reflows_with_enlarged_text_and_visible_keyboard_focus(self) -> None:
+        page = self.page
+        page.locator("#question").focus()
+        page.keyboard.press("Tab")
+        expect(page.locator("#refresh-papers-button")).to_be_focused()
+        self.assertEqual(page.locator("#refresh-papers-button").evaluate(
+            "node => getComputedStyle(node).outlineStyle"), "solid")
+        page.locator("#question").fill("What happened?")
+        page.locator("#ask-button").click()
+        expect(page.locator("#answer-panel")).to_be_visible()
+        page.emulate_media(reduced_motion="reduce")
+        page.evaluate("document.documentElement.style.fontSize = '200%'")
+        expect(page.locator("html")).to_have_css("font-size", "32px")
+        for width in (320, 850, 1280):
+            with self.subTest(width=width):
+                page.set_viewport_size({"width": width, "height": 950})
+                page.evaluate("scrollTo(0, 0)")
+                expect(page.locator(".site-header a")).to_be_in_viewport(ratio=1)
+                self.assertFalse(page.evaluate("document.documentElement.scrollWidth > innerWidth"))
+                for control in ("#question", "#document", "#ask-button"):
+                    self.assertGreaterEqual(page.locator(control).evaluate(
+                        "node => node.getBoundingClientRect().height"), 44)
+
     def test_question_evidence_links_and_clipboard(self) -> None:
         page = self.page
         expect(page.locator("#ask-button")).to_be_disabled()

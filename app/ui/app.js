@@ -55,7 +55,7 @@ async function checkServices() {
       serviceChecks.append(item);
     }
     serviceStatus.textContent = result.available
-      ? "Service checks passed. See the paper list below before asking a question."
+      ? "Service checks passed."
       : "Some services need attention. Follow the guidance below and check again.";
   } catch {
     serviceStatus.textContent = "Could not check local services. Check that the API is running, then try again.";

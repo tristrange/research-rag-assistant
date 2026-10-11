@@ -34,11 +34,13 @@ The suite serves the real FastAPI app, HTML and assets on an unused loopback por
 with synthetic backend results. It checks scoped submission, emphasis rendering,
 literal HTML safety, evidence/citation links, copy-button output, refusal/partial
 guidance, paper refresh and service-error retry. One flow uses a narrow viewport.
+It also checks keyboard access to collapsed service diagnostics, visible focus,
+and layout reflow with doubled text size at mobile and desktop widths.
 The Clipboard API is stubbed so the host clipboard stays unchanged. The test server
 and browser contexts are closed afterward.
 
 This is a Chromium integration smoke check, not Safari compatibility testing,
-a visual layout audit or answer-quality evaluation. Ordinary Python/Node tests
+a full visual layout audit or answer-quality evaluation. Ordinary Python/Node tests
 do not need browser binaries.
 
 ## PostgreSQL contracts
