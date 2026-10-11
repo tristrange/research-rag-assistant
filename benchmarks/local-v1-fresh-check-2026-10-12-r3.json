@@ -83,7 +83,71 @@
     "method": "New AI-authored questions on four known papers, semantic novelty checked against all prior questions and inspected development facts. Separate source-based label review and pre-generation reservation. Generate once each, normal document-scoped verified pipeline, no label/reference inputs or model judge, no tuning or selective retries. Preserve failures. Separate AI review of final approved claims, quotes, PDF context, requested qualifiers and attribution. App/corpus/PDF/settings/runtime unchanged before and after. Not human-authored or unseen-paper validation."
   },
   "kind": "frozen-ai-authored-fresh-question-protocol",
-  "phase": "candidate_frozen_before_question_authorship",
+  "phase": "questions_reserved_before_generation",
   "local_artifact_directory": "evaluation-results/local-v1-fresh-check-r3-20261011T230800679291Z",
-  "freeze_sha256": "8f63ed6a3ff94111e829e8a0d3ebcb23c4a7535e3f345d099345efaa684e040a"
+  "freeze_sha256": "8f63ed6a3ff94111e829e8a0d3ebcb23c4a7535e3f345d099345efaa684e040a",
+  "candidate_freeze_commit": "8d8cc00",
+  "reservation_parent_commit": "8d8cc00197e265a12b10be1f19d49276afec6a58",
+  "cases": [
+    {
+      "id": "r3-sample-cohort2-inoculum",
+      "document": "sample.pdf",
+      "question": "In cohort 2, how many tumor cells were injected into each tumor-bearing mouse?",
+      "answerable": true
+    },
+    {
+      "id": "r3-sample-c26-grip-response",
+      "document": "sample.pdf",
+      "question": "How did grip strength in weight-stable and cachectic C26-bearing mice compare with controls?",
+      "answerable": true
+    },
+    {
+      "id": "r3-housing-ucp1-expression",
+      "document": "housing-temperature.pdf",
+      "question": "How did C26-associated Ucp1 mRNA changes in scWAT, gWAT, and BAT differ between standard-temperature and thermoneutral housing?",
+      "answerable": true
+    },
+    {
+      "id": "r3-housing-adiponectin-control",
+      "document": "housing-temperature.pdf",
+      "question": "How did thermoneutral versus standard-temperature housing change plasma adiponectin in C26-bearing mice?",
+      "answerable": false
+    },
+    {
+      "id": "r3-mito-vdac1-bax-ppid",
+      "document": "mitochondrial-dynamics-2023.pdf",
+      "question": "In Mfn1KD myoblasts, how did downregulating VDAC1, Bax, and PPID compare in their effects on NFκB target-gene expression?",
+      "answerable": true
+    },
+    {
+      "id": "r3-mito-endosome-proximity",
+      "document": "mitochondrial-dynamics-2023.pdf",
+      "question": "How did mitochondria–Rab5+ early-endosome proximity differ between control and Mfn1KD myoblasts, both by mean distance and by the fraction of contacts under 30 nm?",
+      "answerable": true
+    },
+    {
+      "id": "r3-activin-dio-adipose-depots",
+      "document": "activin-receptor-2025.pdf",
+      "question": "After 21 days of αActRIIA/IIB treatment in DIO mice, how did fat-mass expansion and the weights of the white- and brown-fat depots compare with PBS-treated DIO mice?",
+      "answerable": true
+    },
+    {
+      "id": "r3-activin-bone-density-control",
+      "document": "activin-receptor-2025.pdf",
+      "question": "What effect did long-term αActRIIA/IIB treatment have on bone mineral density in the DIO mice?",
+      "answerable": false
+    }
+  ],
+  "question_authors": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "author_count": 2
+  },
+  "source_reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium"
+  },
+  "reserved_cases_sha256": "5d36bedfa11ff519053eb69e6acd246d97eb38d55e7ae783567b6291fca29764",
+  "label_review_sha256": "e13a15239b61a93333f5ad490e0e0f5f2535b68434761c9a2cfb8da3ec53e4ed",
+  "prior_questions_sha256": "6100a5955e31f98e2d2fd230b14bb1f981c13f2e120333a45c3625ba7e1971c2"
 }
