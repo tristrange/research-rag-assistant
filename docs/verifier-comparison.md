@@ -90,7 +90,7 @@ of end-to-end retrieval performance or generally equivalent safety.
   qualifier. Sufficient retrieval does not make every proposed answer supported.
 - Current Activin verification correctly rejected missing duration evidence.
   Repair selected both duration and results, but its final verifier returned a
-  fenced response with literal escaped newlines. Strict JSON parsing rejected
+  fenced response with ordinary newlines. Strict JSON parsing rejected
   it, causing a safe refusal. The run had no uncaught pipeline errors, transport
   timeouts or output-limit errors; the malformed response is counted separately.
 - Compact Activin repair correctly answered with both duration and result
@@ -118,3 +118,37 @@ application code, index or primary checkout changed. Only the frozen protocol,
 public counts and findings are published. Guard self-checks and artifact-integrity
 checks passed; the unchanged application test suite was not rerun. One inspected
 stochastic trial does not establish general quality, equal safety or v1 readiness.
+
+The newline description was corrected after inspecting the preserved response's
+character codes: it contains 47 ordinary LF newlines and no literal backslash-n
+sequences. The object inside the single JSON fence parses and passes the verifier
+schema and deterministic checks. The recorded v40 refusal and all trial counts
+remain unchanged; this correction does not retroactively count an answer.
+
+## Single JSON fence handling (v41)
+
+Grounding calls opt into decoding one whole-response lowercase
+`json` code fence with ordinary LF delimiters, after trimming outer whitespace.
+It passes the untouched interior to the same strict JSON decoder and object
+check. Prose around a fence, multiple responses, broken JSON, literal escaped
+delimiters and non-object payloads remain invalid. Plain text generation is
+unchanged. Draft/verifier schemas, evidence guards, final semantic proof,
+sampling, budgets and the single repair remain unchanged.
+Evaluation calibration and scoring judges retain strict bare-JSON decoding;
+their evaluator version and frozen protocol fingerprints remain applicable.
+
+The [targeted diagnostic](../benchmarks/json-fence-check-2026-10-12.json) reuses the
+preserved Activin repaired draft and verifier response, then requires a fresh
+isolated final-excerpt proof. The original response's object values were
+preserved; schema and deterministic checks passed, and the one new GPT-OSS 20B
+proof approved it in 34.54 seconds. Before/after inputs matched. No retrieval or
+database operation ran, and the original comparison reports were preserved.
+This is a known-output regression check, not a new fresh-question result.
+
+Regression tests cover value preservation, ambiguous/malformed wrappers,
+schema rejection, negative final proofs and strict evaluation-judge decoding.
+The Python suite ran 440 tests
+successfully, with 17 PostgreSQL contracts skipped without a configured test
+database; strict typing passed for 79 files. The grounding contract fingerprint
+is now v41, so subsequent evaluations must record the new contract. No reindex
+is needed because extraction, chunking and embeddings did not change.

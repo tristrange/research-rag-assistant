@@ -1,0 +1,45 @@
+{
+  "kind": "preserved-verifier-parser-diagnostic-with-one-fresh-proof",
+  "case_id": "r3-activin-dio-adipose-depots",
+  "status": "complete",
+  "contract_version": "claim-grounding-v41",
+  "source_run_sha256": "cd8e3819db4f8e5a09a9b7ff8f778998fddb9d9622395df9514434b5332cd885",
+  "local_artifact_directory": "evaluation-results/json-fence-check-20261012T133447571399Z",
+  "report_sha256": "72c800bee2a2947197990804679581500d3865be3abd919ec30d7f36529ab9e5",
+  "runner_sha256": "74c48a7d77481543ce3bc95926402e544367439e0bd34241e5bb099b98d25495",
+  "grounding_fingerprint": "3f939ddf37ebad01f6e09c2956d4260223ded17b25fb6fef2da0d744be64f8ab",
+  "settings": {
+    "model": "gpt-oss:20b",
+    "draft_think": "low",
+    "verifier_think": "medium",
+    "sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "num_ctx": 12288,
+    "num_predict": 4096,
+    "draft_timeout": 300.0,
+    "verifier_timeout": 300.0
+  },
+  "runtime": {
+    "ollama_version": "0.40.3",
+    "model_digests": {
+      "gpt-oss:20b": "9ba9cc2b4e02463b933096090530aef679d534dd91ecc9afadfb2dbfdc59f3c5"
+    }
+  },
+  "newline_diagnosis": {
+    "ordinary_LF_count": 47,
+    "literal_backslash_n_count": 0
+  },
+  "parser_values_preserved": true,
+  "preserved_verification_replayed": true,
+  "fresh_generation_stage": "isolated final-excerpt proof",
+  "fresh_chat_calls": 1,
+  "final_proof_approved": true,
+  "elapsed_seconds": 34.54,
+  "frozen_inputs_verified": true,
+  "retrieval_performed": false,
+  "new_question_validation": false,
+  "release_approved": false,
+  "limits": "Previously inspected question and saved repaired draft/verifier; only final proof is newly generated. Does not measure general answer accuracy or establish v1 readiness."
+}
