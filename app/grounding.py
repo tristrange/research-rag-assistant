@@ -21,7 +21,7 @@ from app.types import AnswerClaim, ChunkData
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v40"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v41"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -893,6 +893,7 @@ def grounding_fingerprint() -> str:
     """Hash the prompts, schemas, and deterministic rendering contract."""
     contract = {
         "version": GROUNDING_CONTRACT_VERSION,
+        "json_response_envelope": "Strict JSON object, optionally inside one whole-response lowercase json fence with LF delimiters; no content rewriting",
         "duration_guard_sha256": duration_fingerprint(),
         "question_identifier_pattern": _IDENTIFIER_TOKEN.pattern,
         "question_identifier_filter": "Scan maximal Unicode word tokens, then require ASCII, letter-leading, alphanumeric question tokens containing a digit",

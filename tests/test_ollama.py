@@ -87,6 +87,35 @@ class OllamaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not an object"):
             generate_json("Judge", {"type": "object"})
 
+    @patch("app.llm.ollama.httpx.post")
+    def test_single_json_fence_preserves_values(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content":
+            ' \n```json\n{"quote": "Line 1\\nLine 2", "path": "C:\\\\papers", '
+            '"literal": "\\\\n", "supported": false}\n```\n '
+        }}
+        self.assertEqual(generate_json("Verify", {}), {
+            "quote": "Line 1\nLine 2", "path": "C:\\papers", "literal": "\\n", "supported": False,
+        })
+        post.assert_called_once()
+
+    @patch("app.llm.ollama.httpx.post")
+    def test_fence_does_not_recover_ambiguous_or_malformed_content(self, post: Mock) -> None:
+        for content in [
+            'Here is the answer:\n```json\n{}\n```',
+            '```json\n{}\n```\nAdditional explanation.',
+            '```json\n{}\n```\n```json\n{}\n```',
+            '```json\n{} {}\n```',
+            '```json\n{"supported": true,}\n```',
+            '```json\n{}',
+            '```json\\n{}\\n```',
+            '```json\n[]\n```',
+            '```json\n"{}"\n```',
+        ]:
+            with self.subTest(content=content):
+                post.return_value.json.return_value = {"message": {"content": content}}
+                with self.assertRaises(ValueError):
+                    generate_json("Verify", {})
+
 
 if __name__ == "__main__":
     unittest.main()

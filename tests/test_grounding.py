@@ -939,6 +939,39 @@ class GroundingTests(unittest.TestCase):
 
 
 class ApprovedProofTests(unittest.TestCase):
+    def test_fenced_verifier_still_requires_final_proof(self) -> None:
+        responses = [json.dumps(DRAFT), f"```json\n{json.dumps(APPROVED)}\n```",
+                     '{"supported": true, "reason": "Complete evidence."}']
+        evidence: list[AnswerClaim] = []
+        with patch("app.llm.ollama.chat", side_effect=responses) as model:
+            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+        self.assertIn("Cited literature:", answer)
+        self.assertEqual(evidence[0]["citations"], [{
+            "source_index": 0, "quote": "Treatment delayed weight loss.",
+        }])
+        self.assertEqual(model.call_count, 3)
+
+    def test_fenced_proof_rejection_cannot_publish_claims(self) -> None:
+        responses = [json.dumps(DRAFT), json.dumps(APPROVED),
+                     '```json\n{"supported": false, "reason": "Missing support."}\n```',
+                     '{"answerable": false, "claims": []}']
+        evidence: list[AnswerClaim] = []
+        with patch("app.llm.ollama.chat", side_effect=responses) as model:
+            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(evidence, [])
+        self.assertEqual(model.call_count, 4)
+
+    def test_fenced_object_must_pass_verifier_schema(self) -> None:
+        responses = [json.dumps(DRAFT), '```json\n{"answers_question": true}\n```',
+                     '{"answerable": false, "claims": []}']
+        evidence: list[AnswerClaim] = []
+        with patch("app.llm.ollama.chat", side_effect=responses) as model:
+            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(evidence, [])
+        self.assertEqual(model.call_count, 3)
+
     def test_single_repair_receives_both_missing_identifier_and_duration(self) -> None:
         question = "How did FGF21 change in C26-bearing mice after three days?"
         sources = [ChunkData(document="study.pdf", page=1, chunk_index=0, text="FGF21 increased by 86%."),

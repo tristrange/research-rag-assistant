@@ -97,6 +97,10 @@ def generate_json(
     content = chat(prompt, response_format=schema, temperature=0.0, think=think,
                    num_ctx=num_ctx, num_predict=num_predict, model=model if model is not None else JUDGE_MODEL,
                    sampling=sampling, timeout_seconds=timeout_seconds)
+    # Some models wrap an otherwise valid object; never rewrite JSON contents.
+    content = content.strip()
+    if content.startswith("```json\n") and content.endswith("\n```"):
+        content = content[8:-4]
     parsed: object = json.loads(content)
     if not isinstance(parsed, dict):
         raise ValueError("Ollama returned JSON that was not an object")
