@@ -258,11 +258,13 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(model.call_count, 2)
         self.assertEqual(model.call_args_list[0].kwargs, {
             "think": DRAFT_THINK, "model": GROUNDING_MODEL,
+            "allow_json_fence": True,
             "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
             "sampling": {"temperature": 1.0, "top_p": 1.0}, "timeout_seconds": 300.0,
         })
         self.assertEqual(model.call_args_list[1].kwargs, {
             "think": VERIFIER_THINK, "model": GROUNDING_MODEL,
+            "allow_json_fence": True,
             "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
             "sampling": {"temperature": 1.0, "top_p": 1.0}, "timeout_seconds": 300.0,
         })

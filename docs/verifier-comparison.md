@@ -127,13 +127,15 @@ remain unchanged; this correction does not retroactively count an answer.
 
 ## Single JSON fence handling (v41)
 
-The shared Ollama JSON decoder now permits one whole-response lowercase
+Grounding calls opt into decoding one whole-response lowercase
 `json` code fence with ordinary LF delimiters, after trimming outer whitespace.
 It passes the untouched interior to the same strict JSON decoder and object
 check. Prose around a fence, multiple responses, broken JSON, literal escaped
 delimiters and non-object payloads remain invalid. Plain text generation is
 unchanged. Draft/verifier schemas, evidence guards, final semantic proof,
 sampling, budgets and the single repair remain unchanged.
+Evaluation calibration and scoring judges retain strict bare-JSON decoding;
+their evaluator version and frozen protocol fingerprints remain applicable.
 
 The [targeted diagnostic](../benchmarks/json-fence-check-2026-10-12.json) reuses the
 preserved Activin repaired draft and verifier response, then requires a fresh
@@ -144,7 +146,8 @@ database operation ran, and the original comparison reports were preserved.
 This is a known-output regression check, not a new fresh-question result.
 
 Regression tests cover value preservation, ambiguous/malformed wrappers,
-schema rejection and negative final proofs. The Python suite ran 439 tests
+schema rejection, negative final proofs and strict evaluation-judge decoding.
+The Python suite ran 440 tests
 successfully, with 17 PostgreSQL contracts skipped without a configured test
 database; strict typing passed for 79 files. The grounding contract fingerprint
 is now v41, so subsequent evaluations must record the new contract. No reindex

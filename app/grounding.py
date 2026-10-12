@@ -719,6 +719,7 @@ def generate_draft_json(
 ) -> dict[str, object]:
     """Draft normally; use the verifier's reasoning budget to correct rejected drafts."""
     return generate_json(prompt, schema, think=VERIFIER_THINK if repair else DRAFT_THINK, model=GROUNDING_MODEL,
+                         allow_json_fence=True,
                          num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS,
                          sampling=GROUNDING_SAMPLING.options(),
                          timeout_seconds=GROUNDING_VERIFIER_TIMEOUT_SECONDS if repair else GROUNDING_DRAFT_TIMEOUT_SECONDS)
@@ -727,6 +728,7 @@ def generate_draft_json(
 def generate_verification_json(prompt: str, schema: dict[str, object]) -> dict[str, object]:
     """Use reasoning for semantic verification; drafting and judging stay separate."""
     return generate_json(prompt, schema, think=VERIFIER_THINK, model=GROUNDING_MODEL,
+                         allow_json_fence=True,
                          num_ctx=GROUNDING_CONTEXT_TOKENS, num_predict=GROUNDING_OUTPUT_TOKENS,
                          sampling=GROUNDING_SAMPLING.options(), timeout_seconds=GROUNDING_VERIFIER_TIMEOUT_SECONDS)
 

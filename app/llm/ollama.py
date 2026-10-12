@@ -92,15 +92,17 @@ def generate_json(
     model: str | None = None,
     num_ctx: int | None = None, num_predict: int | None = None,
     sampling: dict[str, float | int] | None = None, timeout_seconds: float | None = None,
+    allow_json_fence: bool = False,
 ) -> dict[str, object]:
     """Generate JSON constrained by an Ollama schema and parse it at runtime."""
     content = chat(prompt, response_format=schema, temperature=0.0, think=think,
                    num_ctx=num_ctx, num_predict=num_predict, model=model if model is not None else JUDGE_MODEL,
                    sampling=sampling, timeout_seconds=timeout_seconds)
     # Some models wrap an otherwise valid object; never rewrite JSON contents.
-    content = content.strip()
-    if content.startswith("```json\n") and content.endswith("\n```"):
-        content = content[8:-4]
+    if allow_json_fence:
+        content = content.strip()
+        if content.startswith("```json\n") and content.endswith("\n```"):
+            content = content[8:-4]
     parsed: object = json.loads(content)
     if not isinstance(parsed, dict):
         raise ValueError("Ollama returned JSON that was not an object")

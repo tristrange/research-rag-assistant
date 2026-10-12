@@ -93,7 +93,7 @@ class OllamaTests(unittest.TestCase):
             ' \n```json\n{"quote": "Line 1\\nLine 2", "path": "C:\\\\papers", '
             '"literal": "\\\\n", "supported": false}\n```\n '
         }}
-        self.assertEqual(generate_json("Verify", {}), {
+        self.assertEqual(generate_json("Verify", {}, allow_json_fence=True), {
             "quote": "Line 1\nLine 2", "path": "C:\\papers", "literal": "\\n", "supported": False,
         })
         post.assert_called_once()
@@ -114,7 +114,15 @@ class OllamaTests(unittest.TestCase):
             with self.subTest(content=content):
                 post.return_value.json.return_value = {"message": {"content": content}}
                 with self.assertRaises(ValueError):
-                    generate_json("Verify", {})
+                    generate_json("Verify", {}, allow_json_fence=True)
+
+    @patch("app.llm.ollama.httpx.post")
+    def test_evaluation_judge_keeps_strict_bare_json_decoding(self, post: Mock) -> None:
+        post.return_value.json.return_value = {"message": {"content":
+            '```json\n{"correctness": 2}\n```'
+        }}
+        with self.assertRaises(ValueError):
+            generate_json("Judge", {"type": "object"})
 
 
 if __name__ == "__main__":
