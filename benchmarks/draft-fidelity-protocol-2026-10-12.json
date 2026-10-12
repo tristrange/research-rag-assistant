@@ -1,0 +1,20 @@
+{
+  "kind": "bounded-source-faithful-draft-development-check",
+  "base_commit": "f89a1a3",
+  "cases": [
+    "r3-sample-cohort2-inoculum",
+    "r3-mito-vdac1-bax-ppid"
+  ],
+  "replicates": 1,
+  "maximum_live_chat_calls": 12,
+  "maximum_seconds_for_new_calls": 600,
+  "per_call_timeout_seconds": 300,
+  "source_run_sha256": "cd8e3819db4f8e5a09a9b7ff8f778998fddb9d9622395df9514434b5332cd885",
+  "cases_sha256": "29413d9004f178b9a006bbe3bddd827c44798944829ac353e769504c11f9bbe6",
+  "baseline_grounding_file_sha256": "5b29c7ac66ea6167de91f621be58145a0357e506cf059a0aa2b26adda0ef07ab",
+  "candidate_grounding_file_sha256": "2f0130eef8ae32f76d53e36636330062b9d615d1f2d0986f7226102d33cba5f4",
+  "contract_version": "claim-grounding-v42",
+  "method": "One full unchanged grounding pipeline per known question with the same six saved passages; only shared draft instructions change. Existing single repair retained; no new retrieval, judge, model/settings change, retuning or rerun.",
+  "acceptance": "Source review must find every generated initial/repair draft faithful in result strength, outcome, population/group identity, attribution and cited scope. No unsupported displayed claim. Refusals and model/schema failures are preserved and reported separately; no inferred general quality gain.",
+  "limits": "Previously inspected development questions, one stochastic trial, no baseline rerun or independent fresh validation. A failed candidate is not promoted."
+}
