@@ -40,3 +40,81 @@ The replay performs no retrieval, embedding or database operation; it does not
 measure end-to-end latency or new-question accuracy. Synthetic calibration is a
 small diagnostic and cannot certify a verifier. Generation is stochastic and the
 single replicate cannot establish a reliable performance difference.
+
+## Results and decision
+
+The frozen run completed all 32 arm/case pairs in 56.8 minutes, using 65 of the
+72 allowed chat calls. Before/after application, settings, model and PDF
+fingerprints matched. The [results summary](../benchmarks/verifier-comparison-results-2026-10-12.json)
+binds the local reports, candidate and runner with SHA-256 hashes.
+
+| Measure | Current v40 | Compact single pass |
+| --- | ---: | ---: |
+| Supported calibration drafts accepted | 4/4 | 4/4 |
+| Unsupported calibration drafts rejected | 4/4 | 4/4 |
+| Complete supported replay answers | 4/6 | 3/6 |
+| Appropriate unanswerable-control refusals | 2/2 | 2/2 |
+| Answerable replays refused | 2/6 | 2/6 |
+| Answers with an unsupported detail | 0 | 1 |
+| Attribution errors in displayed answers | 0 | 0 |
+| Malformed JSON responses during replay | 1 | 0 |
+| Replay chat calls | 26 | 19 |
+| Total replay time | 26.9 min | 9.4 min |
+| Median answerable replay time | 248.4 s | 89.4 s |
+
+Both arms displayed four answers; source review disqualified one compact answer.
+It correctly reported the inoculum count, but assigned C26 cells to every
+tumor-bearing mouse where the methods distinguish NC26 and C26 groups. Exact
+quote binding did not catch this unsupported qualifier. The candidate therefore
+fails the predeclared safety condition and provides no promotion signal.
+Keep the current application unchanged; do not replace its final semantic proof
+with this candidate. Passing eight synthetic drafts did not establish safety on
+the paper questions.
+
+The fixed-draft calibration is a cleaner comparison of verifier work: current
+used 12 calls, 15.0 minutes and 14,607 generated tokens; compact used eight calls,
+5.5 minutes and 5,540 tokens. These are local timing observations, not estimates
+of end-to-end retrieval performance or generally equivalent safety.
+
+## What the failures tell us
+
+- The compact Ucp1 refusal happened during initial drafting, before its verifier
+  ran. Identical initial requests produced different drafts across arms. The
+  current arm also answered Ucp1 where the earlier r3 run refused it under the
+  same initial request. This replay cannot attribute answer-count differences
+  solely to the changed verifier or establish an improvement over r3.
+- The mitochondrial excerpts contain the requested comparison. Current final
+  proofs incorrectly demanded repeated experimental identity in adjacent
+  same-source sentences. However, draft wording also strengthened a no-rescue
+  result into no effect on expression; compact repair added a full-rescue
+  qualifier. Sufficient retrieval does not make every proposed answer supported.
+- Current Activin verification correctly rejected missing duration evidence.
+  Repair selected both duration and results, but its final verifier returned a
+  fenced response with literal escaped newlines. Strict JSON parsing rejected
+  it, causing a safe refusal. The run had no uncaught pipeline errors, transport
+  timeouts or output-limit errors; the malformed response is counted separately.
+- Compact Activin repair correctly answered with both duration and result
+  excerpts. Existing deterministic duration and identifier checks also stopped
+  incomplete evidence selections in Activin and grip before repair.
+
+The next bounded investigation should isolate structured-output reliability
+using the preserved malformed response and valid/invalid fixtures. Any proposed
+handling must retain schema and evidence checks and reject ambiguous input.
+It should not silently strip escapes or relax grounding. Faithful draft wording
+and linked-context proof remain separate issues; neither warrants another
+unbounded series of prompt changes.
+
+## Review and limits
+
+An independent AI agent reviewed the calibration and the first 12 pipeline rows
+against frozen labels, displayed excerpts and original PDF context. Its usage
+limit prevented completion; the primary agent reviewed the remaining four
+Activin rows and preserved the independent ratings after matching their row
+hashes. The final local review identifies that split. This is AI source review,
+not human certification.
+
+No candidate, harness, paper text or raw model response is committed. No
+application code, index or primary checkout changed. Only the frozen protocol,
+public counts and findings are published. Guard self-checks and artifact-integrity
+checks passed; the unchanged application test suite was not rerun. One inspected
+stochastic trial does not establish general quality, equal safety or v1 readiness.
