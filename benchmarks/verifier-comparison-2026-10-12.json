@@ -1,0 +1,28 @@
+{
+  "kind": "bounded-development-verifier-and-pipeline-comparison",
+  "candidate_base": "6b33f221e6e07a97cc1ddfa609f1fa1d0218f634",
+  "arms": [
+    "current",
+    "compact-single-pass"
+  ],
+  "calibration_cases": 8,
+  "pipeline_cases": 8,
+  "replicates": 1,
+  "order": "Per case, alternating which arm runs first; calibration before pipeline.",
+  "maximum_chat_calls": 72,
+  "maximum_seconds": 3600,
+  "per_call_timeout_seconds": 300,
+  "settings": "Same gpt-oss:20b digest, draft low / verifier medium, temperature1 top_p1, num_ctx12288 num_predict4096 as v40.",
+  "method": "Eight synthetic fixed drafts, then eight inspected r3 questions with the exact six saved passages. Same drafting and single repair; only verifier implementation differs. No retrieval, embeddings or model judge.",
+  "decision": "No promotion if any unsupported calibration draft is accepted, any unanswerable replay is answered, or source review finds a material unsupported displayed claim/attribution failure. Useful candidate requires at least two additional supported complete answers out of six; compare latency and errors too. Any result is only a development signal; fresh validation required for release.",
+  "stop": "One candidate, one run per arm/case, no retuning or retries beyond existing single repair. Preserve failures; budget exhaustion stops the run and reports incomplete. No runtime product changes in this spike.",
+  "source_run_sha256": "532c8c020784bd64715b477d60296ba43ec3edd7c4c8a4bd47c5cefbd71af146",
+  "files": {
+    "rag-comparison-calibration.json": "2255fe0afd2c407dd1a5ec2c3acf3112aeda3454a02f33b916752bb7e935afc1",
+    "rag-comparison-replays.json": "1d08a81848415dcf071691b4bdd612fa15d1782d9c5253d9f5e05f980857035d",
+    "rag_simple_verifier.py": "76d1ad1a5f525de30c4a052bd7b83efab721ac5fd39558f31926258b88c4849c"
+  },
+  "runner_sha256": "2c93ca58bd168767482b1a3f68a8cbd4ce04cd8f9004976bf37bd5f09e4e9940",
+  "protocol_commit": "5c0f788",
+  "limits": "Time cap stops new calls; an in-flight request retains its 300 second timeout. Results with unmatched or missing arm/case pairs cannot establish a candidate gain."
+}
