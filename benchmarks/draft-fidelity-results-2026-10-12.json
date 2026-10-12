@@ -1,0 +1,91 @@
+{
+  "kind": "bounded-source-faithful-draft-development-check",
+  "status": "complete",
+  "started_at": "2026-10-12T14:51:06.748425+00:00",
+  "finished_at": "2026-10-12T14:56:47.751462+00:00",
+  "base_commit": "f89a1a3ba0c31e20b76c07b3a1de711e0168a292",
+  "experimental_contract_version": "claim-grounding-v42",
+  "retained_contract_version": "claim-grounding-v41",
+  "candidate_scope": "Six-line addition to shared initial/repair draft instructions about result strength and experimental groups; no verifier or proof change.",
+  "chat_calls": 9,
+  "elapsed_seconds": 341.0,
+  "replicates": 1,
+  "frozen_inputs_verified": true,
+  "grounding_fingerprint": "84879edc8bc3bf16395ff33ab5ca4f4786486b45c52ae94598a541b1834b2198",
+  "settings": {
+    "model": "gpt-oss:20b",
+    "draft_think": "low",
+    "verifier_think": "medium",
+    "sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "num_ctx": 12288,
+    "num_predict": 4096,
+    "draft_timeout": 300.0,
+    "verifier_timeout": 300.0
+  },
+  "runtime": {
+    "ollama_version": "0.40.3",
+    "model_digests": {
+      "gpt-oss:20b": "9ba9cc2b4e02463b933096090530aef679d534dd91ecc9afadfb2dbfdc59f3c5"
+    }
+  },
+  "local_artifact_directory": "evaluation-results/draft-fidelity-20261012T145106747754Z",
+  "artifact_sha256": {
+    "run.json": "91fa8791b29ed45c91c952bd04b81376c5971e6f988d0075faf728d2f9df1083",
+    "source-review.json": "38e2f97fe444860a5af4a5a120d6eae38a9e84e1079a86de0bc95a3601745852",
+    "protocol.json": "f353f0afe94cb4f128af5b00e049c575002d05378e7aec492b6f1ab3c2c4582a",
+    "cases.json": "29413d9004f178b9a006bbe3bddd827c44798944829ac353e769504c11f9bbe6",
+    "runner.py": "54391173a9646e11818d529f494b7e45c2bb7a5fc49874f2bfbbde0bd286a77d",
+    "candidate-grounding.py": "2f0130eef8ae32f76d53e36636330062b9d615d1f2d0986f7226102d33cba5f4"
+  },
+  "source_run_sha256": "cd8e3819db4f8e5a09a9b7ff8f778998fddb9d9622395df9514434b5332cd885",
+  "counts": {
+    "cases": 2,
+    "proposed_drafts": 4,
+    "source_faithful_drafts": 3,
+    "supported_complete_answers": 0,
+    "answerable_refusals": 2,
+    "material_unsupported_displayed_claims": 0,
+    "uncaught_pipeline_errors": 0
+  },
+  "cases": [
+    {
+      "case_id": "r3-sample-cohort2-inoculum",
+      "chat_calls": 4,
+      "elapsed_seconds": 139.92,
+      "initial_draft_faithful": true,
+      "repair_draft_faithful": true,
+      "final_category": "answerable_refusal",
+      "failures": [
+        "Both verifier responses changed the original question hyphen U+002D to U+2011; exact question validation rejected them."
+      ]
+    },
+    {
+      "case_id": "r3-mito-vdac1-bax-ppid",
+      "chat_calls": 5,
+      "elapsed_seconds": 201.04,
+      "initial_draft_faithful": true,
+      "repair_draft_faithful": false,
+      "final_category": "answerable_refusal",
+      "failures": [
+        "Initial verification selected only the VDAC1 excerpt; isolated proof correctly rejected missing Bax/PPID evidence.",
+        "Repair overstated rescue strength; repair verification rejected it."
+      ]
+    }
+  ],
+  "source_review": {
+    "reviewer": "primary Codex agent",
+    "independent_review": false,
+    "human_reviewed": false
+  },
+  "acceptance_met": false,
+  "candidate_promoted": false,
+  "release_approved": false,
+  "limitations": [
+    "Previously inspected questions, one stochastic trial per case, no baseline rerun.",
+    "Saved passages only: no new retrieval, embedding or database operation; not end-to-end accuracy or latency.",
+    "Both cases are answerable; this check has no unanswerable controls."
+  ]
+}

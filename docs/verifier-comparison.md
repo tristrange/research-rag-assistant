@@ -152,3 +152,6 @@ successfully, with 17 PostgreSQL contracts skipped without a configured test
 database; strict typing passed for 79 files. The grounding contract fingerprint
 is now v41, so subsequent evaluations must record the new contract. No reindex
 is needed because extraction, chunking and embeddings did not change.
+
+The subsequent [bounded drafting check](draft-fidelity-check.md) failed its
+all-drafts-faithful criterion; its candidate was not promoted and v41 remains current.
