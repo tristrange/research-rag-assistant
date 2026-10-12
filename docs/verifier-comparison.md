@@ -7,7 +7,7 @@ behavior changes in this research spike.
 
 First, both verifier arms assess the same eight synthetic fixed drafts: four
 supported answers and four unsupported variants covering linked experimental
-context, measurement identity, negative results versus absent measurements, and
+context versus a separate cohort, measurement identity, negative results versus absent measurements, and
 study attribution. Then both pipelines answer the same eight inspected r3
 questions with exactly the six passages previously retrieved for each question.
 Each case alternates which arm runs first. Every arm/case runs once.
