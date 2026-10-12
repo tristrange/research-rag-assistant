@@ -1,0 +1,389 @@
+{
+  "kind": "inspected-development-verifier-comparison",
+  "status": "complete",
+  "started_at": "2026-10-12T00:49:04.072759+00:00",
+  "finished_at": "2026-10-12T01:45:54.379707+00:00",
+  "elapsed_seconds": 3410.29,
+  "candidate_base": "6b33f221e6e07a97cc1ddfa609f1fa1d0218f634",
+  "grounding_fingerprint": "7fc12d70de30cb7acdf1e546d284833b5ab7585cc2247ed8f86873672c916482",
+  "settings": {
+    "model": "gpt-oss:20b",
+    "draft_think": "low",
+    "verifier_think": "medium",
+    "sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "num_ctx": 12288,
+    "num_predict": 4096,
+    "draft_timeout": 300.0,
+    "verifier_timeout": 300.0
+  },
+  "runtime": {
+    "ollama_version": "0.40.3",
+    "model_digests": {
+      "gpt-oss:20b": "9ba9cc2b4e02463b933096090530aef679d534dd91ecc9afadfb2dbfdc59f3c5"
+    }
+  },
+  "chat_calls": 65,
+  "guard_self_checks_passed": true,
+  "frozen_inputs_verified": true,
+  "end_to_end_retrieval_measured": false,
+  "replicates": 1,
+  "local_artifact_directory": "evaluation-results/verifier-comparison-20261012T004904070284Z",
+  "artifact_sha256": {
+    "run.json": "cd8e3819db4f8e5a09a9b7ff8f778998fddb9d9622395df9514434b5332cd885",
+    "answer-review.json": "cae71f2e58fad19b1c7c3fff4622c47dc635014e404280a4133e0a0c1da8baca",
+    "calibration-review.json": "13c58669a653156ae4858456339a4824ad43226178775237888d5d31a94902a0",
+    "rag-comparison-protocol.json": "bc52c8bcb9c3edf787e5fbb941ca20c7c523da60e16696404da6fd3b4fb81dc8",
+    "rag-comparison-calibration.json": "2255fe0afd2c407dd1a5ec2c3acf3112aeda3454a02f33b916752bb7e935afc1",
+    "rag-comparison-replays.json": "1d08a81848415dcf071691b4bdd612fa15d1782d9c5253d9f5e05f980857035d",
+    "rag_simple_verifier.py": "76d1ad1a5f525de30c4a052bd7b83efab721ac5fd39558f31926258b88c4849c",
+    "run_rag_comparison.py": "cac43daf4668ad33fe8bd5b9e653456c0d3792cab69ff262e7e27f9dacd7491a"
+  },
+  "review_coverage": {
+    "independent_agent_pipeline_rows": 12,
+    "root_agent_pipeline_rows": 4,
+    "human_reviewed": false
+  },
+  "arms": {
+    "current": {
+      "calibration_supported_accepted": 4,
+      "calibration_unsupported_rejected": 4,
+      "calibration_false_approvals": 0,
+      "calibration_false_rejections": 0,
+      "calibration_errors": 0,
+      "supported_complete_answers": 4,
+      "appropriate_control_refusals": 2,
+      "answerable_refusals": 2,
+      "unsupported_or_incomplete_answers": 0,
+      "material_unsupported_displayed_claims": 0,
+      "attribution_errors": 0,
+      "pipeline_errors": 0,
+      "pipeline_malformed_json_responses": 1,
+      "calibration_chat_calls": 12,
+      "calibration_total_seconds": 901.0,
+      "calibration_generated_tokens": 14607,
+      "pipeline_generated_tokens": 27954,
+      "pipeline_chat_calls": 26,
+      "pipeline_total_seconds": 1615.28,
+      "answerable_pipeline_median_seconds": 248.41,
+      "control_pipeline_median_seconds": 2.12
+    },
+    "compact-single-pass": {
+      "calibration_supported_accepted": 4,
+      "calibration_unsupported_rejected": 4,
+      "calibration_false_approvals": 0,
+      "calibration_false_rejections": 0,
+      "calibration_errors": 0,
+      "supported_complete_answers": 3,
+      "appropriate_control_refusals": 2,
+      "answerable_refusals": 2,
+      "unsupported_or_incomplete_answers": 1,
+      "material_unsupported_displayed_claims": 1,
+      "attribution_errors": 0,
+      "pipeline_errors": 0,
+      "pipeline_malformed_json_responses": 0,
+      "calibration_chat_calls": 8,
+      "calibration_total_seconds": 328.56,
+      "calibration_generated_tokens": 5540,
+      "pipeline_generated_tokens": 9479,
+      "pipeline_chat_calls": 19,
+      "pipeline_total_seconds": 562.33,
+      "answerable_pipeline_median_seconds": 89.39,
+      "control_pipeline_median_seconds": 6.97
+    }
+  },
+  "cases": [
+    {
+      "phase": "calibration",
+      "case_id": "linked-scope-supported",
+      "arm": "current",
+      "expected_accept": true,
+      "elapsed_seconds": 165.93,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "linked-scope-unsupported",
+      "arm": "current",
+      "expected_accept": false,
+      "elapsed_seconds": 105.05,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "outcome-identity-supported",
+      "arm": "current",
+      "expected_accept": true,
+      "elapsed_seconds": 92.0,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "outcome-identity-unsupported",
+      "arm": "current",
+      "expected_accept": false,
+      "elapsed_seconds": 104.64,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "negative-vs-absence-supported",
+      "arm": "current",
+      "expected_accept": true,
+      "elapsed_seconds": 100.21,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "negative-vs-absence-unsupported",
+      "arm": "current",
+      "expected_accept": false,
+      "elapsed_seconds": 132.9,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "study-attribution-supported",
+      "arm": "current",
+      "expected_accept": true,
+      "elapsed_seconds": 128.9,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "study-attribution-unsupported",
+      "arm": "current",
+      "expected_accept": false,
+      "elapsed_seconds": 71.37,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-sample-cohort2-inoculum",
+      "arm": "current",
+      "answerable": true,
+      "elapsed_seconds": 124.22,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-sample-c26-grip-response",
+      "arm": "current",
+      "answerable": true,
+      "elapsed_seconds": 350.64,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-housing-ucp1-expression",
+      "arm": "current",
+      "answerable": true,
+      "elapsed_seconds": 146.18,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-housing-adiponectin-control",
+      "arm": "current",
+      "answerable": false,
+      "elapsed_seconds": 2.29,
+      "category": "appropriate_control_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-mito-vdac1-bax-ppid",
+      "arm": "current",
+      "answerable": true,
+      "elapsed_seconds": 449.12,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-mito-endosome-proximity",
+      "arm": "current",
+      "answerable": true,
+      "elapsed_seconds": 110.09,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-activin-dio-adipose-depots",
+      "arm": "current",
+      "answerable": true,
+      "elapsed_seconds": 430.8,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-activin-bone-density-control",
+      "arm": "current",
+      "answerable": false,
+      "elapsed_seconds": 1.94,
+      "category": "appropriate_control_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "linked-scope-supported",
+      "arm": "compact-single-pass",
+      "expected_accept": true,
+      "elapsed_seconds": 49.08,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "linked-scope-unsupported",
+      "arm": "compact-single-pass",
+      "expected_accept": false,
+      "elapsed_seconds": 43.43,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "outcome-identity-supported",
+      "arm": "compact-single-pass",
+      "expected_accept": true,
+      "elapsed_seconds": 35.5,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "outcome-identity-unsupported",
+      "arm": "compact-single-pass",
+      "expected_accept": false,
+      "elapsed_seconds": 14.95,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "negative-vs-absence-supported",
+      "arm": "compact-single-pass",
+      "expected_accept": true,
+      "elapsed_seconds": 24.76,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "negative-vs-absence-unsupported",
+      "arm": "compact-single-pass",
+      "expected_accept": false,
+      "elapsed_seconds": 36.61,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "study-attribution-supported",
+      "arm": "compact-single-pass",
+      "expected_accept": true,
+      "elapsed_seconds": 31.79,
+      "accepted": true,
+      "error_type": null
+    },
+    {
+      "phase": "calibration",
+      "case_id": "study-attribution-unsupported",
+      "arm": "compact-single-pass",
+      "expected_accept": false,
+      "elapsed_seconds": 92.44,
+      "accepted": false,
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-sample-cohort2-inoculum",
+      "arm": "compact-single-pass",
+      "answerable": true,
+      "elapsed_seconds": 34.29,
+      "category": "unsupported_or_incomplete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-sample-c26-grip-response",
+      "arm": "compact-single-pass",
+      "answerable": true,
+      "elapsed_seconds": 144.49,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-housing-ucp1-expression",
+      "arm": "compact-single-pass",
+      "answerable": true,
+      "elapsed_seconds": 3.69,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-housing-adiponectin-control",
+      "arm": "compact-single-pass",
+      "answerable": false,
+      "elapsed_seconds": 6.96,
+      "category": "appropriate_control_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-mito-vdac1-bax-ppid",
+      "arm": "compact-single-pass",
+      "answerable": true,
+      "elapsed_seconds": 159.61,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-mito-endosome-proximity",
+      "arm": "compact-single-pass",
+      "answerable": true,
+      "elapsed_seconds": 28.65,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-activin-dio-adipose-depots",
+      "arm": "compact-single-pass",
+      "answerable": true,
+      "elapsed_seconds": 177.65,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "phase": "pipeline",
+      "case_id": "r3-activin-bone-density-control",
+      "arm": "compact-single-pass",
+      "answerable": false,
+      "elapsed_seconds": 6.99,
+      "category": "appropriate_control_refusal",
+      "error_type": null
+    }
+  ],
+  "prespecified_gain_signal_met": false,
+  "release_approved": false
+}
