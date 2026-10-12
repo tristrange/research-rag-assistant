@@ -22,7 +22,7 @@
     "rag-comparison-replays.json": "1d08a81848415dcf071691b4bdd612fa15d1782d9c5253d9f5e05f980857035d",
     "rag_simple_verifier.py": "76d1ad1a5f525de30c4a052bd7b83efab721ac5fd39558f31926258b88c4849c"
   },
-  "runner_sha256": "2c93ca58bd168767482b1a3f68a8cbd4ce04cd8f9004976bf37bd5f09e4e9940",
+  "runner_sha256": "cac43daf4668ad33fe8bd5b9e653456c0d3792cab69ff262e7e27f9dacd7491a",
   "protocol_commit": "5c0f788",
   "limits": "Time cap stops new calls; an in-flight request retains its 300 second timeout. Results with unmatched or missing arm/case pairs cannot establish a candidate gain."
 }
