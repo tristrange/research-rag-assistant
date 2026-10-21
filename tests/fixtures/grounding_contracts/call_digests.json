@@ -1,0 +1,87 @@
+{
+  "cases": {
+    "claimed_duration_absent_from_approved_evidence": {
+      "draft": [
+        "4999e6839a3f1c63d285903f5d7514b5c57adba7689be416989bf3824b9d764d",
+        "f005a60c288d8679ed091a7252349d97db4e6b83ea636d84b45143835bee01dc"
+      ],
+      "proof": [],
+      "verification": [
+        "22a44ce0297aaba7432bf5c7737015675e90f0b9aec21e3cb1de868dddadfce9"
+      ]
+    },
+    "malformed_verifier_json": {
+      "draft": [
+        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb",
+        "8f579e375b2ed0eb4e63804e0c3998788187a362dd6e8a57dc9c41423352911b"
+      ],
+      "proof": [],
+      "verification": [
+        "3e91d2b49605eff4ea5963b7366a6eac350f43f9bb3008184683c7fb025d6acc"
+      ]
+    },
+    "missing_evidence_refusal": {
+      "draft": [
+        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb"
+      ],
+      "proof": [],
+      "verification": []
+    },
+    "output_limit_propagates": {
+      "draft": [
+        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb"
+      ],
+      "proof": [],
+      "verification": []
+    },
+    "reference_entry_cannot_be_authored_by_this_document": {
+      "draft": [
+        "8176bf09fb98ed16028fb515230848aea39ba349ad0d602800d9773880a263c9",
+        "42bab536b0554bcbfc810e6cc5b92219cce38cafc627a4a1d6fc88c50f6e80e4"
+      ],
+      "proof": [],
+      "verification": []
+    },
+    "supported_negative": {
+      "draft": [
+        "7feb3b5c4d4ac9ecc94559a1022d4198f7d7ebcbd9ddebce3ed5bb0f5f44922f"
+      ],
+      "proof": [
+        "60efee96f8b9c62f8d08642473c854e9c5acd658b7281602219ef1b915f02e59"
+      ],
+      "verification": [
+        "a7c26d06cb7315069ae5d183104492b93a447123f1d7ae5e28fa8b84ef2d930c"
+      ]
+    },
+    "supported_positive": {
+      "draft": [
+        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb"
+      ],
+      "proof": [
+        "5c70c340a3d4f3574a3a20f62377d589b12d960a9680503938fa0b96992be778"
+      ],
+      "verification": [
+        "3e91d2b49605eff4ea5963b7366a6eac350f43f9bb3008184683c7fb025d6acc"
+      ]
+    },
+    "unknown_source_id": {
+      "draft": [
+        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb",
+        "5c247dd7440bed7a4c74e9b3945e809dae3c0026336bc7dff7585f49922db1d0"
+      ],
+      "proof": [],
+      "verification": []
+    },
+    "verifier_evidence_outside_cited_sources": {
+      "draft": [
+        "81340ed0ba20fd36eda3d80a2e747e1bb115e146ddc332c9d922ef7262c0ef59",
+        "357f648373000d126fc93d4d34bbf864040597ee0910abd5cceefca2f64e8721"
+      ],
+      "proof": [],
+      "verification": [
+        "3e91d2b49605eff4ea5963b7366a6eac350f43f9bb3008184683c7fb025d6acc"
+      ]
+    }
+  },
+  "note": "SHA-256 of each stage call's prompt/schema arguments. A digest change means the model-facing bytes changed; update deliberately and say why in the PR."
+}
