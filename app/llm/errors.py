@@ -15,6 +15,10 @@ class OllamaResponseError(RuntimeError):
         )
 
 
+class OllamaOutputLimitError(RuntimeError):
+    """An incomplete model response is a failed call, not an evidence refusal."""
+
+
 def response_object(
     response: httpx.Response, operation: Operation
 ) -> dict[str, object]:

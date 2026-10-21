@@ -123,3 +123,44 @@ Use the corresponding `verified-context-sample-k3-first.json` for three seeds.
 The replay does no retrieval or judging and preserves the saved source passages;
 each new run may differ despite unchanged settings. Local verification also ran
 164 unit tests and strict mypy over 58 tracked Python files successfully.
+
+## Verification diagnostics
+
+`grounded_answer(..., diagnostics=...)` records one sanitized `VerificationTrace`
+per stage: contract fingerprint, stage, attempt (initial or repair), elapsed
+milliseconds, parse status, stable failure category, and prompt/output token
+counts when Ollama reports them. The record never contains prompts, questions,
+source passages or freeform model output. `invalid_json` and `invalid_schema`
+identify malformed or schema-invalid responses; an evidence refusal is
+`draft_unanswerable`, `verifier_rejection` or `proof_rejection`; `output_limit`
+and `transport_error` are recorded but still propagate exactly as before.
+
+Replays write these records only when asked:
+
+```bash
+uv run python -m scripts.replay_grounding \
+  evaluation-results/verified-context-sample-k6-first.json \
+  --case kpc-food-intake --case cited-ceramide-study \
+  --diagnostics --output evaluation-results/diagnostic-k6-new-trial.json
+```
+
+The sidecar is `diagnostic-k6-new-trial.diagnostics.json`. It is development
+tooling, not a new benchmark, and it does not change generation or acceptance.
+
+### Recorded 12 October development failures (analysis only)
+
+These labels are retrospective. The raw reports remain unmodified in the ignored
+local report directory and no validation was rerun.
+
+| Recorded run | Observed failure | Diagnostic stage/category |
+| --- | --- | --- |
+| Verifier comparison, current arm | Activin repair verification used a whole-response JSON fence; strict parsing rejected it and the case refused | `repair_verification`, `invalid_json` (`malformed_json`) |
+| Verifier comparison, current arm | Mitochondrial final proof demanded repeated experimental identity across adjacent same-source sentences | `verification_proof`, `proof_rejection` |
+| Verifier comparison, compact arm | Ucp1 refused during initial drafting | `draft`, `draft_unanswerable` |
+| Draft fidelity, cohort-2 inoculum | Both verifiers copied the question with U+2011 instead of the original U+002D, so question binding rejected both drafts | `verification`/`repair_verification`, `verifier_rejection` |
+| Draft fidelity, mitochondrial comparison | Initial verifier selected only the VDAC1 excerpt, so final proof rejected the missing Bax/PPID support; repair then overstated rescue and repair verification rejected it | `verification_proof`, `proof_rejection`; `repair_verification`, `verifier_rejection` |
+
+Neither run recorded an uncaught error, transport timeout or output-limit failure.
+The verifier comparison's fenced response is the failure that motivated v41's
+single-fence handling; the fence check is an analysis of that retained response,
+not a new generation trial.
