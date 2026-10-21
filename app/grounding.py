@@ -264,12 +264,12 @@ def _verify_draft_with_feedback(
             proof_data = generate_approved_proof_json(question, evidence)
             proof_entry["output"] = proof_data
             proof = ApprovedProof.model_validate(proof_data)
-            if not proof.supported:
-                if proof_diagnostic is not None:
-                    proof_diagnostic.reason_category = "proof_rejection"
-                raise ValueError(
-                    f"approved excerpts do not establish the answer: {proof.reason}"
-                )
+        if not proof.supported:
+            if proof_diagnostic is not None:
+                proof_diagnostic.reason_category = "proof_rejection"
+            raise ValueError(
+                f"approved excerpts do not establish the answer: {proof.reason}"
+            )
         return True, feedback
     except ValueError as error:
         rejection_entry: dict[str, object] = {
@@ -356,6 +356,7 @@ def grounded_answer(
             if trace is not None:
                 trace.append({"stage": "draft", "output": draft_data})
             if draft_data.get("answerable") is False:
+                # Validate for diagnostics only; the refusal decision stays unchanged.
                 _classify_refusal(diagnostic, draft_data, "draft_unanswerable")
                 return INSUFFICIENT_EVIDENCE
             draft = GroundedDraft.model_validate(draft_data)

@@ -130,6 +130,27 @@ class VerificationDiagnosticsTests(unittest.TestCase):
             ["draft", "verification", "repair_draft"],
         )
 
+    def test_proof_rejection_is_not_reclassified_as_malformed_json(self) -> None:
+        diagnostics: list[VerificationTrace] = []
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                DRAFT,
+                approved(),
+                {"supported": False, "reason": "Does not establish."},
+                UNANSWERABLE,
+            ],
+        ):
+            answer = grounded_answer(QUESTION, [SOURCE], diagnostics=diagnostics)
+
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        proof = [item for item in diagnostics if item.stage == "verification_proof"]
+        self.assertEqual(len(proof), 1)
+        self.assertEqual(
+            (proof[0].parse_status, proof[0].reason_category),
+            ("ok", "proof_rejection"),
+        )
+
     def test_malformed_refusal_is_invalid_schema_without_changing_decision(
         self,
     ) -> None:
