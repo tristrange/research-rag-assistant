@@ -12,6 +12,7 @@ from app.db.index_contract import (
 )
 from app.db.models import Chunk
 from app.embeddings import embed_text
+from app.performance import PerformanceTrace, measure_stage
 
 
 @dataclass(frozen=True)
@@ -52,12 +53,19 @@ def search_chunks(
     document: str | None = None,
     sections: tuple[str, ...] | None = None,
     query_embedding: QuestionEmbedding | None = None,
+    performance: PerformanceTrace | None = None,
 ) -> list[Chunk]:
     """Backward-compatible text entry point with optional request-owned reuse."""
     embedding = QuestionEmbedding(query) if query_embedding is None else query_embedding
     if embedding.question != query:
         raise ValueError("The embedding must belong to the requested question")
-    return search_by_embedding(embedding, limit, document=document, sections=sections)
+    return search_by_embedding(
+        embedding,
+        limit,
+        document=document,
+        sections=sections,
+        performance=performance,
+    )
 
 
 def search_by_embedding(
@@ -66,39 +74,45 @@ def search_by_embedding(
     *,
     document: str | None = None,
     sections: tuple[str, ...] | None = None,
+    performance: PerformanceTrace | None = None,
 ) -> list[Chunk]:
     """Filter/rank with a lazy request vector and recheck every selected scope."""
     db = SessionLocal()
 
     try:
-        lock_index(db, shared=True)
-        require_compatible_index(db, document)
-        embedding.require_current_profile()
-        if document is not None:
-            indexed = db.scalar(
-                select(Chunk.id).where(Chunk.document == document).limit(1)
-            )
-            if indexed is None:
-                return []
+        with measure_stage(performance, "vector_search"):
+            lock_index(db, shared=True)
+            require_compatible_index(db, document)
+            embedding.require_current_profile()
+            if document is not None:
+                indexed = db.scalar(
+                    select(Chunk.id).where(Chunk.document == document).limit(1)
+                )
+                if indexed is None:
+                    return []
 
-        # Release the read lock during inference; check again under lock before
-        # ranking in case a writer committed a different profile meanwhile.
-        db.rollback()
-        query_vector = embedding.vector
-        lock_index(db, shared=True)
-        require_compatible_index(db, document)
-        embedding.require_current_profile()
-        statement = select(Chunk)
-        if document is not None:
-            statement = statement.where(Chunk.document == document)
-        if sections is not None:
-            statement = statement.where(Chunk.section.in_(sections))
-        statement = statement.order_by(
-            Chunk.embedding.cosine_distance(list(query_vector)),
-            Chunk.id,
-        ).limit(limit)
+            # Release the read lock during inference; check again under lock before
+            # ranking in case a writer committed a different profile meanwhile.
+            db.rollback()
 
-        return list(db.scalars(statement))
+        with measure_stage(performance, "embedding"):
+            query_vector = embedding.vector
+
+        with measure_stage(performance, "vector_search"):
+            lock_index(db, shared=True)
+            require_compatible_index(db, document)
+            embedding.require_current_profile()
+            statement = select(Chunk)
+            if document is not None:
+                statement = statement.where(Chunk.document == document)
+            if sections is not None:
+                statement = statement.where(Chunk.section.in_(sections))
+            statement = statement.order_by(
+                Chunk.embedding.cosine_distance(list(query_vector)),
+                Chunk.id,
+            ).limit(limit)
+
+            return list(db.scalars(statement))
 
     finally:
         db.close()

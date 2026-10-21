@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.database import Base
 from app.db.index_contract import IndexCompatibilityError
 from app.db.models import Chunk
+from app.performance import PerformanceTrace
 from app.retrieval.search import (
     QuestionEmbedding,
     list_documents,
@@ -54,6 +55,27 @@ class SearchTests(unittest.TestCase):
         self.assertIn("a.pdf", compiled.params.values())
         self.assertIn(3, compiled.params.values())
         db.close.assert_called_once_with()
+
+    def test_lazy_embedding_is_measured_in_the_embedding_stage(self) -> None:
+        db = MagicMock()
+        db.scalar.side_effect = [None, 1, None]
+        db.scalars.return_value = []
+        ticks = iter([0.0, 1.0, 1.0, 2.0, 2.0, 3.0])
+        trace = PerformanceTrace(clock=lambda: next(ticks))
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768),
+        ):
+            search_chunks("Question", document="paper.pdf", performance=trace)
+
+        self.assertEqual(
+            [(timing.stage, timing.elapsed_ms) for timing in trace.snapshot()],
+            [
+                ("vector_search", 1000.0),
+                ("embedding", 1000.0),
+                ("vector_search", 1000.0),
+            ],
+        )
 
     def test_missing_selected_document_skips_embedding(self) -> None:
         engine = create_engine("sqlite://")

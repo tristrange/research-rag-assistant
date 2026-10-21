@@ -29,6 +29,8 @@ of earlier development experiments.
 - [Answer-quality evaluation](answer-evaluation.md): benchmark commands, strategies,
   model-judge calibration, score limits and resuming reports.
 - [Report format](evaluation-report-format.md): schemas, provenance and compatibility.
+- [Pipeline performance baselines](performance-baselines.md): stage-level timing,
+  warm-up policy, provenance and the baseline-pending status.
 - [Benchmark corpus](benchmark-corpus.md): paper acquisition, attribution, licensing
   and isolated evaluation inputs. PDFs and raw reports remain local and ignored.
 - [Local v1 readiness](v1-readiness.md): accepted AI-assisted development review, optional human
