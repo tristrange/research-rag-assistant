@@ -116,3 +116,30 @@ The ignored report and runner are
 Application/runtime metadata and generation fingerprint matched before and after
 the run. Regression checks pass: 433 Python tests (17 skipped) and strict typing
 across 79 files. The earlier v38 reports remain unchanged.
+
+## Question-copy typography
+
+The verifier must still reproduce the whole question. The copy comparison now
+normalizes whitespace and a fixed set of typographic dash characters
+(U+2010–U+2015, U+2212, U+FE58, U+FE63 and U+FF0D) to ASCII hyphen-minus before
+comparing `question_excerpt` with the original question. This handles the recorded
+U+2011/U+002D copy failure without asking the model to reproduce punctuation.
+
+The change is limited to that copy comparison. It does not alter
+`_normalize_whitespace`, evidence spans, named-identifier extraction, duration
+validation, coverage, attribution, proof, retrieval, prompts, schemas or model
+settings. Numbers, words, spelling, conditions, study names and inserted or
+removed hyphens remain exact: `cohort 2` versus `cohort 3`, `tumor-bearing` versus
+`tumor bearing`, and `tumour-bearing` are still rejected. A dash substitution
+cannot turn an incomplete or unrelated answer into a supported one because every
+semantic and evidence guard runs unchanged. The remaining risk is that a
+meaningful dash distinction inside the copied question is ignored; the excerpt is
+used only for question binding and cannot select evidence.
+
+Regression coverage is
+`test_question_copy_normalizes_typographic_dashes_only` in
+[`tests/test_grounding.py`](../tests/test_grounding.py). The prompt, schema and
+settings fingerprint is unchanged. Replay provenance still hashes the grounding
+modules, so evaluations bind this validation change through the application code
+fingerprint. See the [bounded drafting follow-up](draft-fidelity-check.md) for
+the observed failure and development evidence.

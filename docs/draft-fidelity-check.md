@@ -60,6 +60,33 @@ whole-question coverage, claim support, attribution, evidence binding and final
 proof; a formatting fix must not approve incomplete or unrelated answers. Missing
 evidence selection and unsupported repair wording remain separate issues.
 
+## Question-copy typography follow-up (21 October 2026)
+
+**Hypothesis.** The recorded U+2011/U+002D copy change is a non-semantic
+typographic substitution, not a different question. Refusing both source-faithful
+drafts for it is a reliability failure. The minimal decision change is to compare
+the verifier's `question_excerpt` after whitespace normalization and a fixed
+typographic-dash translation only.
+
+**False-accept risk.** Numbers, words, spelling, conditions, study attribution and
+inserted or removed hyphens still differ and remain rejected. The excerpt is a
+binding check; supporting evidence is selected and validated separately. No claim
+support, citation, named-identifier, duration, coverage, attribution or proof
+guard is relaxed.
+
+**Expected improvement.** Both recorded drafts would no longer be refused solely
+for the copied dash. An answer is not guaranteed: the initial inoculum verifier
+also selected an excerpt from another cohort, and the mitochondrial repair had a
+separate unsupported full-rescue qualifier.
+
+**Stop rule.** Run the two saved-source development cases once each under frozen
+model and index settings, and preserve every outcome without a retry. If the replay
+displays a material unsupported claim or attribution error, or accepts any
+non-dash identifier change, revert the change. A development pass is not
+reliability validation: newly reserved questions and independent human source
+review are required for that. If those are unavailable, report fresh validation as
+**not completed**, not passed.
+
 ## Verification and limits
 
 The primary Codex agent reviewed all four drafts against their cited saved

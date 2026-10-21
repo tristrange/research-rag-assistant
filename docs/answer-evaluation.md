@@ -188,6 +188,11 @@ in one returned chunk; it can miss split or alternative supporting passages. Ind
 text must belong to the PDF; duplicate chunk identities and a changed index are rejected.
 The evaluator never reindexes the paper.
 
+Question-copy binding is separate from evidence matching. The verifier must
+reproduce the original question; that binding ignores whitespace and a fixed set
+of typographic dash substitutions only, while evidence quotes still require exact
+normalized text. See [named identifiers in approved evidence](question-identifiers.md).
+
 Evaluation uses `RAG_JUDGE_MODEL` (default `qwen3:8b`) with temperature zero and
 thinking disabled. For noncanonical answers, it makes two schema-constrained calls:
 
