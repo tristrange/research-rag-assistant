@@ -940,6 +940,32 @@ class GroundingTests(unittest.TestCase):
             with self.subTest(excerpt=excerpt):
                 self.assertFalse(verify_excerpt(excerpt))
 
+    def test_question_copy_rejects_changed_dose_and_attribution(self) -> None:
+        question = "Did Asp et al. report a 30 mg dose in cohort-2 mice?"
+        draft = GroundedDraft.model_validate(DRAFT)
+        base = approved(question)
+
+        def verify_excerpt(excerpt: str) -> bool:
+            verdict = deepcopy(base)
+            cast(dict[str, object], verdict["requested_answer"])["question_excerpt"] = (
+                excerpt
+            )
+            return verify_draft(
+                question,
+                draft,
+                [SOURCE],
+                verifier=lambda _prompt, _schema: verdict,
+            )
+
+        self.assertTrue(verify_excerpt(question.replace("cohort-2", "cohort\u20112")))
+        for excerpt in [
+            question.replace("Asp", "Smith"),
+            question.replace("30 mg", "3 mg"),
+            question.replace("cohort-2", "cohort-3"),
+        ]:
+            with self.subTest(excerpt=excerpt):
+                self.assertFalse(verify_excerpt(excerpt))
+
     def test_full_question_cannot_borrow_an_unclaimed_measurement(self) -> None:
         question = "By what percentage did total fat mass decrease?"
         source = ChunkData(
