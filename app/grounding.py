@@ -10,6 +10,14 @@ from copy import deepcopy
 from typing import cast
 
 from app.grounding_durations import duration_fingerprint, validate_duration_evidence
+from app.grounding_evidence import (
+    _POSSIBLE_SENTENCE_START,
+    _evidence_spans,
+    _normalize_whitespace,
+    _record_accepted_evidence,
+    _render_claims,
+    build_verifier_evidence,
+)
 from app.grounding_models import (
     _IDENTIFIER_TOKEN,
     DRAFT_SCHEMA,
@@ -30,12 +38,10 @@ from app.grounding_models import (
     GroundedClaim,
     GroundedDraft,
     VerificationResult,
-    VerifierEvidence,
 )
 from app.ingestion.chunking import (
     _ABBREVIATION_PERIOD,
     _SENTENCE_END,
-    _is_abbreviation_period,
 )
 from app.llm.ollama import generate_json
 from app.types import AnswerClaim, ChunkData
@@ -241,36 +247,6 @@ def _source_catalogue(sources: list[ChunkData]) -> list[dict[str, object]]:
     ]
 
 
-def build_verifier_evidence(
-    claims: list[GroundedClaim],
-    sources: list[ChunkData],
-) -> list[VerifierEvidence]:
-    """Give each cited source span one ID and retain its eligible claim indexes."""
-    claims_by_source: dict[int, list[int]] = {}
-    for claim_index, claim in enumerate(claims, start=1):
-        seen_sources: set[int] = set()
-        for citation in claim.citations:
-            source_id = citation.source_id
-            if source_id > len(sources):
-                raise ValueError("citation source ID is outside the source catalogue")
-            if source_id in seen_sources:
-                continue
-            seen_sources.add(source_id)
-            claims_by_source.setdefault(source_id, []).append(claim_index)
-    catalogue: list[VerifierEvidence] = []
-    for source_id in sorted(claims_by_source):
-        for quote in _evidence_spans(sources[source_id - 1]["text"]):
-            catalogue.append(
-                {
-                    "evidence_id": len(catalogue) + 1,
-                    "claim_indexes": claims_by_source[source_id],
-                    "source_id": source_id,
-                    "quote": quote,
-                }
-            )
-    return catalogue
-
-
 def build_draft_prompt(question: str, sources: list[ChunkData]) -> str:
     """Build the auditable first-pass prompt with stable, application-owned IDs."""
     payload = {"question": question, "source_catalogue": _source_catalogue(sources)}
@@ -351,42 +327,6 @@ def build_verifier_prompt(
         f"{json.dumps(_bounded_verifier_schema(question, claims, sources), ensure_ascii=False, separators=(',', ':'))}\n\n"
         f"Verification input JSON:\n{json.dumps(payload, ensure_ascii=False)}"
     )
-
-
-def _normalize_whitespace(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
-
-
-_POSSIBLE_SENTENCE_START = re.compile(r"\s+[\"'“‘(]*[A-Z][a-z]")
-
-
-def _evidence_spans(text: str) -> list[str]:
-    """Extract deterministic quote choices after the validator's normalization."""
-    normalized = _normalize_whitespace(text)
-    if not normalized:
-        return []
-    spans: list[str] = []
-    seen: set[str] = set()
-    boundaries: list[int] = []
-    possible_boundaries: list[int] = []
-    for match in _SENTENCE_END.finditer(normalized):
-        if not _is_abbreviation_period(normalized, match):
-            boundaries.append(match.end())
-            possible_boundaries.append(match.end())
-        elif _POSSIBLE_SENTENCE_START.match(normalized, match.end()):
-            possible_boundaries.append(match.end())
-    # ponytail: title-case continuations are ambiguous; offer both quote choices.
-    for ends in (boundaries, possible_boundaries):
-        start = 0
-        for end in [*ends, len(normalized)]:
-            sentence = normalized[start:end].strip()
-            start = end
-            for offset in range(0, len(sentence), MAX_QUOTE_CHARS):
-                span = sentence[offset : offset + MAX_QUOTE_CHARS]
-                if span and span not in seen:
-                    seen.add(span)
-                    spans.append(span)
-    return spans
 
 
 _INLINE_CITATION = re.compile(
@@ -656,26 +596,6 @@ def _validate_verification(
         raise ValueError("\n".join(failures))
 
 
-def _render_claims(claims: list[AnswerClaim], sources: list[ChunkData]) -> str:
-    rendered: list[str] = []
-    labels = {
-        "this_document_authors": "",
-        "external_publication": "Cited literature: ",
-        "non_study_context": "Context: ",
-    }
-    for claim in claims:
-        locations: list[str] = []
-        for citation in claim["citations"]:
-            source = sources[citation["source_index"]]
-            location = f"{source['document']}, page {source['page']}"
-            if location not in locations:
-                locations.append(location)
-        rendered.append(
-            f"{labels[claim['attribution']]}{claim['text']} ({'; '.join(locations)})"
-        )
-    return "\n".join(rendered)
-
-
 def generate_draft_json(
     prompt: str,
     schema: dict[str, object],
@@ -806,37 +726,6 @@ def verify_draft(
         trace=trace,
     )
     return accepted
-
-
-def _record_accepted_evidence(
-    draft: GroundedDraft,
-    sources: list[ChunkData],
-    feedback: list[dict[str, object]],
-    claim_evidence: list[AnswerClaim] | None,
-) -> None:
-    """Expose only the final approved verifier's source-bound evidence selections."""
-    if claim_evidence is None:
-        return
-    verification = VerificationResult.model_validate(feedback[0]["output"])
-    catalogue = {
-        entry["evidence_id"]: entry
-        for entry in build_verifier_evidence(draft.claims, sources)
-    }
-    verdicts = {verdict.claim_index: verdict for verdict in verification.verdicts}
-    for index, claim in enumerate(draft.claims, start=1):
-        claim_evidence.append(
-            {
-                "text": claim.text,
-                "attribution": claim.attribution,
-                "citations": [
-                    {
-                        "source_index": catalogue[evidence_id]["source_id"] - 1,
-                        "quote": catalogue[evidence_id]["quote"],
-                    }
-                    for evidence_id in verdicts[index].supporting_evidence_ids
-                ],
-            }
-        )
 
 
 def grounded_answer(
