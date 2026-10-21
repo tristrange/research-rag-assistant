@@ -87,7 +87,43 @@ reliability validation: newly reserved questions and independent human source
 review are required for that. If those are unavailable, report fresh validation as
 **not completed**, not passed.
 
-## Verification and limits
+## Development replay (21 October 2026)
+
+The fixed v41 application ran each saved-source case once with GPT-OSS 20B and
+the same sampling, budgets and six saved passages. It used nine chat calls in
+466 seconds. The [public aggregate](../benchmarks/verifier-question-typography-results-2026-10-21.json)
+records the protocol, artifact hashes, outcomes and limitations; raw prompts,
+responses and passages remain in the ignored report directory.
+
+| Development case | Outcome | Finding |
+| --- | --- | --- |
+| Cohort-2 inoculum | Supported answer | Verifier and isolated proof accepted; count and cohort supported |
+| VDAC1/Bax/PPID comparison | Safe refusal | Both proofs rejected missing Mfn1KD population scope for Bax/PPID |
+
+The cohort verification copied the question with ASCII hyphens, so this live
+trial did **not** reproduce the recorded U+2011 failure. The direct evidence for
+the target change is the deterministic regression test, not this generation.
+The displayed cohort answer named C26 cells, narrower than the earlier r3 reviewed
+generic tumor-cell count; the cited passage supports that C26 group count and no
+unsupported number or attribution was observed. The mitochondrial refusal is the
+known adjacent-context proof failure, not a typography regression.
+
+A first replay attempt was invalid because the harness tried to serialize an
+in-progress diagnostic record while checkpointing the first verifier call. It
+produced no verifier response or answer. The invalid report is preserved and no
+model output was reused; the trial above is a new generation run.
+
+Fresh reserved questions with independent human source review were not available,
+so newly reserved validation is **not completed**. This development replay does
+not mark reliability fixed or approve a release.
+
+The follow-up passed 455 Python tests (17 PostgreSQL contracts skipped without a
+configured test database), 29 JavaScript tests, 7 real-browser smoke tests, strict
+mypy and Ruff check/format. Docker was unavailable, so the opt-in PostgreSQL
+contracts were not run locally. These checks establish compatibility, not semantic
+success.
+
+## Verification and limits (12 October draft-fidelity trial)
 
 The primary Codex agent reviewed all four drafts against their cited saved
 passages and inspected final evidence selections. All 27 catalogue quote

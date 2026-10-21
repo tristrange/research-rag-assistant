@@ -142,4 +142,7 @@ Regression coverage is
 settings fingerprint is unchanged. Replay provenance still hashes the grounding
 modules, so evaluations bind this validation change through the application code
 fingerprint. See the [bounded drafting follow-up](draft-fidelity-check.md) for
-the observed failure and development evidence.
+the observed failure and development evidence. The 21 October development replay
+did not reproduce the U+2011 copy live; the [public aggregate](../benchmarks/verifier-question-typography-results-2026-10-21.json)
+records that limitation. The deterministic regression remains the direct evidence
+for the comparison change.
