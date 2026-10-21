@@ -211,8 +211,9 @@ cited sources, and output-limit propagation. Each real model call's prompt and
 schema are pinned by SHA-256 digest at the single `generate_json` boundary in
 `tests/fixtures/grounding_contracts/call_digests.json`, including the generated
 proof prompt, so editing a prompt, its schema, or the stage wiring fails the
-suite. Existing unit tests keep the per-stage detail and multi-paper citation
-remapping.
+suite. Refusal answers are asserted as literal text rather than through the
+exported constant, so rewording a refusal fails it too. Existing unit tests keep
+the per-stage detail and multi-paper citation remapping.
 
 ## Maintenance and boundaries
 

@@ -15,11 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
-from app.grounding import (
-    GROUNDING_CONTRACT_VERSION,
-    INSUFFICIENT_EVIDENCE,
-    grounded_answer,
-)
+from app.grounding import GROUNDING_CONTRACT_VERSION, grounded_answer
 from app.llm.ollama import OllamaOutputLimitError
 from app.types import AnswerClaim, ChunkData
 
@@ -114,10 +110,7 @@ class GroundingContractTests(unittest.TestCase):
                     trace=trace,
                     claim_evidence=claim_evidence,
                 )
-                if expected["refused"]:
-                    self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
-                else:
-                    self.assertEqual(answer, expected["answer"])
+                self.assertEqual(answer, expected["answer"])
 
         self.assertEqual([entry["stage"] for entry in trace], expected["trace_stages"])
         self.assertEqual(claim_evidence, expected["claim_evidence"])

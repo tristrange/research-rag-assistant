@@ -15,7 +15,6 @@
         }
       ],
       "expected": {
-        "refused": false,
         "answer": "The treatment reduced weight gain. (synthetic-study.pdf, page 4)",
         "claim_evidence": [
           {
@@ -109,7 +108,6 @@
         }
       ],
       "expected": {
-        "refused": false,
         "answer": "The treatment did not increase weight gain. (synthetic-study.pdf, page 5)",
         "claim_evidence": [
           {
@@ -203,11 +201,11 @@
         }
       ],
       "expected": {
-        "refused": true,
         "claim_evidence": [],
         "trace_stages": [
           "draft"
-        ]
+        ],
+        "answer": "I do not have enough evidence in the provided sources to answer this question."
       },
       "model_calls": [
         {
@@ -231,14 +229,14 @@
         }
       ],
       "expected": {
-        "refused": true,
         "claim_evidence": [],
         "trace_stages": [
           "draft",
           "verification",
           "rejected",
           "repair_draft"
-        ]
+        ],
+        "answer": "I do not have enough evidence in the provided sources to answer this question."
       },
       "model_calls": [
         {
@@ -283,13 +281,13 @@
         }
       ],
       "expected": {
-        "refused": true,
         "claim_evidence": [],
         "trace_stages": [
           "draft",
           "rejected",
           "repair_draft"
-        ]
+        ],
+        "answer": "I do not have enough evidence in the provided sources to answer this question."
       },
       "model_calls": [
         {
@@ -329,13 +327,13 @@
         }
       ],
       "expected": {
-        "refused": true,
         "claim_evidence": [],
         "trace_stages": [
           "draft",
           "rejected",
           "repair_draft"
-        ]
+        ],
+        "answer": "I do not have enough evidence in the provided sources to answer this question."
       },
       "model_calls": [
         {
@@ -375,14 +373,14 @@
         }
       ],
       "expected": {
-        "refused": true,
         "claim_evidence": [],
         "trace_stages": [
           "draft",
           "verification",
           "rejected",
           "repair_draft"
-        ]
+        ],
+        "answer": "I do not have enough evidence in the provided sources to answer this question."
       },
       "model_calls": [
         {
@@ -465,14 +463,14 @@
         }
       ],
       "expected": {
-        "refused": true,
         "claim_evidence": [],
         "trace_stages": [
           "draft",
           "verification",
           "rejected",
           "repair_draft"
-        ]
+        ],
+        "answer": "I do not have enough evidence in the provided sources to answer this question."
       },
       "model_calls": [
         {
