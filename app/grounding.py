@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 from app.grounding_durations import duration_fingerprint
 from app.grounding_evidence import (
@@ -127,6 +128,7 @@ __all__ = [
     "generate_draft_json",
     "generate_verification_json",
     "grounded_answer",
+    "grounding_code_fingerprint",
     "grounding_fingerprint",
     "validate_verification_structure",
     "verify_draft",
@@ -337,6 +339,19 @@ def grounded_answer(
         return INSUFFICIENT_EVIDENCE
     _record_accepted_evidence(repaired_draft, sources, feedback, approved_evidence)
     return _render_claims(approved_evidence, sources)
+
+
+def grounding_code_fingerprint() -> str:
+    """Hash every grounding module so replay provenance covers the whole package."""
+    modules = sorted(Path(__file__).resolve().parent.glob("grounding*.py"))
+    digest = hashlib.sha256()
+    for module in modules:
+        content = module.read_bytes()
+        digest.update(module.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
 
 
 def grounding_fingerprint() -> str:

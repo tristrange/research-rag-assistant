@@ -203,7 +203,10 @@ grounded_answer
 prompt bytes built from equivalent inputs, the serialized response and claim
 evidence shape, the refusal text and the exception classes above are the
 contract. The stage fingerprint from `grounding_fingerprint()` binds evaluation
-resumes to these definitions.
+resumes to these definitions. Replay provenance uses
+`grounding_code_fingerprint()`, a SHA-256 over every `app/grounding*.py` module,
+so changing any extracted component invalidates a frozen protocol instead of
+passing on the facade alone.
 
 [`tests/test_grounding_contracts.py`](../tests/test_grounding_contracts.py)
 replays synthetic, license-safe cases from

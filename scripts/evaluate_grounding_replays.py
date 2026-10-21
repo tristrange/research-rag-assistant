@@ -19,6 +19,7 @@ from app.answer_evaluation import (
     summarize,
 )
 from app.config import GroundingSampling
+from app.grounding import grounding_code_fingerprint
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, Thinking, generate_json
 from app.llm.telemetry import ModelCall, RuntimeSnapshot, capture_calls
@@ -159,11 +160,9 @@ def validate_run_metadata(
         )
     ):
         raise ValueError("generation record does not attest the frozen model/runtime")
-    grounding_path = Path(__file__).resolve().parents[1] / "app/grounding.py"
     if (
         record.get("grounding_code_sha256") != protocol.grounding_code_sha256
-        or sha256(grounding_path.read_bytes()).hexdigest()
-        != protocol.grounding_code_sha256
+        or grounding_code_fingerprint() != protocol.grounding_code_sha256
     ):
         raise ValueError("generation record used a different grounding implementation")
     for item in provenance:
