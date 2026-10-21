@@ -207,11 +207,12 @@ replays synthetic, license-safe cases from
 positive and negative answers, missing-evidence refusal, malformed verifier JSON,
 unknown source IDs, a reference entry claimed as this document's own work, a
 claimed duration absent from approved evidence, verifier evidence outside the
-cited sources, and output-limit propagation. Each model call's prompt and schema
-arguments are pinned by SHA-256 digest in
-`tests/fixtures/grounding_contracts/call_digests.json`, so editing a prompt or
-passing a different builder fails the suite. Existing unit tests keep the
-per-stage detail and multi-paper citation remapping.
+cited sources, and output-limit propagation. Each real model call's prompt and
+schema are pinned by SHA-256 digest at the single `generate_json` boundary in
+`tests/fixtures/grounding_contracts/call_digests.json`, including the generated
+proof prompt, so editing a prompt, its schema, or the stage wiring fails the
+suite. Existing unit tests keep the per-stage detail and multi-paper citation
+remapping.
 
 ## Maintenance and boundaries
 

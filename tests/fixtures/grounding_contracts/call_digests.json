@@ -1,87 +1,44 @@
 {
   "cases": {
-    "claimed_duration_absent_from_approved_evidence": {
-      "draft": [
-        "4999e6839a3f1c63d285903f5d7514b5c57adba7689be416989bf3824b9d764d",
-        "f005a60c288d8679ed091a7252349d97db4e6b83ea636d84b45143835bee01dc"
-      ],
-      "proof": [],
-      "verification": [
-        "22a44ce0297aaba7432bf5c7737015675e90f0b9aec21e3cb1de868dddadfce9"
-      ]
-    },
-    "malformed_verifier_json": {
-      "draft": [
-        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb",
-        "8f579e375b2ed0eb4e63804e0c3998788187a362dd6e8a57dc9c41423352911b"
-      ],
-      "proof": [],
-      "verification": [
-        "3e91d2b49605eff4ea5963b7366a6eac350f43f9bb3008184683c7fb025d6acc"
-      ]
-    },
-    "missing_evidence_refusal": {
-      "draft": [
-        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb"
-      ],
-      "proof": [],
-      "verification": []
-    },
-    "output_limit_propagates": {
-      "draft": [
-        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb"
-      ],
-      "proof": [],
-      "verification": []
-    },
-    "reference_entry_cannot_be_authored_by_this_document": {
-      "draft": [
-        "8176bf09fb98ed16028fb515230848aea39ba349ad0d602800d9773880a263c9",
-        "42bab536b0554bcbfc810e6cc5b92219cce38cafc627a4a1d6fc88c50f6e80e4"
-      ],
-      "proof": [],
-      "verification": []
-    },
-    "supported_negative": {
-      "draft": [
-        "7feb3b5c4d4ac9ecc94559a1022d4198f7d7ebcbd9ddebce3ed5bb0f5f44922f"
-      ],
-      "proof": [
-        "60efee96f8b9c62f8d08642473c854e9c5acd658b7281602219ef1b915f02e59"
-      ],
-      "verification": [
-        "a7c26d06cb7315069ae5d183104492b93a447123f1d7ae5e28fa8b84ef2d930c"
-      ]
-    },
-    "supported_positive": {
-      "draft": [
-        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb"
-      ],
-      "proof": [
-        "5c70c340a3d4f3574a3a20f62377d589b12d960a9680503938fa0b96992be778"
-      ],
-      "verification": [
-        "3e91d2b49605eff4ea5963b7366a6eac350f43f9bb3008184683c7fb025d6acc"
-      ]
-    },
-    "unknown_source_id": {
-      "draft": [
-        "400ebbb15886d912e7ec6e4d0f69f8a3363dd91376011648c1c09fc6b8d982bb",
-        "5c247dd7440bed7a4c74e9b3945e809dae3c0026336bc7dff7585f49922db1d0"
-      ],
-      "proof": [],
-      "verification": []
-    },
-    "verifier_evidence_outside_cited_sources": {
-      "draft": [
-        "81340ed0ba20fd36eda3d80a2e747e1bb115e146ddc332c9d922ef7262c0ef59",
-        "357f648373000d126fc93d4d34bbf864040597ee0910abd5cceefca2f64e8721"
-      ],
-      "proof": [],
-      "verification": [
-        "3e91d2b49605eff4ea5963b7366a6eac350f43f9bb3008184683c7fb025d6acc"
-      ]
-    }
+    "claimed_duration_absent_from_approved_evidence": [
+      "58b61cb2992d7af6dc1ab3a9a8c926568e095c647c6c2fa59fad274eb55e069d",
+      "9c941ca905fa90df80eabe92316e5268c14f37940117009401ba0b6a116dbc82",
+      "633ec46c57d075fb1ba2f786b7b334c91f682e585f7fecf33291aa42efc4983a"
+    ],
+    "malformed_verifier_json": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66",
+      "77a5615d9aae9a6e9fa02ec82f76b52c6ad699247add58343877a97d6c53b5ed",
+      "7e03c9ac6e14261f1dd6dbb183d054f62af52ce682c5b853819709979280f9dd"
+    ],
+    "missing_evidence_refusal": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66"
+    ],
+    "output_limit_propagates": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66"
+    ],
+    "reference_entry_cannot_be_authored_by_this_document": [
+      "687a0c9b4d6f1ec0642328d58db03ffbb91f0c1c6f599c829ca2f83a4a77b4f9",
+      "a95ba1e41510f0b5bd3207cd64937ed05cdc0687e219b26c76f999643803b9f0"
+    ],
+    "supported_negative": [
+      "98e70d9372560ef8c06fb46630c4d4d5fb69e0a21353997ead3628291f75a7fe",
+      "b0bb31ec32a185d38b7e3d87272b90513e19bbfdf8bb8c0445866da347d8e902",
+      "29ae759c1d49f2973eb66892a5796f25f671b6fb9c638cc6da517a615dc7d10a"
+    ],
+    "supported_positive": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66",
+      "77a5615d9aae9a6e9fa02ec82f76b52c6ad699247add58343877a97d6c53b5ed",
+      "60732457548546b1a835e0a1f3356206bb60643adb340aff15ca0b669ebf5ab8"
+    ],
+    "unknown_source_id": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66",
+      "fee28d1c34f5f03b990984e9f6412d606f1518b594b0338f13acf64018325ab7"
+    ],
+    "verifier_evidence_outside_cited_sources": [
+      "dc91e3aa3da8e0f977b230765edbdeb99a9318139ba43fe6c592fc0621eb9e9d",
+      "77a5615d9aae9a6e9fa02ec82f76b52c6ad699247add58343877a97d6c53b5ed",
+      "bf680641b5574df75421dafa13579e5d7ee53f8a366e4da22e9345b59dd29103"
+    ]
   },
-  "note": "SHA-256 of each stage call's prompt/schema arguments. A digest change means the model-facing bytes changed; update deliberately and say why in the PR."
+  "note": "SHA-256 of each model call's prompt and schema, in call order. A digest change means the model-facing bytes changed; update deliberately and say why in the PR."
 }
