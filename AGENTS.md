@@ -31,3 +31,6 @@ current commands rather than copying its full instructions here.
   cases from independent validation. A replay is a new generation trial.
 - Reindex after extraction, chunking, or embedding changes before evaluating the
   new corpus. Do not compare an old report to a changed index as if inputs matched.
+- Use the [pipeline performance baseline](docs/performance-baselines.md) procedure
+  for stage-level timing; keep warm-up samples, failures and provenance, and do not
+  cite a baseline until a matching local run exists.

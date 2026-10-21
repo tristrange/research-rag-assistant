@@ -2,6 +2,8 @@ from typing import Literal
 
 from app.grounding import INSUFFICIENT_EVIDENCE, grounded_answer
 from app.llm.ollama import generate
+from app.llm.telemetry import VerificationTrace
+from app.performance import PerformanceTrace, measure_stage
 from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, VERIFIED_CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, merge_selected_chunks, render_context
@@ -32,6 +34,8 @@ def answer_question(
     document: str | None = None,
     overview: bool = False,
     query_embedding: QuestionEmbedding | None = None,
+    performance: PerformanceTrace | None = None,
+    diagnostics: list[VerificationTrace] | None = None,
 ) -> AnswerResult:
     if limit is None:
         limit = default_top_k(
@@ -56,39 +60,41 @@ def answer_question(
     )
     candidate_count = VERIFIED_CANDIDATE_COUNT if balanced_verified else CANDIDATE_COUNT
     candidate_limit = max(candidate_count, limit) if use_reranking else limit
-    embedding = (
-        QuestionEmbedding(question) if query_embedding is None else query_embedding
-    )
-    if embedding.question != question:
-        raise ValueError("The embedding must belong to the requested question")
-    if overview:
-        if document is None:
-            raise ValueError("a paper overview requires a document")
-        candidates = []
-        for sections in OVERVIEW_SECTION_PRIORITY:
-            candidates = search_chunks(
-                question,
-                limit=candidate_limit,
-                document=document,
-                sections=sections,
-                query_embedding=embedding,
-            )
-            if candidates:
-                break
-        if not candidates:
-            candidates = search_chunks(
-                question,
-                limit=candidate_limit,
-                document=document,
-                query_embedding=embedding,
-            )
-    else:
-        candidates = search_chunks(
-            question,
-            limit=candidate_limit,
-            document=document,
-            query_embedding=embedding,
+    with measure_stage(performance, "embedding"):
+        embedding = (
+            QuestionEmbedding(question) if query_embedding is None else query_embedding
         )
+        if embedding.question != question:
+            raise ValueError("The embedding must belong to the requested question")
+    with measure_stage(performance, "vector_search"):
+        if overview:
+            if document is None:
+                raise ValueError("a paper overview requires a document")
+            candidates = []
+            for sections in OVERVIEW_SECTION_PRIORITY:
+                candidates = search_chunks(
+                    question,
+                    limit=candidate_limit,
+                    document=document,
+                    sections=sections,
+                    query_embedding=embedding,
+                )
+                if candidates:
+                    break
+            if not candidates:
+                candidates = search_chunks(
+                    question,
+                    limit=candidate_limit,
+                    document=document,
+                    query_embedding=embedding,
+                )
+        else:
+            candidates = search_chunks(
+                question,
+                limit=candidate_limit,
+                document=document,
+                query_embedding=embedding,
+            )
     if not candidates:
         return {
             "answer": INSUFFICIENT_EVIDENCE,
@@ -96,43 +102,56 @@ def answer_question(
             "outcome": "insufficient_evidence",
         }
 
-    if balanced_verified:
-        chunks = rerank_with_page_reserve(question, candidates, limit=limit)
-    else:
-        chunks = (
-            rerank_chunks(question, candidates, limit=limit)
-            if use_reranking
-            else candidates
-        )
-    if reserve_vector_candidate:
-        chunks = with_vector_reserve(chunks, candidates)
+    with measure_stage(performance, "rerank"):
+        if balanced_verified:
+            chunks = rerank_with_page_reserve(question, candidates, limit=limit)
+        else:
+            chunks = (
+                rerank_chunks(question, candidates, limit=limit)
+                if use_reranking
+                else candidates
+            )
+        if reserve_vector_candidate:
+            chunks = with_vector_reserve(chunks, candidates)
 
-    sources: list[ChunkData]
-    if expand_context:
-        sources = expand_chunks(chunks)
-    elif overview:
-        sources = merge_selected_chunks(chunks)
-    else:
-        # Preserve unexpanded retrieval selection. The strict
-        # rendered budget applies to expanded windows, whose size can multiply
-        # after neighbor lookup.
-        sources = [
-            {
-                "document": chunk.document,
-                "page": chunk.page,
-                "chunk_index": chunk.chunk_index,
-                "text": chunk.text,
-                "section": chunk.section or "unknown",
-            }
-            for chunk in chunks
-        ]
+    with measure_stage(performance, "context"):
+        sources: list[ChunkData]
+        if expand_context:
+            sources = expand_chunks(chunks)
+        elif overview:
+            sources = merge_selected_chunks(chunks)
+        else:
+            # Preserve unexpanded retrieval selection. The strict
+            # rendered budget applies to expanded windows, whose size can multiply
+            # after neighbor lookup.
+            sources = [
+                {
+                    "document": chunk.document,
+                    "page": chunk.page,
+                    "chunk_index": chunk.chunk_index,
+                    "text": chunk.text,
+                    "section": chunk.section or "unknown",
+                }
+                for chunk in chunks
+            ]
 
     claim_evidence: list[AnswerClaim] = []
-    if answer_mode == "verified":
-        answer = grounded_answer(question, sources, claim_evidence=claim_evidence)
-    else:
-        context = render_context(sources)
-        answer = generate(answer_prompt(question, context, overview=overview))
+    with measure_stage(performance, "generation"):
+        if answer_mode == "verified":
+            if diagnostics is not None:
+                answer = grounded_answer(
+                    question,
+                    sources,
+                    claim_evidence=claim_evidence,
+                    diagnostics=diagnostics,
+                )
+            else:
+                answer = grounded_answer(
+                    question, sources, claim_evidence=claim_evidence
+                )
+        else:
+            context = render_context(sources)
+            answer = generate(answer_prompt(question, context, overview=overview))
 
     result: AnswerResult = {
         "answer": answer,

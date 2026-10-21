@@ -4,6 +4,8 @@ from unittest.mock import ANY, MagicMock, call, patch
 
 from app.db.models import Chunk
 from app.grounding import INSUFFICIENT_EVIDENCE
+from app.llm.telemetry import VerificationTrace
+from app.performance import PerformanceTrace
 from app.rag import OVERVIEW_SECTION_PRIORITY, answer_each_document, answer_question
 from app.retrieval.rerank import with_vector_reserve
 from app.retrieval.search import QuestionEmbedding
@@ -205,6 +207,42 @@ class RagTests(unittest.TestCase):
         generate.assert_not_called()
         self.assertEqual(result["answer"], "Checked answer")
         self.assertEqual(result["outcome"], "answered")
+
+    def test_opt_in_performance_trace_records_pipeline_stages_and_diagnostics(
+        self,
+    ) -> None:
+        source = Chunk(
+            document="paper.pdf",
+            page=10,
+            chunk_index=1,
+            text="A cited study.",
+            section="references",
+        )
+        trace = PerformanceTrace()
+        diagnostics: list[VerificationTrace] = []
+        with (
+            patch("app.rag.search_chunks", return_value=[source]),
+            patch("app.rag.rerank_with_page_reserve", return_value=[source]),
+            patch("app.rag.grounded_answer", return_value="Checked answer") as grounded,
+        ):
+            result = answer_question(
+                "Question",
+                answer_mode="verified",
+                performance=trace,
+                diagnostics=diagnostics,
+            )
+
+        self.assertEqual(
+            [timing.stage for timing in trace.snapshot()],
+            ["embedding", "vector_search", "rerank", "context", "generation"],
+        )
+        self.assertIsNone(trace.failed_stage)
+        grounded.assert_called_once_with(
+            "Question",
+            result["sources"],
+            claim_evidence=[],
+            diagnostics=diagnostics,
+        )
 
     def test_verified_source_present_refusal_has_insufficient_evidence_outcome(
         self,
