@@ -1,13 +1,14 @@
 """Replay saved evidence through grounding, retaining drafts and rejection reasons."""
 
 import argparse
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
 from typing import cast
 
-from app.grounding import GROUNDING_MODEL, grounded_answer
-from app.llm.telemetry import capture_calls, runtime_snapshot
+from app.grounding import GROUNDING_MODEL, grounded_answer, grounding_fingerprint
+from app.llm.telemetry import VerificationTrace, capture_calls, runtime_snapshot
 from app.types import AnswerClaim, ChunkData
 from scripts.evaluate_answers import (
     load_report,
@@ -23,12 +24,25 @@ def main() -> None:
     parser.add_argument("report", type=Path)
     parser.add_argument("--case", dest="ids", action="append")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="write sanitized verification diagnostics beside the report",
+    )
     args = parser.parse_args()
+    diagnostics_path = args.output.with_suffix(".diagnostics.json")
     saved = load_report(args.report)
     cases = [r for r in saved.results if args.ids is None or r.case.id in args.ids]
     if not cases or (args.ids and set(args.ids) != {r.case.id for r in cases}):
         parser.error("Selected case IDs must exist in the saved results")
     reserve_output(args.output)
+    if args.diagnostics:
+        try:
+            reserve_output(diagnostics_path)
+        except ValueError:
+            args.output.unlink(missing_ok=True)
+            raise
+    diagnostics_cases: list[dict[str, object]] = []
     before = runtime_snapshot([GROUNDING_MODEL])
     results: list[dict[str, object]] = []
     settings = settings_for(saved.settings.strategy, "verified", saved.settings.top_k)
@@ -65,6 +79,9 @@ def main() -> None:
             results.append(item)
             start = perf_counter()
             claims: list[AnswerClaim] = []
+            diagnostic_records: list[VerificationTrace] | None = (
+                [] if args.diagnostics else None
+            )
             # Save failed-call timing too, but never expose draft evidence as accepted.
             with capture_calls() as calls:
                 try:
@@ -73,6 +90,7 @@ def main() -> None:
                         [cast(ChunkData, s.model_dump()) for s in result.sources],
                         trace=trace,
                         claim_evidence=claims,
+                        diagnostics=diagnostic_records,
                     )
                     item["answer"] = answer
                     item["claim_evidence"] = claims
@@ -80,6 +98,15 @@ def main() -> None:
                 finally:
                     item["elapsed_ms"] = (perf_counter() - start) * 1000
                     item["answer_calls"] = [call.model_dump() for call in calls]
+                    if diagnostic_records is not None:
+                        diagnostics_cases.append(
+                            {
+                                "case": result.case.id,
+                                "diagnostics": [
+                                    record.model_dump() for record in diagnostic_records
+                                ],
+                            }
+                        )
                     save_report(args.output, report)
         after = runtime_snapshot([GROUNDING_MODEL])
         report["runtime_after"] = after.model_dump()
@@ -92,6 +119,19 @@ def main() -> None:
     finally:
         report["finished_at"] = datetime.now(timezone.utc).isoformat()
         save_report(args.output, report)
+        if args.diagnostics:
+            diagnostics_path.write_text(
+                json.dumps(
+                    {
+                        "version": "verification-diagnostics-v1",
+                        "contract_fingerprint": grounding_fingerprint(),
+                        "cases": diagnostics_cases,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
 
 if __name__ == "__main__":

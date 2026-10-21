@@ -1,13 +1,17 @@
+import json
 import math
 import re
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from time import perf_counter
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
+from uuid import uuid4
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from app.llm.errors import OllamaOutputLimitError, OllamaResponseError
 
 Operation = Literal["chat", "embedding"]
 CallStatus = Literal["complete", "failed"]
@@ -86,6 +90,130 @@ def observe_call(operation: Operation, model: str) -> Iterator[ModelCall | None]
         )
         for calls in call_buffers:
             calls.append(record)
+
+
+VerificationStage = Literal[
+    "draft",
+    "draft_validation",
+    "verification",
+    "verification_proof",
+    "repair_draft",
+    "repair_draft_validation",
+    "repair_verification",
+    "repair_verification_proof",
+]
+ParseStatus = Literal["ok", "invalid_json", "invalid_schema", "not_attempted"]
+ReasonCategory = Literal[
+    "none",
+    "draft_unanswerable",
+    "draft_structure",
+    "verifier_rejection",
+    "proof_rejection",
+    "repair_unanswerable",
+    "malformed_json",
+    "schema_mismatch",
+    "output_limit",
+    "transport_error",
+]
+
+
+class VerificationTrace(BaseModel):
+    """One sanitized grounding-stage outcome; never includes prompts or sources."""
+
+    model_config = ConfigDict(
+        extra="forbid", strict=True, allow_inf_nan=False, validate_assignment=True
+    )
+
+    version: Literal["verification-diagnostics-v1"] = "verification-diagnostics-v1"
+    diagnostic_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    contract_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    stage: VerificationStage
+    attempt: int = Field(ge=1, le=2)
+    elapsed_ms: float = Field(default=0.0, ge=0)
+    parse_status: ParseStatus
+    reason_category: ReasonCategory
+    prompt_eval_count: int | None = Field(default=None, ge=0)
+    eval_count: int | None = Field(default=None, ge=0)
+
+
+def append_verification_trace(
+    diagnostics: list[VerificationTrace] | None,
+    *,
+    stage: str,
+    attempt: int,
+    contract_fingerprint: str,
+    parse_status: ParseStatus,
+    reason_category: ReasonCategory,
+) -> VerificationTrace | None:
+    """Append a stage that performs no parseable model call, such as draft checks."""
+    if diagnostics is None:
+        return None
+    record = VerificationTrace(
+        diagnostic_id=uuid4().hex,
+        contract_fingerprint=contract_fingerprint,
+        stage=cast(VerificationStage, stage),
+        attempt=attempt,
+        parse_status=parse_status,
+        reason_category=reason_category,
+    )
+    diagnostics.append(record)
+    return record
+
+
+@contextmanager
+def observe_verification_stage(
+    diagnostics: list[VerificationTrace] | None,
+    *,
+    stage: VerificationStage,
+    attempt: int,
+    contract_fingerprint: str,
+) -> Iterator[VerificationTrace | None]:
+    """Time and classify one stage without swallowing or replacing exceptions."""
+    if diagnostics is None:
+        yield None
+        return
+
+    record = VerificationTrace(
+        diagnostic_id=uuid4().hex,
+        contract_fingerprint=contract_fingerprint,
+        stage=stage,
+        attempt=attempt,
+        parse_status="ok",
+        reason_category="none",
+    )
+    started = perf_counter()
+    with capture_calls() as calls:
+        try:
+            yield record
+        except json.JSONDecodeError:
+            record.parse_status = "invalid_json"
+            record.reason_category = "malformed_json"
+            raise
+        except ValidationError:
+            record.parse_status = "invalid_schema"
+            record.reason_category = "schema_mismatch"
+            raise
+        except OllamaOutputLimitError:
+            record.parse_status = "not_attempted"
+            record.reason_category = "output_limit"
+            raise
+        except httpx.HTTPError, OllamaResponseError:
+            record.parse_status = "not_attempted"
+            record.reason_category = "transport_error"
+            raise
+        except ValueError:
+            record.parse_status = "invalid_schema"
+            record.reason_category = "schema_mismatch"
+            raise
+        finally:
+            elapsed_ms = (perf_counter() - started) * 1000
+            record.elapsed_ms = (
+                elapsed_ms if math.isfinite(elapsed_ms) and elapsed_ms >= 0 else 0.0
+            )
+            if calls:
+                record.prompt_eval_count = calls[-1].prompt_eval_count
+                record.eval_count = calls[-1].eval_count
+            diagnostics.append(record)
 
 
 def _duration_ms(value: object) -> float | None:

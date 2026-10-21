@@ -6,7 +6,15 @@ import httpx
 from app.config import SETTINGS
 from app.config import Thinking as Thinking
 from app.config import default_timeout as default_timeout
-from app.llm.errors import OllamaResponseError, response_object
+from app.llm.errors import (
+    OllamaOutputLimitError as OllamaOutputLimitError,
+)
+from app.llm.errors import (
+    OllamaResponseError as OllamaResponseError,
+)
+from app.llm.errors import (
+    response_object,
+)
 from app.llm.telemetry import observe_call, record_metadata
 
 
@@ -23,10 +31,6 @@ OLLAMA_URL = SETTINGS.ollama_chat_url
 MODEL = SETTINGS.generator_model
 JUDGE_MODEL = SETTINGS.judge_model
 JUDGE_THINK = False
-
-
-class OllamaOutputLimitError(RuntimeError):
-    """An incomplete model response is a failed call, not an evidence refusal."""
 
 
 def chat(

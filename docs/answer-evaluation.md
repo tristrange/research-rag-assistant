@@ -10,6 +10,16 @@ New reports preserve accepted claim evidence, per-call inference timings, and
 Ollama model/runtime identities. See the [report format and legacy compatibility](evaluation-report-format.md)
 for what each field means and how resume handles older reports.
 
+Verified-answer replays can also capture sanitized stage diagnostics with
+`--diagnostics`; the runner writes a `.diagnostics.json` sidecar beside the
+report. Each record contains the contract fingerprint, stage, attempt, elapsed
+milliseconds, parse status, a stable failure category, and token counts when
+Ollama reports them. It never contains prompts, questions, source passages or
+model output, and it does not change generation or acceptance. Use it to separate
+malformed output and token exhaustion from genuine evidence refusals; see the
+[grounding refusal diagnostics](grounding-refusal-diagnostics.md#verification-diagnostics)
+for field meanings and the recorded development classifications.
+
 The [first comparison on the second paper](housing-model-comparison.md)
 compares Qwen3 8B, GPT-OSS 20B and Qwen3 Coder 30B with identical retrieved evidence.
 GPT-OSS refused where both Qwen models gave unsupported answers, but grader and

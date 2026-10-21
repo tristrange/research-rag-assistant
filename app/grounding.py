@@ -70,6 +70,12 @@ from app.ingestion.chunking import (
     _SENTENCE_END,
 )
 from app.llm.ollama import generate_json
+from app.llm.telemetry import (
+    VerificationStage,
+    VerificationTrace,
+    append_verification_trace,
+    observe_verification_stage,
+)
 from app.types import AnswerClaim, ChunkData
 
 # Compatibility surface: every module-level name importable from this module
@@ -190,42 +196,77 @@ def _verify_draft_with_feedback(
     *,
     verifier: Callable[[str, dict[str, object]], dict[str, object]] | None = None,
     trace: list[dict[str, object]] | None = None,
-    verification_stage: str = "verification",
+    diagnostics: list[VerificationTrace] | None = None,
+    attempt: int = 1,
+    contract_fingerprint: str = "",
+    verification_stage: VerificationStage = "verification",
+    proof_stage: VerificationStage = "verification_proof",
     rejection_stage: str = "rejected",
 ) -> tuple[bool, list[dict[str, object]]]:
     feedback: list[dict[str, object]] = []
     try:
-        _validate_draft(draft, sources)
+        try:
+            _validate_draft(draft, sources)
+        except ValueError:
+            append_verification_trace(
+                diagnostics,
+                stage="repair_draft_validation" if attempt == 2 else "draft_validation",
+                attempt=attempt,
+                contract_fingerprint=contract_fingerprint,
+                parse_status="not_attempted",
+                reason_category="draft_structure",
+            )
+            raise
         if not draft.answerable:
             return False, feedback
         evidence_catalogue = build_verifier_evidence(draft.claims, sources)
-        verification_data = (verifier or generate_verification_json)(
-            build_verifier_prompt(question, draft.claims, sources),
-            _bounded_verifier_schema(question, draft.claims, sources),
-        )
-        verification_entry: dict[str, object] = {
-            "stage": verification_stage,
-            "output": verification_data,
-            "evidence_catalogue": evidence_catalogue,
-        }
-        feedback.append(verification_entry)
-        if trace is not None:
-            trace.append(verification_entry)
-        verification = VerificationResult.model_validate(verification_data)
-        _validate_verification(question, verification, draft.claims, sources)
+        with observe_verification_stage(
+            diagnostics,
+            stage=verification_stage,
+            attempt=attempt,
+            contract_fingerprint=contract_fingerprint,
+        ) as diagnostic:
+            verification_data = (verifier or generate_verification_json)(
+                build_verifier_prompt(question, draft.claims, sources),
+                _bounded_verifier_schema(question, draft.claims, sources),
+            )
+            verification_entry: dict[str, object] = {
+                "stage": verification_stage,
+                "output": verification_data,
+                "evidence_catalogue": evidence_catalogue,
+            }
+            feedback.append(verification_entry)
+            if trace is not None:
+                trace.append(verification_entry)
+            verification = VerificationResult.model_validate(verification_data)
+        try:
+            _validate_verification(question, verification, draft.claims, sources)
+        except ValueError:
+            if diagnostic is not None:
+                diagnostic.reason_category = "verifier_rejection"
+            raise
         evidence: list[AnswerClaim] = []
         _record_accepted_evidence(draft, sources, feedback, evidence)
         proof_entry: dict[str, object] = {
-            "stage": f"{verification_stage}_proof",
+            "stage": proof_stage,
             "output": None,
         }
         feedback.append(proof_entry)
         if trace is not None:
             trace.append(proof_entry)
-        proof_data = generate_approved_proof_json(question, evidence)
-        proof_entry["output"] = proof_data
-        proof = ApprovedProof.model_validate(proof_data)
+        with observe_verification_stage(
+            diagnostics,
+            stage=proof_stage,
+            attempt=attempt,
+            contract_fingerprint=contract_fingerprint,
+        ) as proof_diagnostic:
+            proof_data = generate_approved_proof_json(question, evidence)
+            proof_entry["output"] = proof_data
+            proof = ApprovedProof.model_validate(proof_data)
+        # Semantic rejection stays outside the parsing context, so it is not reclassified.
         if not proof.supported:
+            if proof_diagnostic is not None:
+                proof_diagnostic.reason_category = "proof_rejection"
             raise ValueError(
                 f"approved excerpts do not establish the answer: {proof.reason}"
             )
@@ -271,6 +312,7 @@ def grounded_answer(
     *,
     trace: list[dict[str, object]] | None = None,
     claim_evidence: list[AnswerClaim] | None = None,
+    diagnostics: list[VerificationTrace] | None = None,
 ) -> str:
     """Render only wholly approved claims; propagate model transport errors."""
     if claim_evidence is not None:
@@ -280,18 +322,35 @@ def grounded_answer(
     )
     if not sources or not any(_evidence_spans(source["text"]) for source in sources):
         return INSUFFICIENT_EVIDENCE
+    contract_fingerprint = grounding_fingerprint() if diagnostics is not None else ""
     draft_schema = _bounded_draft_schema(sources)
     draft_data: dict[str, object] | None = None
     feedback: list[dict[str, object]]
     try:
-        draft_data = generate_draft_json(
-            build_draft_prompt(question, sources), draft_schema
-        )
-        if trace is not None:
-            trace.append({"stage": "draft", "output": draft_data})
-        if draft_data.get("answerable") is False:
-            return INSUFFICIENT_EVIDENCE
-        draft = GroundedDraft.model_validate(draft_data)
+        with observe_verification_stage(
+            diagnostics,
+            stage="draft",
+            attempt=1,
+            contract_fingerprint=contract_fingerprint,
+        ) as diagnostic:
+            draft_data = generate_draft_json(
+                build_draft_prompt(question, sources), draft_schema
+            )
+            if trace is not None:
+                trace.append({"stage": "draft", "output": draft_data})
+            try:
+                draft = GroundedDraft.model_validate(draft_data)
+            except ValueError:
+                if draft_data.get("answerable") is not False:
+                    raise
+                if diagnostic is not None:
+                    diagnostic.parse_status = "invalid_schema"
+                    diagnostic.reason_category = "schema_mismatch"
+                return INSUFFICIENT_EVIDENCE
+            if not draft.answerable:
+                if diagnostic is not None:
+                    diagnostic.reason_category = "draft_unanswerable"
+                return INSUFFICIENT_EVIDENCE
     except ValueError as error:
         feedback = [{"stage": "rejected", "reason": str(error)}]
         if trace is not None:
@@ -302,27 +361,42 @@ def grounded_answer(
             draft,
             sources,
             trace=trace,
+            diagnostics=diagnostics,
+            attempt=1,
+            contract_fingerprint=contract_fingerprint,
         )
         if accepted:
             _record_accepted_evidence(draft, sources, feedback, approved_evidence)
             return _render_claims(approved_evidence, sources)
 
+    repair_diagnostic: VerificationTrace | None = None
     try:
-        repair_data = generate_draft_json(
-            build_repair_prompt(question, sources, draft_data, feedback),
-            _bounded_draft_schema(sources),
-            repair=True,
-        )
-    except ValueError as error:
-        if trace is not None:
-            trace.append({"stage": "repair_rejected", "reason": str(error)})
-        return INSUFFICIENT_EVIDENCE
-    if trace is not None:
-        trace.append({"stage": "repair_draft", "output": repair_data})
-    if repair_data.get("answerable") is False:
-        return INSUFFICIENT_EVIDENCE
-    try:
-        repaired_draft = GroundedDraft.model_validate(repair_data)
+        with observe_verification_stage(
+            diagnostics,
+            stage="repair_draft",
+            attempt=2,
+            contract_fingerprint=contract_fingerprint,
+        ) as repair_diagnostic:
+            repair_data = generate_draft_json(
+                build_repair_prompt(question, sources, draft_data, feedback),
+                _bounded_draft_schema(sources),
+                repair=True,
+            )
+            if trace is not None:
+                trace.append({"stage": "repair_draft", "output": repair_data})
+            try:
+                repaired_draft = GroundedDraft.model_validate(repair_data)
+            except ValueError:
+                if repair_data.get("answerable") is not False:
+                    raise
+                if repair_diagnostic is not None:
+                    repair_diagnostic.parse_status = "invalid_schema"
+                    repair_diagnostic.reason_category = "schema_mismatch"
+                return INSUFFICIENT_EVIDENCE
+            if not repaired_draft.answerable:
+                if repair_diagnostic is not None:
+                    repair_diagnostic.reason_category = "repair_unanswerable"
+                return INSUFFICIENT_EVIDENCE
     except ValueError as error:
         if trace is not None:
             trace.append({"stage": "repair_rejected", "reason": str(error)})
@@ -332,7 +406,11 @@ def grounded_answer(
         repaired_draft,
         sources,
         trace=trace,
+        diagnostics=diagnostics,
+        attempt=2,
+        contract_fingerprint=contract_fingerprint,
         verification_stage="repair_verification",
+        proof_stage="repair_verification_proof",
         rejection_stage="repair_rejected",
     )
     if not accepted:

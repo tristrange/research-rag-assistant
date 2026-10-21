@@ -7,7 +7,8 @@ from tempfile import TemporaryDirectory
 from typing import cast
 from unittest.mock import Mock, patch
 
-from app.llm.telemetry import RuntimeSnapshot
+from app.grounding import INSUFFICIENT_EVIDENCE
+from app.llm.telemetry import RuntimeSnapshot, VerificationTrace
 from app.types import AnswerClaim, ChunkData
 from scripts.replay_grounding import main
 
@@ -124,6 +125,7 @@ class ReplayGroundingTests(unittest.TestCase):
             *,
             trace: list[dict[str, object]] | None = None,
             claim_evidence: list[AnswerClaim] | None = None,
+            diagnostics: list[VerificationTrace] | None = None,
         ) -> str:
             self.assertEqual(question, CASE["question"])
             self.assertEqual(sources, [SOURCE])
@@ -177,6 +179,95 @@ class ReplayGroundingTests(unittest.TestCase):
             self.assertEqual(report["schema_version"], 2)
             self.assertGreaterEqual(item["elapsed_ms"], 0)
 
+    def test_diagnostics_sidecar_keeps_records_out_of_the_report(self) -> None:
+        fingerprint = "a" * 64
+        diagnostic = VerificationTrace(
+            diagnostic_id="b" * 32,
+            contract_fingerprint=fingerprint,
+            stage="draft",
+            attempt=1,
+            elapsed_ms=12.5,
+            parse_status="ok",
+            reason_category="none",
+        )
+
+        def ground(
+            question: str,
+            sources: list[ChunkData],
+            *,
+            trace: list[dict[str, object]] | None = None,
+            claim_evidence: list[AnswerClaim] | None = None,
+            diagnostics: list[VerificationTrace] | None = None,
+        ) -> str:
+            self.assertIsNotNone(diagnostics)
+            cast(list[VerificationTrace], diagnostics).append(diagnostic)
+            return INSUFFICIENT_EVIDENCE
+
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "replay.json"
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--diagnostics",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
+                patch("scripts.replay_grounding.grounded_answer", side_effect=ground),
+                patch(
+                    "scripts.replay_grounding.grounding_fingerprint",
+                    return_value=fingerprint,
+                ),
+                redirect_stdout(io.StringIO()),
+            ):
+                main()
+            sidecar_path = Path(directory) / "replay.diagnostics.json"
+            sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["version"], "verification-diagnostics-v1")
+            self.assertEqual(sidecar["contract_fingerprint"], fingerprint)
+            self.assertEqual(
+                sidecar["cases"],
+                [{"case": CASE["id"], "diagnostics": [diagnostic.model_dump()]}],
+            )
+            serialized = json.dumps(sidecar)
+            self.assertNotIn(CASE["question"], serialized)
+            self.assertNotIn(SOURCE["text"], serialized)
+
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertNotIn("diagnostics", report)
+            self.assertNotIn("diagnostics", report["results"][0])
+
+    def test_existing_sidecar_rolls_back_the_primary_reservation(self) -> None:
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "replay.json"
+            sidecar = Path(directory) / "replay.diagnostics.json"
+            sidecar.write_text("keep", encoding="utf-8")
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--diagnostics",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
+                self.assertRaisesRegex(ValueError, "Report already exists"),
+            ):
+                main()
+            self.assertFalse(output.exists())
+            self.assertEqual(sidecar.read_text(encoding="utf-8"), "keep")
+
     def test_replay_preserves_nondefault_source_cutoffs(self) -> None:
         for strategy, top_k, candidates in [
             ("expanded", 3, 10),
@@ -221,6 +312,7 @@ class ReplayGroundingTests(unittest.TestCase):
             *,
             trace: list[dict[str, object]] | None = None,
             claim_evidence: list[AnswerClaim] | None = None,
+            diagnostics: list[VerificationTrace] | None = None,
         ) -> str:
             self.assertIsNotNone(trace)
             cast(list[dict[str, object]], trace).append(trace_entry)
