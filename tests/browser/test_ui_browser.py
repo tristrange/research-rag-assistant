@@ -16,19 +16,26 @@ from app.main import app
 from app.service_checks import ServiceCheck, ServiceStatus
 from app.types import AnswerResult
 
-
 ANSWER: AnswerResult = {
     "answer": "**Results** showed *improvement* (paper.pdf, page 2).\n<img src=x>",
-    "sources": [{
-        "document": "paper.pdf", "page": 2, "chunk_index": 0,
-        "text": "The synthetic result improved. <script>throw new Error('unsafe')</script>",
-        "section": "results",
-    }],
-    "claim_evidence": [{
-        "text": "The synthetic result improved.",
-        "attribution": "this_document_authors",
-        "citations": [{"source_index": 0, "quote": "The synthetic result improved."}],
-    }],
+    "sources": [
+        {
+            "document": "paper.pdf",
+            "page": 2,
+            "chunk_index": 0,
+            "text": "The synthetic result improved. <script>throw new Error('unsafe')</script>",
+            "section": "results",
+        }
+    ],
+    "claim_evidence": [
+        {
+            "text": "The synthetic result improved.",
+            "attribution": "this_document_authors",
+            "citations": [
+                {"source_index": 0, "quote": "The synthetic result improved."}
+            ],
+        }
+    ],
     "outcome": "answered",
 }
 
@@ -69,16 +76,37 @@ class BrowserSmokeTests(unittest.TestCase):
 
     def setUp(self) -> None:
         patches = self.enterContext(ExitStack())
-        self.documents = patches.enter_context(patch(
-            "app.main.list_documents", return_value=["paper.pdf", "other.pdf"],
-        ))
-        patches.enter_context(patch("app.main.service_status", return_value=ServiceStatus(
-            available=True,
-            checks=[ServiceCheck(name=name, status="ok", message="Synthetic check passed.")
-                    for name in ("database", "ollama", "answer_model", "embedding_model")],
-        )))
-        self.answer = patches.enter_context(patch("app.main.answer_question", return_value=ANSWER))
-        self.each_answer = patches.enter_context(patch("app.main.answer_each_document", return_value=ANSWER))
+        self.documents = patches.enter_context(
+            patch(
+                "app.main.list_documents",
+                return_value=["paper.pdf", "other.pdf"],
+            )
+        )
+        patches.enter_context(
+            patch(
+                "app.main.service_status",
+                return_value=ServiceStatus(
+                    available=True,
+                    checks=[
+                        ServiceCheck(
+                            name=name, status="ok", message="Synthetic check passed."
+                        )
+                        for name in (
+                            "database",
+                            "ollama",
+                            "answer_model",
+                            "embedding_model",
+                        )
+                    ],
+                ),
+            )
+        )
+        self.answer = patches.enter_context(
+            patch("app.main.answer_question", return_value=ANSWER)
+        )
+        self.each_answer = patches.enter_context(
+            patch("app.main.answer_each_document", return_value=ANSWER)
+        )
         context = self.browser.new_context()
         self.addCleanup(context.close)
         # Exercise the actual button and rendered text without changing the host clipboard.
@@ -93,7 +121,9 @@ class BrowserSmokeTests(unittest.TestCase):
         self.page.on("pageerror", lambda error: self.page_errors.append(str(error)))
         self.page.goto(self.base_url)
         expect(self.page.locator("#document")).to_be_enabled()
-        expect(self.page.locator("#service-status")).to_contain_text("Service checks passed")
+        expect(self.page.locator("#service-status")).to_contain_text(
+            "Service checks passed"
+        )
 
     def tearDown(self) -> None:
         self.assertEqual(self.page_errors, [], "Unexpected browser JavaScript error")
@@ -126,7 +156,9 @@ class BrowserSmokeTests(unittest.TestCase):
         expect(theme).to_have_value("auto")
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
 
-    def test_theme_works_when_saved_preference_is_invalid_or_storage_is_blocked(self) -> None:
+    def test_theme_works_when_saved_preference_is_invalid_or_storage_is_blocked(
+        self,
+    ) -> None:
         page = self.page
         page.evaluate("localStorage.setItem('research-rag-theme', 'invalid')")
         page.reload()
@@ -140,7 +172,9 @@ class BrowserSmokeTests(unittest.TestCase):
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
         expect(page.locator("#question")).to_be_enabled()
 
-    def test_service_summary_stays_visible_with_keyboard_access_to_details(self) -> None:
+    def test_service_summary_stays_visible_with_keyboard_access_to_details(
+        self,
+    ) -> None:
         page = self.page
         diagnostics = page.locator(".service-details")
         self.assertEqual(diagnostics.count(), 1)
@@ -162,8 +196,12 @@ class BrowserSmokeTests(unittest.TestCase):
         page.locator("#question").focus()
         page.keyboard.press("Tab")
         expect(page.locator("#refresh-papers-button")).to_be_focused()
-        self.assertEqual(page.locator("#refresh-papers-button").evaluate(
-            "node => getComputedStyle(node).outlineStyle"), "solid")
+        self.assertEqual(
+            page.locator("#refresh-papers-button").evaluate(
+                "node => getComputedStyle(node).outlineStyle"
+            ),
+            "solid",
+        )
         page.locator("#question").fill("What happened?")
         page.locator("#ask-button").click()
         expect(page.locator("#answer-panel")).to_be_visible()
@@ -176,12 +214,22 @@ class BrowserSmokeTests(unittest.TestCase):
                 page.evaluate("scrollTo(0, 0)")
                 expect(page.locator(".site-header a")).to_be_in_viewport(ratio=1)
                 if width > 850:
-                    self.assertGreaterEqual(page.locator("#answer-text").evaluate(
-                        "node => node.getBoundingClientRect().width"), 256)
-                self.assertFalse(page.evaluate("document.documentElement.scrollWidth > innerWidth"))
+                    self.assertGreaterEqual(
+                        page.locator("#answer-text").evaluate(
+                            "node => node.getBoundingClientRect().width"
+                        ),
+                        256,
+                    )
+                self.assertFalse(
+                    page.evaluate("document.documentElement.scrollWidth > innerWidth")
+                )
                 for control in ("#question", "#document", "#ask-button"):
-                    self.assertGreaterEqual(page.locator(control).evaluate(
-                        "node => node.getBoundingClientRect().height"), 44)
+                    self.assertGreaterEqual(
+                        page.locator(control).evaluate(
+                            "node => node.getBoundingClientRect().height"
+                        ),
+                        44,
+                    )
 
     def test_question_evidence_links_and_clipboard(self) -> None:
         page = self.page
@@ -190,7 +238,9 @@ class BrowserSmokeTests(unittest.TestCase):
         page.locator("#question").fill("What happened?")
         page.locator("#ask-button").click()
         expect(page.locator("#request-status")).to_have_text("Answer ready.")
-        self.answer.assert_called_once_with("What happened?", answer_mode="verified", document="paper.pdf")
+        self.answer.assert_called_once_with(
+            "What happened?", answer_mode="verified", document="paper.pdf"
+        )
         self.each_answer.assert_not_called()
         expect(page.locator("#answer-text strong")).to_have_text("Results")
         expect(page.locator("#answer-text em")).to_have_text("improvement")
@@ -199,29 +249,41 @@ class BrowserSmokeTests(unittest.TestCase):
         expect(page.locator("#source-list script")).to_have_count(0)
         expect(page.locator("#evidence-panel")).to_be_visible()
         page.locator("#evidence-list summary").click()
-        expect(page.locator("#evidence-list blockquote")).to_have_text("The synthetic result improved.")
+        expect(page.locator("#evidence-list blockquote")).to_have_text(
+            "The synthetic result improved."
+        )
         page.locator("#answer-text a").click()
         expect(page.locator("#source-list details")).to_have_attribute("open", "")
         expect(page.locator("#source-list .source-excerpt")).to_be_visible()
         page.locator("#copy-answer-button").click()
         expect(page.locator("#copy-status")).to_have_text("Answer copied.")
-        self.assertEqual(page.evaluate("window.copiedAnswer"),
-                         "Results showed improvement (paper.pdf, page 2).\n<img src=x>")
+        self.assertEqual(
+            page.evaluate("window.copiedAnswer"),
+            "Results showed improvement (paper.pdf, page 2).\n<img src=x>",
+        )
 
     def test_refusal_overview_and_refresh_on_narrow_viewport(self) -> None:
         page = self.page
         page.set_viewport_size({"width": 390, "height": 844})
         self.answer.return_value = {
             "answer": "I do not have enough evidence in the provided sources to answer this question.",
-            "sources": ANSWER["sources"], "claim_evidence": [], "outcome": "insufficient_evidence",
+            "sources": ANSWER["sources"],
+            "claim_evidence": [],
+            "outcome": "insufficient_evidence",
         }
         page.locator("#question").fill("What were the main findings?")
         page.locator("#ask-button").click()
-        expect(page.locator("#request-status")).to_have_text("Not enough evidence to answer.")
-        expect(page.locator("#answer-guidance")).to_contain_text("Each paper (overview)")
+        expect(page.locator("#request-status")).to_have_text(
+            "Not enough evidence to answer."
+        )
+        expect(page.locator("#answer-guidance")).to_contain_text(
+            "Each paper (overview)"
+        )
         expect(page.locator("#evidence-panel")).to_be_hidden()
         expect(page.locator("#sources-panel")).to_be_visible()
-        self.answer.assert_called_once_with("What were the main findings?", answer_mode="verified", document=None)
+        self.answer.assert_called_once_with(
+            "What were the main findings?", answer_mode="verified", document=None
+        )
 
         self.each_answer.return_value = {**ANSWER, "outcome": "partial"}
         page.locator("#document").select_option("__each__")
@@ -232,19 +294,27 @@ class BrowserSmokeTests(unittest.TestCase):
         expect(page.locator("#document")).to_have_value("__each__")
         expect(page.locator("#question")).to_have_value("What were the main findings?")
         page.locator("#ask-button").click()
-        expect(page.locator("#request-status")).to_have_text("Some papers could not be answered.")
-        self.each_answer.assert_called_once_with("What were the main findings?", answer_mode="verified", overview=True)
+        expect(page.locator("#request-status")).to_have_text(
+            "Some papers could not be answered."
+        )
+        self.each_answer.assert_called_once_with(
+            "What were the main findings?", answer_mode="verified", overview=True
+        )
         expect(page.locator("#answer-guidance")).to_contain_text("At least one paper")
 
     def test_dependency_error_allows_retry(self) -> None:
         self.answer.side_effect = [
-            httpx.ConnectError("Synthetic offline model", request=httpx.Request("POST", OLLAMA_URL)),
+            httpx.ConnectError(
+                "Synthetic offline model", request=httpx.Request("POST", OLLAMA_URL)
+            ),
             ANSWER,
         ]
         page = self.page
         page.locator("#question").fill("What happened?")
         page.locator("#ask-button").click()
-        expect(page.locator("#request-error")).to_contain_text("Could not communicate with Ollama")
+        expect(page.locator("#request-error")).to_contain_text(
+            "Could not communicate with Ollama"
+        )
         expect(page.locator("#answer-panel")).to_be_hidden()
         expect(page.locator("#ask-button")).to_be_enabled()
         page.locator("#ask-button").click()

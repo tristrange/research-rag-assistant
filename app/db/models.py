@@ -7,7 +7,9 @@ from app.db.database import Base
 
 class Chunk(Base):
     __tablename__ = "chunks"
-    __table_args__ = (Index("uq_chunks_location", "document", "page", "chunk_index", unique=True),)
+    __table_args__ = (
+        Index("uq_chunks_location", "document", "page", "chunk_index", unique=True),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     document: Mapped[str] = mapped_column(Text)
@@ -15,7 +17,10 @@ class Chunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     section: Mapped[str] = mapped_column(
-        Text, nullable=False, default="unknown", server_default="unknown",
+        Text,
+        nullable=False,
+        default="unknown",
+        server_default="unknown",
     )
     embedding: Mapped[list[float]] = mapped_column(Vector(768))
 

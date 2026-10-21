@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.index_contract import IndexCompatibilityError
-
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
@@ -23,10 +22,11 @@ from app.retrieval.search import list_documents
 from app.service_checks import ServiceStatus, service_status
 from app.types import AnswerOutcome
 
-
 app = FastAPI(docs_url=None, redoc_url=None)
 _query_gate = Lock()
-_LOCAL_HOST = re.compile(r"(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?", re.IGNORECASE)
+_LOCAL_HOST = re.compile(
+    r"(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?", re.IGNORECASE
+)
 UI_DIR = Path(__file__).resolve().parent / "ui"
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 logger = logging.getLogger(__name__)
@@ -35,28 +35,52 @@ logger = logging.getLogger(__name__)
 def service_error(status: int, code: str, message: str) -> JSONResponse:
     # Do not include exception text, upstream bodies, SQL or connection credentials.
     logger.warning("Service request failed: %s", code)
-    return JSONResponse(status_code=status, content={"detail": {"code": code, "message": message}})
+    return JSONResponse(
+        status_code=status, content={"detail": {"code": code, "message": message}}
+    )
 
 
 @app.exception_handler(SQLAlchemyError)
 async def database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
-    return service_error(503, "database_error", "The database request failed. Check that PostgreSQL is running, load your .env settings, and run uv run python -m scripts.init_db.")
+    return service_error(
+        503,
+        "database_error",
+        "The database request failed. Check that PostgreSQL is running, load your .env settings, and run uv run python -m scripts.init_db.",
+    )
 
 
 @app.exception_handler(IndexCompatibilityError)
-async def index_profile_error(request: Request, error: IndexCompatibilityError) -> JSONResponse:
-    return service_error(409, "index_incompatible", "The selected papers have unknown or incompatible embedding provenance. Run uv run python -m scripts.init_db, then reindex them with uv run python -m scripts.index_pdf <PDF path>.")
+async def index_profile_error(
+    request: Request, error: IndexCompatibilityError
+) -> JSONResponse:
+    return service_error(
+        409,
+        "index_incompatible",
+        "The selected papers have unknown or incompatible embedding provenance. Run uv run python -m scripts.init_db, then reindex them with uv run python -m scripts.index_pdf <PDF path>.",
+    )
 
 
 @app.exception_handler(OllamaOutputLimitError)
-async def output_limit_error(request: Request, error: OllamaOutputLimitError) -> JSONResponse:
-    return service_error(502, "model_output_limit", "The model exhausted its output budget before completing the answer check. Try a narrower question; if this repeats, review RAG_GROUNDING_OUTPUT_TOKENS.")
+async def output_limit_error(
+    request: Request, error: OllamaOutputLimitError
+) -> JSONResponse:
+    return service_error(
+        502,
+        "model_output_limit",
+        "The model exhausted its output budget before completing the answer check. Try a narrower question; if this repeats, review RAG_GROUNDING_OUTPUT_TOKENS.",
+    )
 
 
 @app.exception_handler(OllamaResponseError)
-async def invalid_model_response(request: Request, error: OllamaResponseError) -> JSONResponse:
+async def invalid_model_response(
+    request: Request, error: OllamaResponseError
+) -> JSONResponse:
     activity = "embedding" if error.operation == "embedding" else "chat"
-    return service_error(502, "model_invalid_response", f"Ollama returned an invalid {activity} response. Check Ollama's logs and model compatibility, then try again.")
+    return service_error(
+        502,
+        "model_invalid_response",
+        f"Ollama returned an invalid {activity} response. Check Ollama's logs and model compatibility, then try again.",
+    )
 
 
 @app.exception_handler(httpx.HTTPError)
@@ -66,27 +90,58 @@ async def dependency_error(request: Request, error: httpx.HTTPError) -> JSONResp
     if isinstance(error, (httpx.RequestError, httpx.HTTPStatusError)):
         try:
             embedding_request = error.request.url == httpx.URL(OLLAMA_EMBED_URL)
-            ollama_request = embedding_request or error.request.url == httpx.URL(OLLAMA_URL)
+            ollama_request = embedding_request or error.request.url == httpx.URL(
+                OLLAMA_URL
+            )
         except RuntimeError:
             pass
     if not ollama_request:
-        return service_error(503, "dependency_error", "A required dependency request failed. Check local services and model downloads, then try again.")
+        return service_error(
+            503,
+            "dependency_error",
+            "A required dependency request failed. Check local services and model downloads, then try again.",
+        )
     if isinstance(error, httpx.TimeoutException):
         if embedding_request:
-            return service_error(504, "model_timeout", "Ollama did not finish embedding the question within the time limit. Check Ollama's activity and available memory, then try again. The grounding timeout setting does not control embeddings.")
-        return service_error(504, "model_timeout", "Ollama did not finish within the time limit. Wait for any model activity to finish, then try a narrower question. If this repeats, review RAG_GROUNDING_TIMEOUT_SECONDS.")
+            return service_error(
+                504,
+                "model_timeout",
+                "Ollama did not finish embedding the question within the time limit. Check Ollama's activity and available memory, then try again. The grounding timeout setting does not control embeddings.",
+            )
+        return service_error(
+            504,
+            "model_timeout",
+            "Ollama did not finish within the time limit. Wait for any model activity to finish, then try a narrower question. If this repeats, review RAG_GROUNDING_TIMEOUT_SECONDS.",
+        )
     if isinstance(error, httpx.HTTPStatusError):
         if error.response.status_code == 404:
             if embedding_request:
-                return service_error(503, "embedding_model_not_found", f"Ollama could not find the embedding model. Install it with ollama pull {EMBEDDING_MODEL}, then try again.")
-            return service_error(503, "model_not_found", "Ollama could not find the configured answer model. Check RAG_GROUNDING_MODEL and install that model with ollama pull.")
-        return service_error(502, "model_service_error", "Ollama could not complete the model request. Check Ollama's logs and available memory, then try again.")
-    return service_error(503, "model_unavailable", "Could not communicate with Ollama. Open the Ollama app or start ollama serve, then try again.")
+                return service_error(
+                    503,
+                    "embedding_model_not_found",
+                    f"Ollama could not find the embedding model. Install it with ollama pull {EMBEDDING_MODEL}, then try again.",
+                )
+            return service_error(
+                503,
+                "model_not_found",
+                "Ollama could not find the configured answer model. Check RAG_GROUNDING_MODEL and install that model with ollama pull.",
+            )
+        return service_error(
+            502,
+            "model_service_error",
+            "Ollama could not complete the model request. Check Ollama's logs and available memory, then try again.",
+        )
+    return service_error(
+        503,
+        "model_unavailable",
+        "Could not communicate with Ollama. Open the Ollama app or start ollama serve, then try again.",
+    )
 
 
 @app.middleware("http")
 async def local_only(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]],
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     """Reject accidental network exposure of this unauthenticated local app."""
     try:
@@ -141,7 +196,9 @@ class EvidenceQuote(BaseModel):
 
 class AnswerClaimEvidence(BaseModel):
     text: str
-    attribution: Literal["this_document_authors", "external_publication", "non_study_context"]
+    attribution: Literal[
+        "this_document_authors", "external_publication", "non_study_context"
+    ]
     citations: list[EvidenceQuote]
 
 
@@ -179,20 +236,29 @@ def query(request: QueryRequest) -> QueryResponse:
     try:
         if request.scope == "each":
             result = answer_each_document(
-                request.question, answer_mode=request.answer_mode, overview=True,
+                request.question,
+                answer_mode=request.answer_mode,
+                overview=True,
             )
         elif request.scope == "each_query":
             result = answer_each_document(
-                request.question, answer_mode=request.answer_mode, overview=False,
+                request.question,
+                answer_mode=request.answer_mode,
+                overview=False,
             )
         else:
             result = answer_question(
-                request.question, answer_mode=request.answer_mode, document=request.document,
+                request.question,
+                answer_mode=request.answer_mode,
+                document=request.document,
             )
         return QueryResponse(
             answer=result["answer"],
             sources=[Source(**source) for source in result["sources"]],
-            claim_evidence=[AnswerClaimEvidence.model_validate(claim) for claim in result.get("claim_evidence", [])],
+            claim_evidence=[
+                AnswerClaimEvidence.model_validate(claim)
+                for claim in result.get("claim_evidence", [])
+            ],
             outcome=result.get("outcome"),
         )
     finally:

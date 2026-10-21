@@ -23,10 +23,15 @@ class SearchTests(unittest.TestCase):
         sessions = sessionmaker(engine)
         with sessions.begin() as db:
             for index, document in enumerate(["b.pdf", "a.pdf", "b.pdf"]):
-                db.add(Chunk(
-                    document=document, page=1, chunk_index=index, text="Evidence",
-                    embedding=[0.0] * 768,
-                ))
+                db.add(
+                    Chunk(
+                        document=document,
+                        page=1,
+                        chunk_index=index,
+                        text="Evidence",
+                        embedding=[0.0] * 768,
+                    )
+                )
 
         with patch("app.retrieval.search.SessionLocal", sessions):
             self.assertEqual(list_documents(), ["a.pdf", "b.pdf"])
@@ -35,8 +40,10 @@ class SearchTests(unittest.TestCase):
         db = MagicMock()
         db.scalar.side_effect = [None, 1, None]
         db.scalars.return_value = []
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768),
+        ):
             self.assertEqual(search_chunks("Question", limit=3, document="a.pdf"), [])
 
         statement = db.scalars.call_args.args[0]
@@ -53,8 +60,13 @@ class SearchTests(unittest.TestCase):
         self.addCleanup(engine.dispose)
         Base.metadata.create_all(engine)
         sessions = sessionmaker(engine)
-        with patch("app.retrieval.search.SessionLocal", sessions), \
-                patch("app.retrieval.search.embed_text", side_effect=AssertionError("must not embed")) as embed:
+        with (
+            patch("app.retrieval.search.SessionLocal", sessions),
+            patch(
+                "app.retrieval.search.embed_text",
+                side_effect=AssertionError("must not embed"),
+            ) as embed,
+        ):
             self.assertEqual(search_chunks("Question", document="missing.pdf"), [])
         embed.assert_not_called()
 
@@ -62,8 +74,10 @@ class SearchTests(unittest.TestCase):
         db = MagicMock()
         db.scalar.return_value = None
         db.scalars.return_value = []
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768),
+        ):
             search_chunks("Question")
         statement = db.scalars.call_args.args[0]
         self.assertIsNone(statement.whereclause)
@@ -72,9 +86,13 @@ class SearchTests(unittest.TestCase):
         db = MagicMock()
         db.scalar.side_effect = [None, 1, None]
         db.scalars.return_value = []
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768):
-            search_chunks("Findings", document="a.pdf", sections=("abstract", "discussion"))
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768),
+        ):
+            search_chunks(
+                "Findings", document="a.pdf", sections=("abstract", "discussion")
+            )
         compiled = db.scalars.call_args.args[0].compile()
         sql = str(compiled)
         self.assertIn("chunks.document =", sql)
@@ -82,12 +100,16 @@ class SearchTests(unittest.TestCase):
         self.assertLess(sql.index("chunks.section IN"), sql.index("ORDER BY"))
         self.assertEqual(compiled.params["section_1"], ["abstract", "discussion"])
 
-    def test_question_embedding_is_reused_across_scopes_but_fresh_per_instance(self) -> None:
+    def test_question_embedding_is_reused_across_scopes_but_fresh_per_instance(
+        self,
+    ) -> None:
         db = MagicMock()
         db.scalar.side_effect = [None, 1, None, None, 1, None, None, None]
         db.scalars.return_value = []
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768) as embed:
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768) as embed,
+        ):
             shared = QuestionEmbedding("Question")
             search_by_embedding(shared, document="a.pdf", sections=("abstract",))
             search_by_embedding(shared, document="b.pdf", sections=("discussion",))
@@ -96,14 +118,18 @@ class SearchTests(unittest.TestCase):
             search_by_embedding(fresh)
 
         self.assertEqual(embed.call_count, 2)
-        self.assertEqual([call.args[0] for call in embed.call_args_list], ["Question", "Question"])
+        self.assertEqual(
+            [call.args[0] for call in embed.call_args_list], ["Question", "Question"]
+        )
 
     def test_different_questions_are_not_shared(self) -> None:
         db = MagicMock()
         db.scalar.return_value = None
         db.scalars.return_value = []
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768) as embed:
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768) as embed,
+        ):
             search_by_embedding(QuestionEmbedding("First question"))
             search_by_embedding(QuestionEmbedding("Second question"))
 
@@ -115,8 +141,13 @@ class SearchTests(unittest.TestCase):
     def test_incompatible_corpus_skips_embedding(self) -> None:
         db = MagicMock()
         db.scalar.side_effect = IndexCompatibilityError("incompatible")
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", side_effect=AssertionError("must not embed")) as embed:
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch(
+                "app.retrieval.search.embed_text",
+                side_effect=AssertionError("must not embed"),
+            ) as embed,
+        ):
             with self.assertRaises(IndexCompatibilityError):
                 search_by_embedding(QuestionEmbedding("Question"))
         embed.assert_not_called()
@@ -127,11 +158,13 @@ class SearchTests(unittest.TestCase):
         db.scalar.return_value = None
         db.scalars.return_value = []
         embedding = QuestionEmbedding("Question")
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch(
-                    "app.retrieval.search.embed_text",
-                    side_effect=[RuntimeError("embedding failed"), [0.0] * 768],
-                ) as embed:
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch(
+                "app.retrieval.search.embed_text",
+                side_effect=[RuntimeError("embedding failed"), [0.0] * 768],
+            ) as embed,
+        ):
             with self.assertRaisesRegex(RuntimeError, "embedding failed"):
                 search_by_embedding(embedding)
             search_by_embedding(embedding)
@@ -139,7 +172,9 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(embed.call_count, 2)
         db.scalars.assert_called_once()
 
-    def test_first_inference_happens_after_read_lock_transaction_is_released(self) -> None:
+    def test_first_inference_happens_after_read_lock_transaction_is_released(
+        self,
+    ) -> None:
         db = MagicMock()
         db.scalar.return_value = None
         db.scalars.return_value = []
@@ -151,9 +186,14 @@ class SearchTests(unittest.TestCase):
             self.assertEqual(events, ["lock", "rollback", "embed"])
             return [0.0] * 768
 
-        with patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.lock_index", side_effect=lambda *args, **kwargs: events.append("lock")), \
-                patch("app.retrieval.search.embed_text", side_effect=embed_after_rollback):
+        with (
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch(
+                "app.retrieval.search.lock_index",
+                side_effect=lambda *args, **kwargs: events.append("lock"),
+            ),
+            patch("app.retrieval.search.embed_text", side_effect=embed_after_rollback),
+        ):
             db.rollback.side_effect = lambda: events.append("rollback")
             search_by_embedding(QuestionEmbedding("Question"))
 
@@ -163,10 +203,12 @@ class SearchTests(unittest.TestCase):
         db = MagicMock()
         db.scalar.return_value = None
         db.scalars.return_value = []
-        with patch("app.embeddings.EMBEDDING_MODEL", "model-a"), \
-                patch("app.embeddings.EMBEDDING_DIMENSIONS", 768), \
-                patch("app.retrieval.search.SessionLocal", return_value=db), \
-                patch("app.retrieval.search.embed_text", return_value=[0.0] * 768) as embed:
+        with (
+            patch("app.embeddings.EMBEDDING_MODEL", "model-a"),
+            patch("app.embeddings.EMBEDDING_DIMENSIONS", 768),
+            patch("app.retrieval.search.SessionLocal", return_value=db),
+            patch("app.retrieval.search.embed_text", return_value=[0.0] * 768) as embed,
+        ):
             embedding = QuestionEmbedding("Question")
             search_by_embedding(embedding)
             db.scalars.reset_mock()
@@ -178,11 +220,18 @@ class SearchTests(unittest.TestCase):
         embed.assert_called_once_with("Question")
         db.scalars.assert_not_called()
 
-    def test_search_chunks_rejects_embedding_for_a_different_question_before_services(self) -> None:
-        with patch("app.retrieval.search.SessionLocal") as session, \
-                patch("app.retrieval.search.embed_text") as embed:
+    def test_search_chunks_rejects_embedding_for_a_different_question_before_services(
+        self,
+    ) -> None:
+        with (
+            patch("app.retrieval.search.SessionLocal") as session,
+            patch("app.retrieval.search.embed_text") as embed,
+        ):
             with self.assertRaises(ValueError):
-                search_chunks("Different question", query_embedding=QuestionEmbedding("Original question"))
+                search_chunks(
+                    "Different question",
+                    query_embedding=QuestionEmbedding("Original question"),
+                )
 
         session.assert_not_called()
         embed.assert_not_called()

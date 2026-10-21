@@ -21,8 +21,15 @@ class SnapshotTests(unittest.TestCase):
 
     def add_chunk(self, document: str = "sample.pdf") -> None:
         with self.sessions.begin() as db:
-            db.add(Chunk(document=document, page=1, chunk_index=0,
-                         text="Research passage", embedding=[0.0] * 768))
+            db.add(
+                Chunk(
+                    document=document,
+                    page=1,
+                    chunk_index=0,
+                    text="Research passage",
+                    embedding=[0.0] * 768,
+                )
+            )
 
     def test_missing_document_rejected(self) -> None:
         self.add_chunk("other.pdf")

@@ -4,8 +4,8 @@ from sentence_transformers import CrossEncoder
 
 from app.db.models import Chunk
 
-
 MODEL_NAME = "BAAI/bge-reranker-base"
+
 
 @cache
 def get_model() -> CrossEncoder:
@@ -21,10 +21,7 @@ def rerank_chunks(
     if not chunks:
         return []
 
-    pairs = [
-        (query, chunk.text)
-        for chunk in chunks
-    ]
+    pairs = [(query, chunk.text) for chunk in chunks]
 
     scores = get_model().predict(pairs)
 
@@ -34,13 +31,12 @@ def rerank_chunks(
         reverse=True,
     )
 
-    return [
-        chunk
-        for chunk, _ in ranked[:limit]
-    ]
+    return [chunk for chunk, _ in ranked[:limit]]
 
 
-def with_vector_reserve(reranked: list[Chunk], vector_ranked: list[Chunk]) -> list[Chunk]:
+def with_vector_reserve(
+    reranked: list[Chunk], vector_ranked: list[Chunk]
+) -> list[Chunk]:
     """Append the highest vector-ranked chunk absent from the reranked selection."""
     selected = {(chunk.document, chunk.page, chunk.chunk_index) for chunk in reranked}
     for chunk in vector_ranked:
@@ -49,7 +45,9 @@ def with_vector_reserve(reranked: list[Chunk], vector_ranked: list[Chunk]) -> li
     raise ValueError("vector reserve requires an unselected vector candidate")
 
 
-def rerank_with_page_reserve(query: str, chunks: list[Chunk], limit: int = 6) -> list[Chunk]:
+def rerank_with_page_reserve(
+    query: str, chunks: list[Chunk], limit: int = 6
+) -> list[Chunk]:
     """Reserve one vector candidate, preferring a page absent from the reranked set."""
     if limit < 1:
         raise ValueError("limit must be positive")
@@ -57,5 +55,7 @@ def rerank_with_page_reserve(query: str, chunks: list[Chunk], limit: int = 6) ->
         return rerank_chunks(query, chunks, limit=limit)
     selected = rerank_chunks(query, chunks, limit=limit - 1)
     pages = {(chunk.document, chunk.page) for chunk in selected}
-    other_pages = [chunk for chunk in chunks if (chunk.document, chunk.page) not in pages]
+    other_pages = [
+        chunk for chunk in chunks if (chunk.document, chunk.page) not in pages
+    ]
     return with_vector_reserve(selected, other_pages or chunks)

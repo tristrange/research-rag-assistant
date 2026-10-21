@@ -1,12 +1,11 @@
 """Extract, embed and atomically replace one PDF in the paper index."""
 
-from collections.abc import Callable
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 
-import pymupdf
 import httpx
-
+import pymupdf
 from sqlalchemy import delete
 
 from app.db.database import SessionLocal
@@ -15,7 +14,6 @@ from app.db.models import Chunk, DocumentIndex
 from app.embeddings import MAX_EMBEDDING_BATCH_SIZE, embed_texts
 from app.ingestion.chunking import chunk_pages
 from app.ingestion.pdf import extract_pages
-
 
 PDF_PATH = "data/sample.pdf"
 
@@ -34,8 +32,11 @@ def pdf_checksum(path: Path) -> str:
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
-def index_pdf(pdf_path: str = PDF_PATH, *, progress: Callable[[str], None] | None = None) -> int:
+def index_pdf(
+    pdf_path: str = PDF_PATH, *, progress: Callable[[str], None] | None = None
+) -> int:
     """Replace a document's chunks atomically, using its filename as identity."""
+
     def report(message: str) -> None:
         if progress is not None:
             progress(message)
@@ -52,7 +53,9 @@ def index_pdf(pdf_path: str = PDF_PATH, *, progress: Callable[[str], None] | Non
         max_total_chars=MAX_PDF_CHARS,
     )
     if pdf_checksum(path) != checksum:
-        raise ValueError("PDF changed during extraction; the existing index was not replaced.")
+        raise ValueError(
+            "PDF changed during extraction; the existing index was not replaced."
+        )
     report(f"Read {len(pages)} PDF pages. Preparing chunks…")
     chunks = chunk_pages(
         pages,
@@ -72,17 +75,19 @@ def index_pdf(pdf_path: str = PDF_PATH, *, progress: Callable[[str], None] | Non
         # client or a write transaction held open during inference.
         with httpx.Client() as client:
             for start in range(0, len(chunks), MAX_EMBEDDING_BATCH_SIZE):
-                batch = chunks[start:start + MAX_EMBEDDING_BATCH_SIZE]
+                batch = chunks[start : start + MAX_EMBEDDING_BATCH_SIZE]
                 vectors = embed_texts([chunk["text"] for chunk in batch], client=client)
                 for chunk, embedding in zip(batch, vectors, strict=True):
-                    db_chunks.append(Chunk(
-                        document=chunk["document"],
-                        page=chunk["page"],
-                        chunk_index=chunk["chunk_index"],
-                        text=chunk["text"],
-                        section=chunk.get("section", "unknown"),
-                        embedding=embedding,
-                    ))
+                    db_chunks.append(
+                        Chunk(
+                            document=chunk["document"],
+                            page=chunk["page"],
+                            chunk_index=chunk["chunk_index"],
+                            text=chunk["text"],
+                            section=chunk.get("section", "unknown"),
+                            embedding=embedding,
+                        )
+                    )
                 completed = start + len(batch)
                 if completed >= next_report or completed == len(chunks):
                     report(f"Embedding chunks: {completed}/{len(chunks)}")
@@ -90,18 +95,26 @@ def index_pdf(pdf_path: str = PDF_PATH, *, progress: Callable[[str], None] | Non
 
     report("Saving index…")
     if pdf_checksum(path) != checksum or embedding_profile() != (model, dimensions):
-        raise ValueError("PDF or embedding profile changed during indexing; the existing index was not replaced.")
+        raise ValueError(
+            "PDF or embedding profile changed during indexing; the existing index was not replaced."
+        )
     with SessionLocal.begin() as db:
         lock_index(db)
         db.execute(delete(Chunk).where(Chunk.document == path.name))
         db.execute(delete(DocumentIndex).where(DocumentIndex.document == path.name))
         db.add_all(db_chunks)
         if db_chunks:
-            db.add(DocumentIndex(
-                document=path.name, pdf_sha256=checksum,
-                embedding_model=model, embedding_dimensions=dimensions,
-                extraction_version=EXTRACTION_VERSION, chunking_version=CHUNKING_VERSION,
-                chunk_size=chunk_size, overlap=overlap,
-            ))
+            db.add(
+                DocumentIndex(
+                    document=path.name,
+                    pdf_sha256=checksum,
+                    embedding_model=model,
+                    embedding_dimensions=dimensions,
+                    extraction_version=EXTRACTION_VERSION,
+                    chunking_version=CHUNKING_VERSION,
+                    chunk_size=chunk_size,
+                    overlap=overlap,
+                )
+            )
 
     return len(db_chunks)

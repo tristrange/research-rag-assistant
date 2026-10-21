@@ -2,7 +2,6 @@
 
 from app.types import RetrievalTestCase
 
-
 TEST_CASES: list[RetrievalTestCase] = [
     {
         "question": "What is the main contribution of the paper?",

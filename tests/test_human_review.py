@@ -1,31 +1,54 @@
 import csv
+import json
+import unittest
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, summarize
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import ReportModel, _new_report
 from scripts.prepare_human_review import (
-    REVIEW_COLUMNS, ReviewManifest, ReviewSelection, configuration_hash, prepare_packet, summarize_review,
+    REVIEW_COLUMNS,
+    ReviewManifest,
+    ReviewSelection,
+    configuration_hash,
+    prepare_packet,
+    summarize_review,
 )
 
 
 class HumanReviewTests(unittest.TestCase):
-    def test_legacy_configuration_hash_keeps_unknown_inference_fields_absent(self) -> None:
+    def test_legacy_configuration_hash_keeps_unknown_inference_fields_absent(
+        self,
+    ) -> None:
         raw = json.loads(self.path.read_text())
-        for field in ("grounding_sampling", "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds", "reserve_vector_page"):
+        for field in (
+            "grounding_sampling",
+            "grounding_draft_timeout_seconds",
+            "grounding_verifier_timeout_seconds",
+            "reserve_vector_page",
+        ):
             raw["settings"].pop(field, None)
         legacy = ReportModel.model_validate(raw)
-        original_configuration = {"settings": raw["settings"],
-                                  "generator_model": raw["generator_model"], "judge_model": raw["judge_model"],
-                                  "embedding_model": raw["embedding_model"], "reranker_model": raw["reranker_model"]}
-        self.assertEqual(configuration_hash(legacy), sha256(json.dumps(original_configuration, sort_keys=True).encode()).hexdigest())
+        original_configuration = {
+            "settings": raw["settings"],
+            "generator_model": raw["generator_model"],
+            "judge_model": raw["judge_model"],
+            "embedding_model": raw["embedding_model"],
+            "reranker_model": raw["reranker_model"],
+        }
+        self.assertEqual(
+            configuration_hash(legacy),
+            sha256(
+                json.dumps(original_configuration, sort_keys=True).encode()
+            ).hexdigest(),
+        )
         self.assertIsNone(legacy.settings.grounding_sampling)
-        self.assertNotEqual(configuration_hash(legacy), self.manifest.configuration_sha256)
+        self.assertNotEqual(
+            configuration_hash(legacy), self.manifest.configuration_sha256
+        )
 
     def setUp(self) -> None:
         self.temp = TemporaryDirectory()
@@ -36,35 +59,78 @@ class HumanReviewTests(unittest.TestCase):
         self.pdf = self.root / "data/paper.pdf"
         self.pdf.write_bytes(b"synthetic PDF fixture")
         case = AnswerEvaluationCase(
-            id="control", question="What happened?", answerable=True,
+            id="control",
+            question="What happened?",
+            answerable=True,
             reference_answer="A synthetic response increased.",
             evidence=[{"document": "paper.pdf", "page": 2, "quote": "Evidence."}],
         )
         result = CaseEvaluation(
-            case=case, answer="</pre><script>alert(1)</script>",
-            sources=[{"document": "paper.pdf", "page": 2, "chunk_index": 0,
-                      "section": "results", "text": "<img src=x onerror=alert(1)>"}],
-            evidence_found=[True], evidence_recall=1.0, abstained=False,
-            judge={"correctness": 2, "completeness": 2, "citation_support": 2,
-                   "explanation": "HIDDEN_JUDGE_SCORE"},
-            answer_ms=1.0, judge_ms=1.0, passed=True,
+            case=case,
+            answer="</pre><script>alert(1)</script>",
+            sources=[
+                {
+                    "document": "paper.pdf",
+                    "page": 2,
+                    "chunk_index": 0,
+                    "section": "results",
+                    "text": "<img src=x onerror=alert(1)>",
+                }
+            ],
+            evidence_found=[True],
+            evidence_recall=1.0,
+            abstained=False,
+            judge={
+                "correctness": 2,
+                "completeness": 2,
+                "citation_support": 2,
+                "explanation": "HIDDEN_JUDGE_SCORE",
+            },
+            answer_ms=1.0,
+            judge_ms=1.0,
+            passed=True,
         )
-        report = _new_report(datetime.now(timezone.utc),
-                             CorpusSnapshot(sha256="corpus", chunks_by_document={"paper.pdf": 1}),
-                             [case], "reranked", "reranker", "verified",
-                             paper_sha256=sha256(self.pdf.read_bytes()).hexdigest())
-        report.update(status="complete", results=[result], metrics=summarize([result]),
-                      calibration={"version": report["calibration_version"], "passed": True,
-                                   "results": [{"id": "test", "passed": True,
-                                                "expected": {"abstained": False},
-                                                "actual": {**result["judge"], "abstained": False}}]})
+        report = _new_report(
+            datetime.now(timezone.utc),
+            CorpusSnapshot(sha256="corpus", chunks_by_document={"paper.pdf": 1}),
+            [case],
+            "reranked",
+            "reranker",
+            "verified",
+            paper_sha256=sha256(self.pdf.read_bytes()).hexdigest(),
+        )
+        report.update(
+            status="complete",
+            results=[result],
+            metrics=summarize([result]),
+            calibration={
+                "version": report["calibration_version"],
+                "passed": True,
+                "results": [
+                    {
+                        "id": "test",
+                        "passed": True,
+                        "expected": {"abstained": False},
+                        "actual": {**result["judge"], "abstained": False},
+                    }
+                ],
+            },
+        )
         self.path = self.root / "evaluation-results/report.json"
         self.path.write_text(json.dumps(report))
-        self.manifest = ReviewManifest(schema_version=1, purpose="development",
-                                      configuration_sha256=configuration_hash(ReportModel.model_validate(report)), selections=[
-            ReviewSelection(id="paper", report="evaluation-results/report.json",
-                            sha256=sha256(self.path.read_bytes()).hexdigest(), case_ids=["control"]),
-        ])
+        self.manifest = ReviewManifest(
+            schema_version=1,
+            purpose="development",
+            configuration_sha256=configuration_hash(ReportModel.model_validate(report)),
+            selections=[
+                ReviewSelection(
+                    id="paper",
+                    report="evaluation-results/report.json",
+                    sha256=sha256(self.path.read_bytes()).hexdigest(),
+                    case_ids=["control"],
+                ),
+            ],
+        )
         self.output = self.root / "evaluation-results/packet"
 
     def prepare(self) -> Path:
@@ -122,7 +188,9 @@ class HumanReviewTests(unittest.TestCase):
                 if status != "complete":
                     report["metrics"] = None
                 self.path.write_text(json.dumps(report))
-                self.manifest.selections[0].sha256 = sha256(self.path.read_bytes()).hexdigest()
+                self.manifest.selections[0].sha256 = sha256(
+                    self.path.read_bytes()
+                ).hexdigest()
                 with self.assertRaisesRegex(ValueError, "completed verified"):
                     self.prepare()
                 self.assertFalse(self.output.exists())
@@ -134,7 +202,9 @@ class HumanReviewTests(unittest.TestCase):
         path.write_text("\ufeff" + path.read_text())
         self.assertEqual(summarize_review(self.manifest, path)["pass"], 1)
         path.write_text(path.read_text(encoding="utf-8-sig"))
-        self.edit_review("label_issue", "The population is not established by this label.")
+        self.edit_review(
+            "label_issue", "The population is not established by this label."
+        )
         self.assertEqual(summarize_review(self.manifest, path)["label_issue"], 1)
         self.edit_review("needs_fix")
         with self.assertRaisesRegex(ValueError, "requires notes"):
@@ -170,5 +240,9 @@ class HumanReviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "output must"):
             prepare_packet(self.manifest, self.root, self.root / "tracked")
         with self.assertRaises(ValueError):
-            ReviewSelection(id="paper", report="../report.json", sha256="0" * 64,
-                            case_ids=["control"])
+            ReviewSelection(
+                id="paper",
+                report="../report.json",
+                sha256="0" * 64,
+                case_ids=["control"],
+            )

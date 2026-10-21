@@ -11,7 +11,9 @@ def chunk(page: int, document: str = "sample.pdf") -> Chunk:
 
 class EvaluationTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.case = EvaluationCase(question="Question", document="sample.pdf", expected_pages=[7, 9])
+        self.case = EvaluationCase(
+            question="Question", document="sample.pdf", expected_pages=[7, 9]
+        )
 
     def test_relevance_requires_both_document_and_page(self) -> None:
         self.assertEqual(relevant_rank([chunk(7, "other.pdf"), chunk(7)], self.case), 2)
@@ -51,16 +53,25 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(result["questions"][0]["change"], "worsened")
 
     def test_empty_retrieval_counts_as_miss(self) -> None:
-        result = compare([self.case], lambda query, limit: [],
-                         lambda query, chunks, limit: [], repetitions=1)
+        result = compare(
+            [self.case],
+            lambda query, limit: [],
+            lambda query, chunks, limit: [],
+            repetitions=1,
+        )
         self.assertEqual(result["candidate_hit_rate"], 0)
         self.assertEqual(result["reranked"]["mrr_at_k"], 0)
         self.assertEqual(result["questions"][0]["change"], "unchanged")
 
     def test_latency_separates_retrieval_and_reranking(self) -> None:
         with patch("app.evaluation.perf_counter", side_effect=[1.0, 1.1, 1.4]):
-            run = measure(self.case, lambda query, limit: [chunk(7)],
-                          lambda query, chunks, limit: chunks, 3, 10)
+            run = measure(
+                self.case,
+                lambda query, limit: [chunk(7)],
+                lambda query, chunks, limit: chunks,
+                3,
+                10,
+            )
         self.assertAlmostEqual(run["retrieval_ms"], 100)
         self.assertAlmostEqual(run["reranking_ms"], 300)
         self.assertAlmostEqual(run["total_ms"], 400)
@@ -69,12 +80,22 @@ class EvaluationTests(unittest.TestCase):
         def search(query: str, limit: int) -> list[Chunk]:
             self.fail("Invalid configuration must not call retrieval")
 
-        for cases, k, candidates, repeats in [([], 3, 10, 1), ([self.case], 0, 10, 1),
-                                             ([self.case], 4, 3, 1), ([self.case], 3, 10, 0)]:
+        for cases, k, candidates, repeats in [
+            ([], 3, 10, 1),
+            ([self.case], 0, 10, 1),
+            ([self.case], 4, 3, 1),
+            ([self.case], 3, 10, 0),
+        ]:
             with self.subTest(k=k, candidates=candidates, repeats=repeats):
                 with self.assertRaises(ValueError):
-                    compare(cases, search, lambda query, chunks, limit: chunks,
-                            top_k=k, candidate_count=candidates, repetitions=repeats)
+                    compare(
+                        cases,
+                        search,
+                        lambda query, chunks, limit: chunks,
+                        top_k=k,
+                        candidate_count=candidates,
+                        repetitions=repeats,
+                    )
 
 
 if __name__ == "__main__":

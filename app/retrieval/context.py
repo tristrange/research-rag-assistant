@@ -14,7 +14,6 @@ from app.db.database import SessionLocal
 from app.db.models import Chunk
 from app.types import ChunkData
 
-
 MAX_CONTEXT_CHARS = 6000
 NEIGHBOR_RADIUS = 2
 
@@ -51,9 +50,7 @@ def _merge_adjacent_text(left: str, right: str) -> str:
         if left.endswith(right[:overlap]):
             return left + right[overlap:]
     separator = (
-        ""
-        if not left or not right or left[-1].isspace() or right[0].isspace()
-        else " "
+        "" if not left or not right or left[-1].isspace() or right[0].isspace() else " "
     )
     return left + separator + right
 
@@ -63,7 +60,9 @@ def _sources_for_chunks(chunks: dict[ChunkKey, _RankedChunk]) -> list[ChunkData]
     by_page: dict[PageKey, list[_RankedChunk]] = {}
     for ranked_chunk in chunks.values():
         chunk = ranked_chunk.chunk
-        by_page.setdefault((chunk.document, chunk.page, chunk.section or "unknown"), []).append(ranked_chunk)
+        by_page.setdefault(
+            (chunk.document, chunk.page, chunk.section or "unknown"), []
+        ).append(ranked_chunk)
 
     windows: list[tuple[int, ChunkData]] = []
     for (document, page, section), page_chunks in by_page.items():
@@ -80,29 +79,44 @@ def _sources_for_chunks(chunks: dict[ChunkKey, _RankedChunk]) -> list[ChunkData]
                 text = _merge_adjacent_text(text, item.chunk.text)
                 priority = min(priority, item.priority)
             else:
-                windows.append((priority, {
-                    "document": document,
-                    "section": section,
-                    "page": page,
-                    "chunk_index": start_index,
-                    "text": text,
-                }))
+                windows.append(
+                    (
+                        priority,
+                        {
+                            "document": document,
+                            "section": section,
+                            "page": page,
+                            "chunk_index": start_index,
+                            "text": text,
+                        },
+                    )
+                )
                 start_index = index
                 text = item.chunk.text
                 priority = item.priority
             previous_index = index
 
-        windows.append((priority, {
-            "document": document,
-            "section": section,
-            "page": page,
-            "chunk_index": start_index,
-            "text": text,
-        }))
+        windows.append(
+            (
+                priority,
+                {
+                    "document": document,
+                    "section": section,
+                    "page": page,
+                    "chunk_index": start_index,
+                    "text": text,
+                },
+            )
+        )
 
-    windows.sort(key=lambda item: (
-        item[0], item[1]["document"], item[1]["page"], item[1]["chunk_index"],
-    ))
+    windows.sort(
+        key=lambda item: (
+            item[0],
+            item[1]["document"],
+            item[1]["page"],
+            item[1]["chunk_index"],
+        )
+    )
     return [source for _, source in windows]
 
 
@@ -151,9 +165,15 @@ def _load_neighbors(seeds: list[Chunk]) -> dict[ChunkKey, Chunk]:
     ]
     statement = (
         select(Chunk)
-        .options(load_only(
-            Chunk.document, Chunk.page, Chunk.chunk_index, Chunk.text, Chunk.section,
-        ))
+        .options(
+            load_only(
+                Chunk.document,
+                Chunk.page,
+                Chunk.chunk_index,
+                Chunk.text,
+                Chunk.section,
+            )
+        )
         .where(or_(*conditions))
     )
 
@@ -218,17 +238,32 @@ def expand_chunks(
     # neighbor is represented once, at its highest owning seed priority.
     for priority, seed in included_seeds:
         for offset in _neighbor_offsets():
-            neighbor = neighbors.get((seed.document, seed.page, seed.chunk_index + offset))
-            if neighbor is None or (neighbor.section or "unknown") != (seed.section or "unknown"):
+            neighbor = neighbors.get(
+                (seed.document, seed.page, seed.chunk_index + offset)
+            )
+            if neighbor is None or (neighbor.section or "unknown") != (
+                seed.section or "unknown"
+            ):
                 continue
             # Do not jump over a section boundary to a similarly named section.
             step = 1 if offset > 0 else -1
             intermediate = [
                 neighbors.get((seed.document, seed.page, seed.chunk_index + delta))
-                or next((s for s in seeds if _key(s) == (seed.document, seed.page, seed.chunk_index + delta)), None)
+                or next(
+                    (
+                        s
+                        for s in seeds
+                        if _key(s)
+                        == (seed.document, seed.page, seed.chunk_index + delta)
+                    ),
+                    None,
+                )
                 for delta in range(step, offset, step)
             ]
-            if any(c is None or (c.section or "unknown") != (seed.section or "unknown") for c in intermediate):
+            if any(
+                c is None or (c.section or "unknown") != (seed.section or "unknown")
+                for c in intermediate
+            ):
                 continue
             candidate = _with_chunk(selected, neighbor, priority)
             if _fits(candidate, max_chars):

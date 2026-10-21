@@ -12,7 +12,9 @@ def page(text: str, document: str = "paper.pdf", number: int = 7) -> PageData:
 
 
 class ChunkingTests(unittest.TestCase):
-    def test_preserves_numerical_context_and_avoids_decimal_sentence_split(self) -> None:
+    def test_preserves_numerical_context_and_avoids_decimal_sentence_split(
+        self,
+    ) -> None:
         text = (
             "Food-restricted mice lost 1.2 g (− 3.9%) body weight\n"
             "on average after 3 days, compared to controls. The next result followed."
@@ -28,7 +30,9 @@ class ChunkingTests(unittest.TestCase):
 
     def test_keeps_a_numerical_sentence_whole_when_it_fits(self) -> None:
         sentence = "Mice lost 1.2 g (− 3.9%) body weight."
-        chunks = chunk_pages([page(sentence + " More results followed.")], len(sentence), 0)
+        chunks = chunk_pages(
+            [page(sentence + " More results followed.")], len(sentence), 0
+        )
 
         self.assertEqual(chunks[0]["text"], sentence)
 
@@ -43,7 +47,9 @@ class ChunkingTests(unittest.TestCase):
         chunks = chunk_pages([page(text)], chunk_size=29, overlap=2)
 
         self.assertTrue(all(not chunk["text"].startswith("9%)") for chunk in chunks))
-        self.assertTrue(all(not chunk["text"].startswith("3 for the result") for chunk in chunks))
+        self.assertTrue(
+            all(not chunk["text"].startswith("3 for the result") for chunk in chunks)
+        )
 
     def test_et_al_period_is_not_a_sentence_boundary(self) -> None:
         text = "Prior findings from Smith et al. 2020 show a consistent effect across later studies."
@@ -59,17 +65,27 @@ class ChunkingTests(unittest.TestCase):
         self.assertTrue(all(not chunk["text"].endswith("al.") for chunk in chunks))
         self.assertEqual("".join(chunk["text"] for chunk in chunks), text)
 
-    def test_overlap_does_not_treat_et_al_as_sentence_before_citation_year(self) -> None:
+    def test_overlap_does_not_treat_et_al_as_sentence_before_citation_year(
+        self,
+    ) -> None:
         text = "Intro sentence. Prior findings from Smith et al. 2020 show a consistent effect."
         citation_period = text.index("al.") + 2
 
-        next_start = _next_chunk_start(text, 0, len(text), overlap=len(text) - (citation_period + 2), chunk_size=len(text))
+        next_start = _next_chunk_start(
+            text,
+            0,
+            len(text),
+            overlap=len(text) - (citation_period + 2),
+            chunk_size=len(text),
+        )
 
         self.assertEqual(next_start, text.index(".") + 1)
 
     def test_abbreviation_check_does_not_match_ordinary_word_suffix(self) -> None:
         text = "The result was normal. A second sentence follows."
-        chunks = chunk_pages([page(text)], chunk_size=len("The result was normal."), overlap=0)
+        chunks = chunk_pages(
+            [page(text)], chunk_size=len("The result was normal."), overlap=0
+        )
 
         self.assertEqual(chunks[0]["text"], "The result was normal.")
 
@@ -77,17 +93,27 @@ class ChunkingTests(unittest.TestCase):
         text = "See Fig. 3 and e.g. 1.5 units. Dr. Lee agreed."
         chunks = chunk_pages([page(text)], chunk_size=30, overlap=0)
 
-        self.assertTrue(all(not chunk["text"].endswith(("Fig.", "e.g.", "Dr.")) for chunk in chunks))
+        self.assertTrue(
+            all(not chunk["text"].endswith(("Fig.", "e.g.", "Dr.")) for chunk in chunks)
+        )
         self.assertEqual("".join(chunk["text"] for chunk in chunks), text)
 
     def test_page_chunk_indices_restart_and_size_one_makes_progress(self) -> None:
-        chunks = chunk_pages([page("abcdef", number=1), page("gh", number=2)], chunk_size=1, overlap=0)
+        chunks = chunk_pages(
+            [page("abcdef", number=1), page("gh", number=2)], chunk_size=1, overlap=0
+        )
 
-        self.assertEqual([chunk["chunk_index"] for chunk in chunks], [0, 1, 2, 3, 4, 5, 0, 1])
+        self.assertEqual(
+            [chunk["chunk_index"] for chunk in chunks], [0, 1, 2, 3, 4, 5, 0, 1]
+        )
         self.assertEqual("".join(chunk["text"] for chunk in chunks), "abcdefgh")
 
-    def test_preserves_exact_substrings_coverage_overlap_and_page_metadata(self) -> None:
-        text = "Alpha first sentence.\nBeta second sentence has more words. Gamma third."
+    def test_preserves_exact_substrings_coverage_overlap_and_page_metadata(
+        self,
+    ) -> None:
+        text = (
+            "Alpha first sentence.\nBeta second sentence has more words. Gamma third."
+        )
         chunks = chunk_pages([page(text, "source.pdf", 12)], chunk_size=29, overlap=8)
 
         self.assertTrue(chunks)
@@ -107,11 +133,20 @@ class ChunkingTests(unittest.TestCase):
             covered_end = new_end
             previous_start = position
         self.assertEqual(covered_end, len(text))
-        self.assertEqual([chunk["chunk_index"] for chunk in chunks], list(range(len(chunks))))
-        self.assertTrue(all(chunk["document"] == "source.pdf" and chunk["page"] == 12 for chunk in chunks))
+        self.assertEqual(
+            [chunk["chunk_index"] for chunk in chunks], list(range(len(chunks)))
+        )
+        self.assertTrue(
+            all(
+                chunk["document"] == "source.pdf" and chunk["page"] == 12
+                for chunk in chunks
+            )
+        )
         self.assertTrue(has_overlap)
 
-    def test_breaks_long_sentences_at_whitespace_and_long_tokens_at_size_limit(self) -> None:
+    def test_breaks_long_sentences_at_whitespace_and_long_tokens_at_size_limit(
+        self,
+    ) -> None:
         sentence = "word " * 20 + "finish"
         token = "x" * 53
 
@@ -121,7 +156,9 @@ class ChunkingTests(unittest.TestCase):
         self.assertTrue(all(len(chunk["text"]) <= 17 for chunk in sentence_chunks))
         self.assertTrue(sentence.startswith(sentence_chunks[0]["text"]))
         self.assertTrue(all(len(chunk["text"]) <= 10 for chunk in token_chunks))
-        self.assertTrue(all(chunk["text"] and set(chunk["text"]) == {"x"} for chunk in token_chunks))
+        self.assertTrue(
+            all(chunk["text"] and set(chunk["text"]) == {"x"} for chunk in token_chunks)
+        )
         self.assertLess(max(chunk["chunk_index"] for chunk in token_chunks), len(token))
 
     def test_long_token_uses_bounded_searches_and_preserves_coverage(self) -> None:
@@ -130,7 +167,9 @@ class ChunkingTests(unittest.TestCase):
                 self.search_spans: list[int] = []
 
             def find(
-                self, sub: str, start: SupportsIndex | None = None,
+                self,
+                sub: str,
+                start: SupportsIndex | None = None,
                 end: SupportsIndex | None = None,
             ) -> int:
                 begin = 0 if start is None else index(start)
@@ -139,7 +178,9 @@ class ChunkingTests(unittest.TestCase):
                 return super().find(sub, begin, stop)
 
             def rfind(
-                self, sub: str, start: SupportsIndex | None = None,
+                self,
+                sub: str,
+                start: SupportsIndex | None = None,
                 end: SupportsIndex | None = None,
             ) -> int:
                 begin = 0 if start is None else index(start)
@@ -148,7 +189,9 @@ class ChunkingTests(unittest.TestCase):
                 return super().rfind(sub, begin, stop)
 
         tracked = SearchTrackedText("x" * 200_000)
-        self.assertEqual(_next_chunk_start(tracked, 100_000, 100_500, 100, 500), 100_400)
+        self.assertEqual(
+            _next_chunk_start(tracked, 100_000, 100_500, 100, 500), 100_400
+        )
         self.assertLessEqual(max(tracked.search_spans), 502)
 
         token = ("abcdefghijklmnopqrstuvwxyz" * 7693)[:200_000]
@@ -166,10 +209,12 @@ class ChunkingTests(unittest.TestCase):
             chunk_pages([page("A. " * 1000)], chunk_size=500, overlap=100)
 
         self.assertGreater(pattern.search.call_count, 100)
-        self.assertTrue(all(
-            call.args[2] - call.args[1] <= 64
-            for call in pattern.search.call_args_list
-        ))
+        self.assertTrue(
+            all(
+                call.args[2] - call.args[1] <= 64
+                for call in pattern.search.call_args_list
+            )
+        )
 
     def test_rejects_excess_chunks(self) -> None:
         with self.assertRaisesRegex(ValueError, "2-chunk limit"):
@@ -179,7 +224,9 @@ class ChunkingTests(unittest.TestCase):
         for chunk_size, overlap in [(0, 0), (-1, 0), (10, -1), (10, 10), (10, 11)]:
             with self.subTest(chunk_size=chunk_size, overlap=overlap):
                 with self.assertRaises(ValueError):
-                    chunk_pages([page("some text")], chunk_size=chunk_size, overlap=overlap)
+                    chunk_pages(
+                        [page("some text")], chunk_size=chunk_size, overlap=overlap
+                    )
 
     def test_skips_empty_or_whitespace_only_pages(self) -> None:
         for text in ("", "  \n\t  "):

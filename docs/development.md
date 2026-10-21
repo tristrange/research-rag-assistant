@@ -8,11 +8,18 @@ for isolated setup and the separate live startup procedure.
 ## Service-independent regressions
 
 ```bash
+uv run --locked ruff check .
+uv run --locked ruff format --check .
 RAG_DATABASE_URL=sqlite:///:memory: HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   uv run --locked python -m unittest discover -s tests -v
 node --test tests/test_ui_rendering.js
 uv run --locked mypy
 ```
+
+Ruff enforces a conservative rule set (`E4`, `E7`, `E9`, `F`, `I`) and its
+formatter; `uv run --locked ruff check --fix .` and `uv run --locked ruff format .`
+apply the fixes locally. Lint and formatting failures block the `Python, UI and
+types` job before the test suites run.
 
 Python tests use SQLite and stubs for extraction, embeddings, reranking and model
 responses. They cover index replacement/rollback, retrieval, grounding, evaluation

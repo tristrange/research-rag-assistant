@@ -13,7 +13,6 @@ from app.prompts import answer_prompt
 from app.retrieval.context import render_context
 from app.types import ChunkData
 
-
 CANARY = "ORANGE PENGUIN"
 QUESTION = "What happened to fasting glucose in the treatment group?"
 SOURCE = ChunkData(

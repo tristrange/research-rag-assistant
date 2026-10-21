@@ -159,6 +159,8 @@ See the [v1 readiness and validation plan](docs/v1-readiness.md) and
 Run the service-independent Python tests, JavaScript tests and type checks:
 
 ```bash
+uv run --locked ruff check .
+uv run --locked ruff format --check .
 RAG_DATABASE_URL=sqlite:///:memory: HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   uv run --locked python -m unittest discover -s tests -v
 node --test tests/test_ui_rendering.js

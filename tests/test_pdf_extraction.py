@@ -1,6 +1,6 @@
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 import pymupdf
 
@@ -18,7 +18,9 @@ class PdfExtractionBudgetTests(unittest.TestCase):
             document.close()
 
             pages = extract_pages(str(paper))
-            self.assertEqual([page["text"] for page in pages], ["First page", "Second page"])
+            self.assertEqual(
+                [page["text"] for page in pages], ["First page", "Second page"]
+            )
             self.assertEqual([page["page"] for page in pages], [1, 2])
             self.assertTrue(all(page["document"] == "paper.pdf" for page in pages))
             with self.assertRaisesRegex(ValueError, "character text limit"):

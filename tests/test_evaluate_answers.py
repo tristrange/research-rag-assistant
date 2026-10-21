@@ -1,20 +1,21 @@
+import inspect
+import io
+import json
+import sys
+import unittest
 from collections.abc import Callable
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
-import io
-import inspect
-import json
 from pathlib import Path
-import sys
 from tempfile import TemporaryDirectory
 from types import FrameType
 from typing import Any, cast
-import unittest
 from unittest.mock import Mock, patch
 
 import httpx
+
 from app.answer_evaluation import (
     AnswerEvaluationCase,
     CaseEvaluation,
@@ -49,7 +50,6 @@ from scripts.evaluate_answers import (
     validate_resume_consistency,
 )
 
-
 CORPUS = CorpusSnapshot(sha256="corpus-sha", chunks_by_document={"sample.pdf": 1})
 
 
@@ -57,18 +57,20 @@ def calibration(*, passed: bool = True) -> dict[str, object]:
     return {
         "version": CALIBRATION_VERSION,
         "passed": passed,
-        "results": [{
-            "id": "fixture",
-            "passed": passed,
-            "expected": {"correctness": [2], "abstained": False},
-            "actual": {
-                "correctness": 2 if passed else 0,
-                "completeness": 2,
-                "citation_support": 2,
-                "abstained": False,
-                "explanation": "Synthetic calibration result.",
-            },
-        }],
+        "results": [
+            {
+                "id": "fixture",
+                "passed": passed,
+                "expected": {"correctness": [2], "abstained": False},
+                "actual": {
+                    "correctness": 2 if passed else 0,
+                    "completeness": 2,
+                    "citation_support": 2,
+                    "abstained": False,
+                    "explanation": "Synthetic calibration result.",
+                },
+            }
+        ],
     }
 
 
@@ -85,89 +87,155 @@ def pending_answer(case: AnswerEvaluationCase) -> GeneratedCaseAnswer:
 
 
 def judged_answer(generated: GeneratedCaseAnswer) -> CaseEvaluation:
-    return judge_case_answer(generated, lambda prompt, schema: {
-        "abstained": False, "explanation": "Substantive answer."
-    } if schema.get("title") == "AbstentionDecision" else {
-        "correctness": 0,
-        "completeness": 0,
-        "citation_support": 0,
-        "abstained": False,
-        "explanation": "The answer does not match the reference.",
-    })
+    return judge_case_answer(
+        generated,
+        lambda prompt, schema: (
+            {"abstained": False, "explanation": "Substantive answer."}
+            if schema.get("title") == "AbstentionDecision"
+            else {
+                "correctness": 0,
+                "completeness": 0,
+                "citation_support": 0,
+                "abstained": False,
+                "explanation": "The answer does not match the reference.",
+            }
+        ),
+    )
 
 
 class AnswerRunnerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.case = AnswerEvaluationCase(
-            id="test", question="What increased?", answerable=True,
+            id="test",
+            question="What increased?",
+            answerable=True,
             reference_answer="The response increased.",
-            evidence=[{"document": "paper.pdf", "page": 1, "quote": "response increased"}],
+            evidence=[
+                {"document": "paper.pdf", "page": 1, "quote": "response increased"}
+            ],
         )
-        self.pages = [PageData(document="paper.pdf", page=1, text="The response increased.")]
+        self.pages = [
+            PageData(document="paper.pdf", page=1, text="The response increased.")
+        ]
 
-    def patch_preflight(self, stack: ExitStack, *, calibration_passed: bool = True) -> Mock:
-        stack.enter_context(patch("scripts.evaluate_answers.runtime_snapshot",
-                                  return_value=RuntimeSnapshot(ollama_version=None, model_digests={})))
+    def patch_preflight(
+        self, stack: ExitStack, *, calibration_passed: bool = True
+    ) -> Mock:
+        stack.enter_context(
+            patch(
+                "scripts.evaluate_answers.runtime_snapshot",
+                return_value=RuntimeSnapshot(ollama_version=None, model_digests={}),
+            )
+        )
         stack.enter_context(patch("pathlib.Path.read_bytes", return_value=b"paper"))
-        stack.enter_context(patch("scripts.evaluate_answers.PAPER_SHA256", sha256(b"paper").hexdigest()))
-        stack.enter_context(patch("scripts.evaluate_answers.extract_pages", return_value=self.pages))
+        stack.enter_context(
+            patch("scripts.evaluate_answers.PAPER_SHA256", sha256(b"paper").hexdigest())
+        )
+        stack.enter_context(
+            patch("scripts.evaluate_answers.extract_pages", return_value=self.pages)
+        )
         stack.enter_context(patch("scripts.evaluate_answers.validate_labels"))
         stack.enter_context(patch("scripts.evaluate_answers.validate_index"))
-        stack.enter_context(patch("scripts.evaluate_answers.indexed_sources", return_value=[]))
-        stack.enter_context(patch("scripts.evaluate_answers.snapshot", return_value=CORPUS))
-        calibration_mock = stack.enter_context(patch(
-            "scripts.evaluate_answers.run_calibration",
-            return_value=calibration(passed=calibration_passed),
-        ))
+        stack.enter_context(
+            patch("scripts.evaluate_answers.indexed_sources", return_value=[])
+        )
+        stack.enter_context(
+            patch("scripts.evaluate_answers.snapshot", return_value=CORPUS)
+        )
+        calibration_mock = stack.enter_context(
+            patch(
+                "scripts.evaluate_answers.run_calibration",
+                return_value=calibration(passed=calibration_passed),
+            )
+        )
         return calibration_mock
 
     def base_report(
         self, cases: list[AnswerEvaluationCase], answer_mode: str = "plain"
     ) -> dict[str, object]:
         return _new_report(
-            datetime(2026, 1, 1, tzinfo=timezone.utc), CORPUS, cases, "reranked", MODEL_NAME,
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+            CORPUS,
+            cases,
+            "reranked",
+            MODEL_NAME,
             answer_mode,
         )
 
     def test_labels_are_validated_against_pages_not_chunk_boundaries(self) -> None:
         validate_labels([self.case], self.pages)
-        validate_index([
-            ChunkData(document="paper.pdf", page=1, chunk_index=0, text="The response")
-        ], self.pages)
+        validate_index(
+            [
+                ChunkData(
+                    document="paper.pdf", page=1, chunk_index=0, text="The response"
+                )
+            ],
+            self.pages,
+        )
 
     def test_invalid_dataset_and_stale_index_are_rejected(self) -> None:
         invalid_sets: list[list[AnswerEvaluationCase]] = [
-            [], [self.case, self.case], [{**self.case, "answerable": False}],
+            [],
+            [self.case, self.case],
+            [{**self.case, "answerable": False}],
             [{**self.case, "evidence": []}],
         ]
         for cases in invalid_sets:
             with self.subTest(cases=cases), self.assertRaises(ValueError):
                 validate_labels(cases, self.pages)
         with self.assertRaisesRegex(ValueError, "another PDF"):
-            validate_index([
-                ChunkData(document="paper.pdf", page=1, chunk_index=0, text="The response decreased.")
-            ], self.pages)
+            validate_index(
+                [
+                    ChunkData(
+                        document="paper.pdf",
+                        page=1,
+                        chunk_index=0,
+                        text="The response decreased.",
+                    )
+                ],
+                self.pages,
+            )
 
     def test_judge_failure_checkpoints_generated_answer_before_judging(self) -> None:
         case = ANSWER_CASES[0]
         generated = pending_answer(case)
         with TemporaryDirectory() as directory, ExitStack() as stack:
             output = Path(directory) / "answers.json"
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--case", case["id"], "--output", str(output),
-            ]))
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--case",
+                        case["id"],
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
             self.patch_preflight(stack)
-            stack.enter_context(patch("scripts.evaluate_answers.generate_case_answer", return_value=generated))
+            stack.enter_context(
+                patch(
+                    "scripts.evaluate_answers.generate_case_answer",
+                    return_value=generated,
+                )
+            )
 
             def fail_judging(*args: object) -> None:
                 # Verify durable ordering, not just the final exception handler's save.
                 self.assertEqual(json.loads(output.read_text())["pending"], generated)
                 raise RuntimeError("judge offline")
 
-            stack.enter_context(patch(
-                "scripts.evaluate_answers.judge_case_answer", side_effect=fail_judging
-            ))
-            with redirect_stdout(io.StringIO()), self.assertRaisesRegex(RuntimeError, "judge offline"):
+            stack.enter_context(
+                patch(
+                    "scripts.evaluate_answers.judge_case_answer",
+                    side_effect=fail_judging,
+                )
+            )
+            with (
+                redirect_stdout(io.StringIO()),
+                self.assertRaisesRegex(RuntimeError, "judge offline"),
+            ):
                 main()
             report = json.loads(output.read_text())
             self.assertEqual(report["status"], "failed")
@@ -175,14 +243,28 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertEqual(report["results"], [])
             self.assertIsNone(report["metrics"])
 
-    def test_failed_generation_retains_provider_timing_without_answer_evidence(self) -> None:
+    def test_failed_generation_retains_provider_timing_without_answer_evidence(
+        self,
+    ) -> None:
         case = ANSWER_CASES[0]
-        error = httpx.ReadTimeout("private failure text", request=httpx.Request("POST", OLLAMA_URL))
+        error = httpx.ReadTimeout(
+            "private failure text", request=httpx.Request("POST", OLLAMA_URL)
+        )
         with TemporaryDirectory() as directory, ExitStack() as stack:
             output = Path(directory) / "failed.json"
-            stack.enter_context(patch("sys.argv", ["evaluate_answers", "--case", case["id"], "--output", str(output)]))
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    ["evaluate_answers", "--case", case["id"], "--output", str(output)],
+                )
+            )
             self.patch_preflight(stack)
-            stack.enter_context(patch("app.rag.answer_question", side_effect=lambda question, **kwargs: generate(question)))
+            stack.enter_context(
+                patch(
+                    "app.rag.answer_question",
+                    side_effect=lambda question, **kwargs: generate(question),
+                )
+            )
             stack.enter_context(patch("app.llm.ollama.httpx.post", side_effect=error))
             with redirect_stdout(io.StringIO()), self.assertRaises(httpx.ReadTimeout):
                 main()
@@ -207,20 +289,40 @@ class AnswerRunnerTests(unittest.TestCase):
             source = Path(directory) / "failed.json"
             output = Path(directory) / "resumed.json"
             report = self.base_report([first, second])
-            report.update({
-                "status": "failed", "finished_at": "2026-01-01T00:01:00+00:00",
-                "error": "RuntimeError: judge offline", "calibration": calibration(),
-                "results": [first_result], "pending": generated,
-                "paper_sha256": sha256(b"paper").hexdigest(),
-            })
+            report.update(
+                {
+                    "status": "failed",
+                    "finished_at": "2026-01-01T00:01:00+00:00",
+                    "error": "RuntimeError: judge offline",
+                    "calibration": calibration(),
+                    "results": [first_result],
+                    "pending": generated,
+                    "paper_sha256": sha256(b"paper").hexdigest(),
+                }
+            )
             source.write_text(json.dumps(report, indent=2) + "\n")
             original = source.read_text()
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--resume", str(source), "--output", str(output),
-            ]))
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--resume",
+                        str(source),
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
             calibration_mock = self.patch_preflight(stack)
-            generate_mock = stack.enter_context(patch("scripts.evaluate_answers.generate_case_answer"))
-            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", return_value=completed))
+            generate_mock = stack.enter_context(
+                patch("scripts.evaluate_answers.generate_case_answer")
+            )
+            stack.enter_context(
+                patch(
+                    "scripts.evaluate_answers.judge_case_answer", return_value=completed
+                )
+            )
             with redirect_stdout(io.StringIO()):
                 main()
             resumed = json.loads(output.read_text())
@@ -232,7 +334,9 @@ class AnswerRunnerTests(unittest.TestCase):
             generate_mock.assert_not_called()
             calibration_mock.assert_called_once()
 
-    def test_interrupt_around_atomic_transitions_produces_resumable_reports(self) -> None:
+    def test_interrupt_around_atomic_transitions_produces_resumable_reports(
+        self,
+    ) -> None:
         case = ANSWER_CASES[0]
         generated = pending_answer(case)
         completed = judged_answer(generated)
@@ -241,7 +345,8 @@ class AnswerRunnerTests(unittest.TestCase):
 
         def line_containing(fragment: str) -> int:
             matches = [
-                first_line + offset for offset, line in enumerate(source_lines)
+                first_line + offset
+                for offset, line in enumerate(source_lines)
                 if fragment in line
             ]
             self.assertEqual(len(matches), 1)
@@ -264,37 +369,67 @@ class AnswerRunnerTests(unittest.TestCase):
         ]
 
         with TemporaryDirectory() as directory:
-            for name, target_line, status, has_pending, result_count, judge_calls in phases:
+            for (
+                name,
+                target_line,
+                status,
+                has_pending,
+                result_count,
+                judge_calls,
+            ) in phases:
                 with self.subTest(phase=name):
                     source = Path(directory) / f"{name}-interrupted.json"
                     output = Path(directory) / f"{name}-resumed.json"
                     interrupted = False
 
                     def interrupt_at_line(
-                        frame: FrameType, event: str, argument: object,
+                        frame: FrameType,
+                        event: str,
+                        argument: object,
                     ) -> Any:
                         nonlocal interrupted
-                        if (frame.f_code is main.__code__ and event == "line"
-                                and frame.f_lineno == target_line):
+                        if (
+                            frame.f_code is main.__code__
+                            and event == "line"
+                            and frame.f_lineno == target_line
+                        ):
                             interrupted = True
                             raise KeyboardInterrupt(f"interrupted {name}")
                         return interrupt_at_line
 
                     with ExitStack() as stack:
-                        stack.enter_context(patch("sys.argv", [
-                            "evaluate_answers", "--case", case["id"], "--output", str(source),
-                        ]))
+                        stack.enter_context(
+                            patch(
+                                "sys.argv",
+                                [
+                                    "evaluate_answers",
+                                    "--case",
+                                    case["id"],
+                                    "--output",
+                                    str(source),
+                                ],
+                            )
+                        )
                         self.patch_preflight(stack)
-                        stack.enter_context(patch(
-                            "scripts.evaluate_answers.generate_case_answer", return_value=generated,
-                        ))
-                        stack.enter_context(patch(
-                            "scripts.evaluate_answers.judge_case_answer", return_value=completed,
-                        ))
+                        stack.enter_context(
+                            patch(
+                                "scripts.evaluate_answers.generate_case_answer",
+                                return_value=generated,
+                            )
+                        )
+                        stack.enter_context(
+                            patch(
+                                "scripts.evaluate_answers.judge_case_answer",
+                                return_value=completed,
+                            )
+                        )
                         previous_trace = sys.gettrace()
                         sys.settrace(interrupt_at_line)
                         try:
-                            with redirect_stdout(io.StringIO()), self.assertRaises(KeyboardInterrupt):
+                            with (
+                                redirect_stdout(io.StringIO()),
+                                self.assertRaises(KeyboardInterrupt),
+                            ):
                                 main()
                         finally:
                             sys.settrace(previous_trace)
@@ -302,21 +437,35 @@ class AnswerRunnerTests(unittest.TestCase):
                     self.assertTrue(interrupted)
                     interrupted_report = load_report(source)
                     self.assertEqual(interrupted_report.status, status)
-                    self.assertEqual(interrupted_report.pending is not None, has_pending)
+                    self.assertEqual(
+                        interrupted_report.pending is not None, has_pending
+                    )
                     self.assertEqual(len(interrupted_report.results), result_count)
                     self.assertIsNone(interrupted_report.metrics)
 
                     with ExitStack() as stack:
-                        stack.enter_context(patch("sys.argv", [
-                            "evaluate_answers", "--resume", str(source), "--output", str(output),
-                        ]))
+                        stack.enter_context(
+                            patch(
+                                "sys.argv",
+                                [
+                                    "evaluate_answers",
+                                    "--resume",
+                                    str(source),
+                                    "--output",
+                                    str(output),
+                                ],
+                            )
+                        )
                         self.patch_preflight(stack)
-                        generate_mock = stack.enter_context(patch(
-                            "scripts.evaluate_answers.generate_case_answer"
-                        ))
-                        judge_mock = stack.enter_context(patch(
-                            "scripts.evaluate_answers.judge_case_answer", return_value=completed,
-                        ))
+                        generate_mock = stack.enter_context(
+                            patch("scripts.evaluate_answers.generate_case_answer")
+                        )
+                        judge_mock = stack.enter_context(
+                            patch(
+                                "scripts.evaluate_answers.judge_case_answer",
+                                return_value=completed,
+                            )
+                        )
                         with redirect_stdout(io.StringIO()):
                             main()
 
@@ -332,12 +481,27 @@ class AnswerRunnerTests(unittest.TestCase):
         case = ANSWER_CASES[0]
         with TemporaryDirectory() as directory, ExitStack() as stack:
             output = Path(directory) / "answers.json"
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--case", case["id"], "--output", str(output),
-            ]))
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--case",
+                        case["id"],
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
             self.patch_preflight(stack, calibration_passed=False)
-            generate_mock = stack.enter_context(patch("scripts.evaluate_answers.generate_case_answer"))
-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            generate_mock = stack.enter_context(
+                patch("scripts.evaluate_answers.generate_case_answer")
+            )
+            with (
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
                 main()
             report = json.loads(output.read_text())
             self.assertEqual(report["status"], "calibration_failed")
@@ -345,69 +509,141 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertIsNone(report["metrics"])
             generate_mock.assert_not_called()
 
-    def test_verified_reranked_selection_policy_is_recorded_and_bound_on_resume(self) -> None:
+    def test_verified_reranked_selection_policy_is_recorded_and_bound_on_resume(
+        self,
+    ) -> None:
         settings = settings_for("reranked", "verified")
         self.assertEqual(settings["candidate_count"], 20)
         self.assertTrue(settings["reserve_vector_page"])
-        for strategy, mode in (("reranked", "plain"), ("vector", "verified"),
-                               ("expanded", "verified"), ("vector_reserve", "verified")):
+        for strategy, mode in (
+            ("reranked", "plain"),
+            ("vector", "verified"),
+            ("expanded", "verified"),
+            ("vector_reserve", "verified"),
+        ):
             with self.subTest(strategy=strategy, mode=mode):
-                self.assertFalse(settings_for(strategy, mode).get("reserve_vector_page", False))
-        self.assertFalse(settings_for("reranked", "verified", top_k=1).get("reserve_vector_page", False))
+                self.assertFalse(
+                    settings_for(strategy, mode).get("reserve_vector_page", False)
+                )
+        self.assertFalse(
+            settings_for("reranked", "verified", top_k=1).get(
+                "reserve_vector_page", False
+            )
+        )
         case = ANSWER_CASES[0]
         raw = self.base_report([case], answer_mode="verified")
         cast(dict[str, object], raw["settings"])["reserve_vector_page"] = False
         old_selection = ReportModel.model_validate(raw)
         with self.assertRaisesRegex(ValueError, "settings"):
-            validate_resume_consistency(old_selection, [case], CORPUS, "reranked", MODEL_NAME, "verified")
+            validate_resume_consistency(
+                old_selection, [case], CORPUS, "reranked", MODEL_NAME, "verified"
+            )
 
-    def test_verified_cutoff_default_and_override_are_generated_and_recorded(self) -> None:
+    def test_verified_cutoff_default_and_override_are_generated_and_recorded(
+        self,
+    ) -> None:
         case = ANSWER_CASES[0]
         for explicit_top_k, expected in ((False, 6), (True, 3)):
-            with self.subTest(explicit_top_k=explicit_top_k), TemporaryDirectory() as directory, ExitStack() as stack:
+            with (
+                self.subTest(explicit_top_k=explicit_top_k),
+                TemporaryDirectory() as directory,
+                ExitStack() as stack,
+            ):
                 output = Path(directory) / "verified.json"
-                arguments = ["evaluate_answers", "--case", case["id"],
-                             "--answer-mode", "verified", "--output", str(output)]
+                arguments = [
+                    "evaluate_answers",
+                    "--case",
+                    case["id"],
+                    "--answer-mode",
+                    "verified",
+                    "--output",
+                    str(output),
+                ]
                 if explicit_top_k:
                     arguments.extend(["--top-k", "3"])
                 stack.enter_context(patch("sys.argv", arguments))
                 self.patch_preflight(stack)
-                answer = stack.enter_context(patch("app.rag.answer_question", return_value={
-                    "answer": "Unknown", "sources": [],
-                }))
+                answer = stack.enter_context(
+                    patch(
+                        "app.rag.answer_question",
+                        return_value={
+                            "answer": "Unknown",
+                            "sources": [],
+                        },
+                    )
+                )
 
-                def judge(generated: GeneratedCaseAnswer, ignored: object) -> CaseEvaluation:
+                def judge(
+                    generated: GeneratedCaseAnswer, ignored: object
+                ) -> CaseEvaluation:
                     return judged_answer(generated)
 
-                stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge))
+                stack.enter_context(
+                    patch(
+                        "scripts.evaluate_answers.judge_case_answer", side_effect=judge
+                    )
+                )
                 with redirect_stdout(io.StringIO()):
                     main()
-                answer.assert_called_once_with(case["question"], limit=expected,
-                                               use_reranking=True, expand_context=False,
-                                               answer_mode="verified")
+                answer.assert_called_once_with(
+                    case["question"],
+                    limit=expected,
+                    use_reranking=True,
+                    expand_context=False,
+                    answer_mode="verified",
+                )
                 self.assertEqual(load_report(output).settings.top_k, expected)
 
-    def test_expanded_strategy_is_recorded_and_passed_to_answer_generation(self) -> None:
+    def test_expanded_strategy_is_recorded_and_passed_to_answer_generation(
+        self,
+    ) -> None:
         case = ANSWER_CASES[0]
         with TemporaryDirectory() as directory, ExitStack() as stack:
             output = Path(directory) / "expanded.json"
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--case", case["id"], "--strategy", "expanded",
-                "--answer-mode", "verified",
-                "--output", str(output),
-            ]))
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--case",
+                        case["id"],
+                        "--strategy",
+                        "expanded",
+                        "--answer-mode",
+                        "verified",
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
             self.patch_preflight(stack)
-            answer = stack.enter_context(patch("app.rag.answer_question", return_value={
-                "answer": "Unknown", "sources": [],
-            }))
+            answer = stack.enter_context(
+                patch(
+                    "app.rag.answer_question",
+                    return_value={
+                        "answer": "Unknown",
+                        "sources": [],
+                    },
+                )
+            )
 
-            def judge(generated: GeneratedCaseAnswer, ignored: object) -> CaseEvaluation:
+            def judge(
+                generated: GeneratedCaseAnswer, ignored: object
+            ) -> CaseEvaluation:
                 return judged_answer(generated)
 
-            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge))
+            stack.enter_context(
+                patch("scripts.evaluate_answers.judge_case_answer", side_effect=judge)
+            )
             with redirect_stdout(io.StringIO()):
                 main()
-            answer.assert_called_once_with(case["question"], limit=6, use_reranking=True, expand_context=True, answer_mode="verified")
+            answer.assert_called_once_with(
+                case["question"],
+                limit=6,
+                use_reranking=True,
+                expand_context=True,
+                answer_mode="verified",
+            )
             report = load_report(output)
             self.assertEqual(report.settings.strategy, "expanded")
             self.assertEqual(report.settings.answer_mode, "verified")
@@ -417,26 +653,55 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertEqual(report.settings.max_context_chars, 6000)
             self.assertEqual(report.reranker_model, MODEL_NAME)
 
-    def test_vector_reserve_strategy_is_recorded_and_passed_to_answer_generation(self) -> None:
+    def test_vector_reserve_strategy_is_recorded_and_passed_to_answer_generation(
+        self,
+    ) -> None:
         case = ANSWER_CASES[0]
         with TemporaryDirectory() as directory, ExitStack() as stack:
             output = Path(directory) / "vector-reserve.json"
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--case", case["id"], "--strategy", "vector_reserve",
-                "--answer-mode", "verified", "--output", str(output),
-            ]))
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--case",
+                        case["id"],
+                        "--strategy",
+                        "vector_reserve",
+                        "--answer-mode",
+                        "verified",
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
             self.patch_preflight(stack)
-            answer = stack.enter_context(patch("app.rag.answer_question", return_value={
-                "answer": "Unknown", "sources": [],
-            }))
-            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer",
-                                      side_effect=lambda generated, ignored: judged_answer(generated)))
+            answer = stack.enter_context(
+                patch(
+                    "app.rag.answer_question",
+                    return_value={
+                        "answer": "Unknown",
+                        "sources": [],
+                    },
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "scripts.evaluate_answers.judge_case_answer",
+                    side_effect=lambda generated, ignored: judged_answer(generated),
+                )
+            )
             with redirect_stdout(io.StringIO()):
                 main()
 
-            answer.assert_called_once_with(case["question"], limit=3, use_reranking=True,
-                                           expand_context=False, answer_mode="verified",
-                                           reserve_vector_candidate=True)
+            answer.assert_called_once_with(
+                case["question"],
+                limit=3,
+                use_reranking=True,
+                expand_context=False,
+                answer_mode="verified",
+                reserve_vector_candidate=True,
+            )
             report = load_report(output)
             self.assertEqual(report.settings.strategy, "vector_reserve")
             self.assertEqual(report.settings.top_k, 3)
@@ -444,14 +709,24 @@ class AnswerRunnerTests(unittest.TestCase):
             self.assertEqual(report.settings.max_context_chars, None)
 
     def test_vector_reserve_rejects_top_k_ten_before_services_or_report(self) -> None:
-        with TemporaryDirectory() as directory, \
-                patch("sys.argv", [
-                    "evaluate_answers", "--strategy", "vector_reserve", "--top-k", "10",
-                    "--output", str(Path(directory) / "invalid.json"),
-                ]), \
-                patch("scripts.evaluate_answers.extract_pages") as extract, \
-                patch("scripts.evaluate_answers.snapshot") as snapshot_mock, \
-                redirect_stderr(io.StringIO()) as stderr:
+        with (
+            TemporaryDirectory() as directory,
+            patch(
+                "sys.argv",
+                [
+                    "evaluate_answers",
+                    "--strategy",
+                    "vector_reserve",
+                    "--top-k",
+                    "10",
+                    "--output",
+                    str(Path(directory) / "invalid.json"),
+                ],
+            ),
+            patch("scripts.evaluate_answers.extract_pages") as extract,
+            patch("scripts.evaluate_answers.snapshot") as snapshot_mock,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
             with self.assertRaises(SystemExit):
                 main()
             self.assertIn("vector_reserve requires --top-k below 10", stderr.getvalue())
@@ -460,37 +735,78 @@ class AnswerRunnerTests(unittest.TestCase):
             snapshot_mock.assert_not_called()
 
     def test_explicit_cutoff_is_recorded_and_resume_requires_same_setting(self) -> None:
-        raw = _new_report(datetime.now(timezone.utc), CORPUS, [ANSWER_CASES[0]],
-                          "expanded", MODEL_NAME, top_k=3)
+        raw = _new_report(
+            datetime.now(timezone.utc),
+            CORPUS,
+            [ANSWER_CASES[0]],
+            "expanded",
+            MODEL_NAME,
+            top_k=3,
+        )
         saved = ReportModel.model_validate(raw)
         self.assertEqual(saved.settings.top_k, 3)
-        validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS,
-                                    "expanded", MODEL_NAME, top_k=3)
+        validate_resume_consistency(
+            saved, [ANSWER_CASES[0]], CORPUS, "expanded", MODEL_NAME, top_k=3
+        )
         with self.assertRaisesRegex(ValueError, "settings"):
-            validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS,
-                                        "expanded", MODEL_NAME, top_k=6)
+            validate_resume_consistency(
+                saved, [ANSWER_CASES[0]], CORPUS, "expanded", MODEL_NAME, top_k=6
+            )
 
     def test_resume_preserves_recorded_cutoff_instead_of_new_default(self) -> None:
         case = ANSWER_CASES[0]
         with TemporaryDirectory() as directory, ExitStack() as stack:
             source = Path(directory) / "source.json"
             output = Path(directory) / "resumed.json"
-            save_report(source, _new_report(datetime.now(timezone.utc), CORPUS, [case],
-                                           "expanded", MODEL_NAME, top_k=3,
-                                           paper_sha256=sha256(b"paper").hexdigest()))
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--resume", str(source), "--output", str(output),
-            ]))
+            save_report(
+                source,
+                _new_report(
+                    datetime.now(timezone.utc),
+                    CORPUS,
+                    [case],
+                    "expanded",
+                    MODEL_NAME,
+                    top_k=3,
+                    paper_sha256=sha256(b"paper").hexdigest(),
+                ),
+            )
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--resume",
+                        str(source),
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
             self.patch_preflight(stack)
-            answer = stack.enter_context(patch("app.rag.answer_question", return_value={
-                "answer": "Unknown", "sources": [],
-            }))
-            stack.enter_context(patch("scripts.evaluate_answers.judge_case_answer",
-                                      side_effect=lambda generated, ignored: judged_answer(generated)))
+            answer = stack.enter_context(
+                patch(
+                    "app.rag.answer_question",
+                    return_value={
+                        "answer": "Unknown",
+                        "sources": [],
+                    },
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "scripts.evaluate_answers.judge_case_answer",
+                    side_effect=lambda generated, ignored: judged_answer(generated),
+                )
+            )
             with redirect_stdout(io.StringIO()):
                 main()
-            answer.assert_called_once_with(case["question"], limit=3, use_reranking=True,
-                                           expand_context=True, answer_mode="plain")
+            answer.assert_called_once_with(
+                case["question"],
+                limit=3,
+                use_reranking=True,
+                expand_context=True,
+                answer_mode="plain",
+            )
             self.assertEqual(load_report(output).settings.top_k, 3)
 
     def test_schema_v1_resume_is_rejected_before_services(self) -> None:
@@ -498,11 +814,25 @@ class AnswerRunnerTests(unittest.TestCase):
             source = Path(directory) / "old.json"
             output = Path(directory) / "new.json"
             source.write_text('{"schema_version": 1, "results": []}')
-            stack.enter_context(patch("sys.argv", [
-                "evaluate_answers", "--resume", str(source), "--output", str(output),
-            ]))
-            snapshot_mock = stack.enter_context(patch("scripts.evaluate_answers.snapshot"))
-            with redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit):
+            stack.enter_context(
+                patch(
+                    "sys.argv",
+                    [
+                        "evaluate_answers",
+                        "--resume",
+                        str(source),
+                        "--output",
+                        str(output),
+                    ],
+                )
+            )
+            snapshot_mock = stack.enter_context(
+                patch("scripts.evaluate_answers.snapshot")
+            )
+            with (
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit),
+            ):
                 main()
             self.assertIn("did not save pending generated answers", stderr.getvalue())
             self.assertFalse(output.exists())
@@ -516,10 +846,14 @@ class AnswerRunnerTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             source = Path(directory) / "old.json"
             source.write_text(json.dumps(report))
-            with self.assertRaisesRegex(ValueError, r"(?s)generator_think.*judge_think"):
+            with self.assertRaisesRegex(
+                ValueError, r"(?s)generator_think.*judge_think"
+            ):
                 load_report(source)
 
-    def test_loaded_report_rejects_invalid_order_duplicates_pending_and_timings(self) -> None:
+    def test_loaded_report_rejects_invalid_order_duplicates_pending_and_timings(
+        self,
+    ) -> None:
         first, second = ANSWER_CASES[:2]
         baseline = self.base_report([first, second])
         variants: list[tuple[str, dict[str, object]]] = []
@@ -543,7 +877,8 @@ class AnswerRunnerTests(unittest.TestCase):
 
         duplicate_results = deepcopy(baseline)
         duplicate_results["results"] = [
-            judged_answer(pending_answer(first)), judged_answer(pending_answer(first)),
+            judged_answer(pending_answer(first)),
+            judged_answer(pending_answer(first)),
         ]
         variants.append(("duplicates", duplicate_results))
 
@@ -562,7 +897,9 @@ class AnswerRunnerTests(unittest.TestCase):
         validated = ReportModel.model_validate(report)
         self.assertEqual(validated.results[0].judge.correctness, 0)
 
-    def test_plain_and_verified_model_provenance_and_settings_are_recorded(self) -> None:
+    def test_plain_and_verified_model_provenance_and_settings_are_recorded(
+        self,
+    ) -> None:
         self.assertEqual(MODEL, "qwen3:8b")
         self.assertEqual(GROUNDING_MODEL, "gpt-oss:20b")
         self.assertEqual(DRAFT_THINK, "low")
@@ -578,7 +915,9 @@ class AnswerRunnerTests(unittest.TestCase):
         self.assertEqual(settings["verifier_think"], VERIFIER_THINK)
         self.assertEqual(settings["grounding_context_tokens"], GROUNDING_CONTEXT_TOKENS)
         self.assertEqual(settings["grounding_output_tokens"], GROUNDING_OUTPUT_TOKENS)
-        self.assertEqual(settings["grounding_sampling"], {"temperature": 1.0, "top_p": 1.0})
+        self.assertEqual(
+            settings["grounding_sampling"], {"temperature": 1.0, "top_p": 1.0}
+        )
         self.assertEqual(settings["grounding_draft_timeout_seconds"], 300.0)
         self.assertEqual(settings["grounding_verifier_timeout_seconds"], 300.0)
         self.assertEqual(settings["verifier_temperature"], 1.0)
@@ -602,16 +941,21 @@ class AnswerRunnerTests(unittest.TestCase):
         self.assertEqual(plain.generator_model, MODEL)
         self.assertEqual(plain.judge_model, MODEL)
         self.assertNotEqual(
-            settings["generator_prompt_sha256"], plain_settings["generator_prompt_sha256"]
+            settings["generator_prompt_sha256"],
+            plain_settings["generator_prompt_sha256"],
         )
 
         saved = ReportModel.model_validate(self.base_report([ANSWER_CASES[0]]))
         with self.assertRaisesRegex(ValueError, "generator model|settings"):
-            validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME, "verified")
+            validate_resume_consistency(
+                saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME, "verified"
+            )
 
     def test_verified_resume_rejects_model_thinking_and_budget_changes(self) -> None:
         case = ANSWER_CASES[0]
-        saved = ReportModel.model_validate(self.base_report([case], answer_mode="verified"))
+        saved = ReportModel.model_validate(
+            self.base_report([case], answer_mode="verified")
+        )
         validate_resume_consistency(
             saved, [case], CORPUS, "reranked", MODEL_NAME, "verified"
         )
@@ -624,11 +968,16 @@ class AnswerRunnerTests(unittest.TestCase):
             ("settings", "GROUNDING_OUTPUT_TOKENS", GROUNDING_OUTPUT_TOKENS + 1),
             ("settings", "GROUNDING_DRAFT_TIMEOUT_SECONDS", 450.0),
             ("settings", "GROUNDING_VERIFIER_TIMEOUT_SECONDS", 450.0),
-            ("settings", "GROUNDING_SAMPLING", GroundingSampling(temperature=0.6, top_k=20)),
+            (
+                "settings",
+                "GROUNDING_SAMPLING",
+                GroundingSampling(temperature=0.6, top_k=20),
+            ),
         ]
         for expected, setting, changed in changes:
-            with self.subTest(setting=setting), patch(
-                f"scripts.evaluate_answers.{setting}", changed
+            with (
+                self.subTest(setting=setting),
+                patch(f"scripts.evaluate_answers.{setting}", changed),
             ):
                 with self.assertRaisesRegex(ValueError, expected):
                     validate_resume_consistency(
@@ -654,29 +1003,47 @@ class AnswerRunnerTests(unittest.TestCase):
 
     def test_rendering_changes_invalidate_generator_prompt_fingerprint(self) -> None:
         before = settings_for("reranked")
-        with patch("scripts.evaluate_answers.render_context", return_value="Changed headers"):
+        with patch(
+            "scripts.evaluate_answers.render_context", return_value="Changed headers"
+        ):
             after = settings_for("reranked")
-        self.assertNotEqual(before["generator_prompt_sha256"], after["generator_prompt_sha256"])
+        self.assertNotEqual(
+            before["generator_prompt_sha256"], after["generator_prompt_sha256"]
+        )
         saved = ReportModel.model_validate(self.base_report([ANSWER_CASES[0]]))
-        with patch("scripts.evaluate_answers.render_context", return_value="Changed headers"):
+        with patch(
+            "scripts.evaluate_answers.render_context", return_value="Changed headers"
+        ):
             with self.assertRaisesRegex(ValueError, "settings"):
-                validate_resume_consistency(saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME)
+                validate_resume_consistency(
+                    saved, [ANSWER_CASES[0]], CORPUS, "reranked", MODEL_NAME
+                )
 
     def test_resume_checks_all_reproducibility_fields(self) -> None:
         case = ANSWER_CASES[0]
         baseline = self.base_report([case])
         mutations: dict[str, Callable[[dict[str, object]], None]] = {
-            "corpus": lambda raw: cast(dict[str, object], raw["corpus"]).update({"sha256": "changed"}),
+            "corpus": lambda raw: cast(dict[str, object], raw["corpus"]).update(
+                {"sha256": "changed"}
+            ),
             "paper SHA-256": lambda raw: raw.update({"paper_sha256": "changed"}),
             "cases": lambda raw: raw.update({"cases_sha256": "changed"}),
             "generator model": lambda raw: raw.update({"generator_model": "changed"}),
             "judge model": lambda raw: raw.update({"judge_model": "changed"}),
             "embedding model": lambda raw: raw.update({"embedding_model": "changed"}),
             "reranker model": lambda raw: raw.update({"reranker_model": "changed"}),
-            "settings": lambda raw: cast(dict[str, object], raw["settings"]).update({"top_k": 4}),
-            "evaluator version": lambda raw: raw.update({"evaluator_version": "changed"}),
-            "evaluator prompt": lambda raw: raw.update({"evaluator_prompt_sha256": "changed"}),
-            "calibration version": lambda raw: raw.update({"calibration_version": "changed"}),
+            "settings": lambda raw: cast(dict[str, object], raw["settings"]).update(
+                {"top_k": 4}
+            ),
+            "evaluator version": lambda raw: raw.update(
+                {"evaluator_version": "changed"}
+            ),
+            "evaluator prompt": lambda raw: raw.update(
+                {"evaluator_prompt_sha256": "changed"}
+            ),
+            "calibration version": lambda raw: raw.update(
+                {"calibration_version": "changed"}
+            ),
         }
         for expected, mutate in mutations.items():
             with self.subTest(field=expected):
@@ -684,15 +1051,19 @@ class AnswerRunnerTests(unittest.TestCase):
                 mutate(raw)
                 saved = ReportModel.model_validate(raw)
                 with self.assertRaisesRegex(ValueError, expected):
-                    validate_resume_consistency(saved, [case], CORPUS, "reranked", MODEL_NAME)
+                    validate_resume_consistency(
+                        saved, [case], CORPUS, "reranked", MODEL_NAME
+                    )
 
     def test_existing_report_is_preserved_before_services_are_called(self) -> None:
         with TemporaryDirectory() as directory:
             output = Path(directory) / "answers.json"
             output.write_text("existing report")
-            with patch("sys.argv", ["evaluate_answers", "--output", str(output)]), \
-                    patch("scripts.evaluate_answers.snapshot") as snapshot_mock, \
-                    patch("sys.stderr", new_callable=io.StringIO):
+            with (
+                patch("sys.argv", ["evaluate_answers", "--output", str(output)]),
+                patch("scripts.evaluate_answers.snapshot") as snapshot_mock,
+                patch("sys.stderr", new_callable=io.StringIO),
+            ):
                 with self.assertRaises(SystemExit):
                     main()
                 snapshot_mock.assert_not_called()
@@ -712,8 +1083,13 @@ class AnswerRunnerTests(unittest.TestCase):
             reserve_output(output)
             save_report(output, {"status": "running"})
             previous = output.read_text()
-            with patch("scripts.evaluate_answers.os.replace", side_effect=OSError("disk error")), \
-                    self.assertRaisesRegex(OSError, "disk error"):
+            with (
+                patch(
+                    "scripts.evaluate_answers.os.replace",
+                    side_effect=OSError("disk error"),
+                ),
+                self.assertRaisesRegex(OSError, "disk error"),
+            ):
                 save_report(output, {"status": "complete"})
             self.assertEqual(output.read_text(), previous)
             self.assertEqual(list(Path(directory).glob(".answers.json.*")), [])

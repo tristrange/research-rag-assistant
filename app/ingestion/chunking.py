@@ -3,7 +3,6 @@ import re
 from app.ingestion.sections import UNKNOWN_SECTION, section_ranges
 from app.types import ChunkData, PageData
 
-
 # A sentence boundary is punctuation followed by whitespace or the end of the
 # page. Requiring whitespace avoids treating the decimal point in values such
 # as ``3.9%`` as a sentence boundary.
@@ -22,9 +21,14 @@ def _is_abbreviation_period(text: str, match: re.Match[str]) -> bool:
     # cannot be fabricated by trimming the text.
     # Search only the local suffix. A full-prefix search at every punctuation
     # mark makes punctuation-heavy pages quadratic in length.
-    return _ABBREVIATION_PERIOD.search(
-        text, max(0, match.start() + 1 - _ABBREVIATION_LOOKBEHIND), match.start() + 1,
-    ) is not None
+    return (
+        _ABBREVIATION_PERIOD.search(
+            text,
+            max(0, match.start() + 1 - _ABBREVIATION_LOOKBEHIND),
+            match.start() + 1,
+        )
+        is not None
+    )
 
 
 def _next_chunk_end(text: str, start: int, chunk_size: int, previous_end: int) -> int:
@@ -53,7 +57,9 @@ def _next_chunk_end(text: str, start: int, chunk_size: int, previous_end: int) -
     return limit
 
 
-def _next_chunk_start(text: str, start: int, end: int, overlap: int, chunk_size: int) -> int:
+def _next_chunk_start(
+    text: str, start: int, end: int, overlap: int, chunk_size: int
+) -> int:
     """Choose a useful overlap start, preferring sentence and whitespace edges."""
     desired = max(start + 1, end - overlap)
     if desired >= end:
@@ -90,11 +96,13 @@ def _next_chunk_start(text: str, start: int, end: int, overlap: int, chunk_size:
         return desired
     token_start = last_separator + 1
     token_end_candidates = [
-        position for position in (
+        position
+        for position in (
             text.find(" ", desired, window_end),
             text.find("\n", desired, window_end),
             text.find("\t", desired, window_end),
-        ) if position >= 0
+        )
+        if position >= 0
     ]
     if not token_end_candidates and window_end < len(text):
         return desired
@@ -166,7 +174,11 @@ def chunk_pages(
                     break
 
                 next_start = _next_chunk_start(
-                    section_text, start, end, overlap, chunk_size,
+                    section_text,
+                    start,
+                    end,
+                    overlap,
+                    chunk_size,
                 )
                 # Defensive progress guarantee for pathological inputs.
                 start = max(start + 1, next_start)

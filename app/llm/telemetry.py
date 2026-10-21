@@ -1,14 +1,13 @@
+import math
+import re
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-import math
-import re
 from time import perf_counter
 from typing import Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
-
 
 Operation = Literal["chat", "embedding"]
 CallStatus = Literal["complete", "failed"]
@@ -17,7 +16,9 @@ _DIGEST = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 class ModelCall(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False, validate_assignment=True)
+    model_config = ConfigDict(
+        extra="forbid", strict=True, allow_inf_nan=False, validate_assignment=True
+    )
 
     operation: Operation
     requested_model: str = Field(min_length=1)
@@ -40,14 +41,18 @@ class RuntimeSnapshot(BaseModel):
     model_digests: dict[str, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None]
 
 
-_CAPTURED_CALLS: ContextVar[tuple[list[ModelCall], ...]] = ContextVar("model_call_capture", default=())
+_CAPTURED_CALLS: ContextVar[tuple[list[ModelCall], ...]] = ContextVar(
+    "model_call_capture", default=()
+)
 
 
 @contextmanager
 def capture_calls() -> Iterator[list[ModelCall]]:
     """Capture calls here; nested calls also appear once in each active ancestor."""
     calls: list[ModelCall] = []
-    token: Token[tuple[list[ModelCall], ...]] = _CAPTURED_CALLS.set((*_CAPTURED_CALLS.get(), calls))
+    token: Token[tuple[list[ModelCall], ...]] = _CAPTURED_CALLS.set(
+        (*_CAPTURED_CALLS.get(), calls)
+    )
     try:
         yield calls
     finally:
@@ -76,7 +81,9 @@ def observe_call(operation: Operation, model: str) -> Iterator[ModelCall | None]
         raise
     finally:
         elapsed_ms = (perf_counter() - started) * 1000
-        record.elapsed_ms = elapsed_ms if math.isfinite(elapsed_ms) and elapsed_ms >= 0 else 0.0
+        record.elapsed_ms = (
+            elapsed_ms if math.isfinite(elapsed_ms) and elapsed_ms >= 0 else 0.0
+        )
         for calls in call_buffers:
             calls.append(record)
 
@@ -139,7 +146,7 @@ def _get_json(url: str) -> object | None:
         response.raise_for_status()
         data: object = response.json()
         return data
-    except (httpx.HTTPError, ValueError):
+    except httpx.HTTPError, ValueError:
         return None
 
 
@@ -166,11 +173,10 @@ def runtime_snapshot(models: list[str]) -> RuntimeSnapshot:
             if not isinstance(name, str) or not name:
                 continue
             digests_by_tag[_model_tag(name)] = (
-                digest.lower() if isinstance(digest, str) and _DIGEST.fullmatch(digest) else None
+                digest.lower()
+                if isinstance(digest, str) and _DIGEST.fullmatch(digest)
+                else None
             )
 
-    model_digests = {
-        model: digests_by_tag.get(_model_tag(model))
-        for model in models
-    }
+    model_digests = {model: digests_by_tag.get(_model_tag(model)) for model in models}
     return RuntimeSnapshot(ollama_version=ollama_version, model_digests=model_digests)

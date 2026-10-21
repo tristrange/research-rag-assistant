@@ -3,7 +3,9 @@ from typing import TypedDict, cast
 
 import httpx
 
-from app.config import SETTINGS, Thinking as Thinking, default_timeout as default_timeout
+from app.config import SETTINGS
+from app.config import Thinking as Thinking
+from app.config import default_timeout as default_timeout
 from app.llm.errors import OllamaResponseError, response_object
 from app.llm.telemetry import observe_call, record_metadata
 
@@ -62,7 +64,9 @@ def chat(
         response = httpx.post(
             OLLAMA_URL,
             json=payload,
-            timeout=timeout_seconds if timeout_seconds is not None else default_timeout(think),
+            timeout=timeout_seconds
+            if timeout_seconds is not None
+            else default_timeout(think),
         )
 
         response.raise_for_status()
@@ -78,7 +82,9 @@ def chat(
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             raise OllamaResponseError("chat")
         if data.get("done_reason") == "length":
-            raise OllamaOutputLimitError("Ollama exhausted the output token budget before completing the response")
+            raise OllamaOutputLimitError(
+                "Ollama exhausted the output token budget before completing the response"
+            )
         # A string can still fail the grounding content schema; that is handled there.
         return cast(str, message["content"])
 
@@ -88,16 +94,29 @@ def generate(prompt: str) -> str:
 
 
 def generate_json(
-    prompt: str, schema: dict[str, object], *, think: Thinking = JUDGE_THINK,
+    prompt: str,
+    schema: dict[str, object],
+    *,
+    think: Thinking = JUDGE_THINK,
     model: str | None = None,
-    num_ctx: int | None = None, num_predict: int | None = None,
-    sampling: dict[str, float | int] | None = None, timeout_seconds: float | None = None,
+    num_ctx: int | None = None,
+    num_predict: int | None = None,
+    sampling: dict[str, float | int] | None = None,
+    timeout_seconds: float | None = None,
     allow_json_fence: bool = False,
 ) -> dict[str, object]:
     """Generate JSON constrained by an Ollama schema and parse it at runtime."""
-    content = chat(prompt, response_format=schema, temperature=0.0, think=think,
-                   num_ctx=num_ctx, num_predict=num_predict, model=model if model is not None else JUDGE_MODEL,
-                   sampling=sampling, timeout_seconds=timeout_seconds)
+    content = chat(
+        prompt,
+        response_format=schema,
+        temperature=0.0,
+        think=think,
+        num_ctx=num_ctx,
+        num_predict=num_predict,
+        model=model if model is not None else JUDGE_MODEL,
+        sampling=sampling,
+        timeout_seconds=timeout_seconds,
+    )
     # Some models wrap an otherwise valid object; never rewrite JSON contents.
     if allow_json_fence:
         content = content.strip()

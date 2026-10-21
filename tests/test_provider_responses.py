@@ -6,11 +6,16 @@ from unittest.mock import patch
 
 import httpx
 
-from app.embeddings import EMBEDDING_MODEL, MAX_EMBEDDING_BATCH_SIZE, OLLAMA_EMBED_URL, embed_text, embed_texts
+from app.embeddings import (
+    EMBEDDING_MODEL,
+    MAX_EMBEDDING_BATCH_SIZE,
+    OLLAMA_EMBED_URL,
+    embed_text,
+    embed_texts,
+)
 from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError, chat, generate_json
 from app.llm.telemetry import capture_calls
-
 
 _UNSET = object()
 
@@ -49,7 +54,9 @@ class ProviderResponseTests(unittest.TestCase):
             "model": "fixture-model",
             "extra": "allowed",
         }
-        with patch("app.llm.ollama.httpx.post", return_value=response(OLLAMA_URL, payload=body)):
+        with patch(
+            "app.llm.ollama.httpx.post", return_value=response(OLLAMA_URL, payload=body)
+        ):
             self.assertEqual(chat("Question?"), "answer")
 
     def test_chat_rejects_malformed_envelopes(self) -> None:
@@ -71,8 +78,12 @@ class ProviderResponseTests(unittest.TestCase):
             {"message": None, "done_reason": "length"},
         ]
         for body in malformed:
-            with self.subTest(body=body), patch(
-                "app.llm.ollama.httpx.post", return_value=response(OLLAMA_URL, payload=body),
+            with (
+                self.subTest(body=body),
+                patch(
+                    "app.llm.ollama.httpx.post",
+                    return_value=response(OLLAMA_URL, payload=body),
+                ),
             ):
                 self.assert_response_error("chat", lambda: chat("Question?"))
 
@@ -84,9 +95,14 @@ class ProviderResponseTests(unittest.TestCase):
             self.assert_response_error("chat", lambda: chat("Question?"))
 
     def test_chat_keeps_length_and_empty_json_content_errors_distinct(self) -> None:
-        length_response = response(OLLAMA_URL, payload={
-            "message": {"content": "partial"}, "done": True, "done_reason": "length",
-        })
+        length_response = response(
+            OLLAMA_URL,
+            payload={
+                "message": {"content": "partial"},
+                "done": True,
+                "done_reason": "length",
+            },
+        )
         with patch("app.llm.ollama.httpx.post", return_value=length_response):
             with self.assertRaises(OllamaOutputLimitError):
                 chat("Question?")
@@ -100,27 +116,45 @@ class ProviderResponseTests(unittest.TestCase):
     def test_chat_preserves_valid_request_and_http_error_behavior(self) -> None:
         body = {"message": {"content": "answer"}, "done": True, "done_reason": "stop"}
         with patch(
-            "app.llm.ollama.httpx.post", return_value=response(OLLAMA_URL, payload=body),
+            "app.llm.ollama.httpx.post",
+            return_value=response(OLLAMA_URL, payload=body),
         ) as post:
-            self.assertEqual(chat(
-                "Question?", response_format={"type": "json"}, temperature=0.2,
-                think="low", model="fixture-model", num_ctx=4096, num_predict=100,
-                sampling={"top_p": 0.9}, timeout_seconds=7,
-            ), "answer")
+            self.assertEqual(
+                chat(
+                    "Question?",
+                    response_format={"type": "json"},
+                    temperature=0.2,
+                    think="low",
+                    model="fixture-model",
+                    num_ctx=4096,
+                    num_predict=100,
+                    sampling={"top_p": 0.9},
+                    timeout_seconds=7,
+                ),
+                "answer",
+            )
         self.assertEqual(post.call_args.args[0], OLLAMA_URL)
         self.assertEqual(post.call_args.kwargs["timeout"], 7)
-        self.assertEqual(post.call_args.kwargs["json"], {
-            "model": "fixture-model",
-            "messages": [{"role": "user", "content": "Question?"}],
-            "stream": False,
-            "format": {"type": "json"},
-            "options": {
-                "temperature": 0.2, "top_p": 0.9, "num_ctx": 4096, "num_predict": 100,
+        self.assertEqual(
+            post.call_args.kwargs["json"],
+            {
+                "model": "fixture-model",
+                "messages": [{"role": "user", "content": "Question?"}],
+                "stream": False,
+                "format": {"type": "json"},
+                "options": {
+                    "temperature": 0.2,
+                    "top_p": 0.9,
+                    "num_ctx": 4096,
+                    "num_predict": 100,
+                },
+                "think": "low",
             },
-            "think": "low",
-        })
+        )
 
-        failed = response(OLLAMA_URL, payload={"error": "provider error"}, status_code=500)
+        failed = response(
+            OLLAMA_URL, payload={"error": "provider error"}, status_code=500
+        )
         with patch("app.llm.ollama.httpx.post", return_value=failed):
             with self.assertRaises(httpx.HTTPStatusError):
                 chat("Question?")
@@ -129,16 +163,22 @@ class ProviderResponseTests(unittest.TestCase):
         valid_vector = [0, 1.25, *([2] * 766)]
         with patch(
             "app.embeddings.httpx.post",
-            return_value=response(OLLAMA_EMBED_URL, payload={"embeddings": [valid_vector]}),
+            return_value=response(
+                OLLAMA_EMBED_URL, payload={"embeddings": [valid_vector]}
+            ),
         ) as post:
             result = embed_text("paper passage")
         self.assertEqual(len(result), 768)
         self.assertEqual(result[:3], [0.0, 1.25, 2.0])
         self.assertTrue(all(type(value) is float for value in result))
         self.assertEqual(post.call_args.args[0], OLLAMA_EMBED_URL)
-        self.assertEqual(post.call_args.kwargs["json"], {
-            "model": EMBEDDING_MODEL, "input": "paper passage",
-        })
+        self.assertEqual(
+            post.call_args.kwargs["json"],
+            {
+                "model": EMBEDDING_MODEL,
+                "input": "paper passage",
+            },
+        )
         self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
 
     def test_embedding_rejects_malformed_envelopes_and_vectors(self) -> None:
@@ -157,25 +197,38 @@ class ProviderResponseTests(unittest.TestCase):
             [[0.0] * 767 + [math.nan]],
             [[0.0] * 767 + [math.inf]],
             [[0.0] * 767 + [-math.inf]],
-            [[0.0] * 767 + [10 ** 400]],
+            [[0.0] * 767 + [10**400]],
         ]
-        malformed: list[object] = [None, [], "private provider payload", {}, {"embeddings": None}]
+        malformed: list[object] = [
+            None,
+            [],
+            "private provider payload",
+            {},
+            {"embeddings": None},
+        ]
         malformed.extend({"embeddings": vectors} for vectors in invalid_vectors)
         for body in malformed:
-            with self.subTest(body=body), patch(
-                "app.embeddings.httpx.post",
-                return_value=response(OLLAMA_EMBED_URL, payload=body),
+            with (
+                self.subTest(body=body),
+                patch(
+                    "app.embeddings.httpx.post",
+                    return_value=response(OLLAMA_EMBED_URL, payload=body),
+                ),
             ):
                 self.assert_response_error("embedding", lambda: embed_text("passage"))
 
     def test_embedding_invalid_json_is_safe_and_http_errors_are_unchanged(self) -> None:
         with patch(
             "app.embeddings.httpx.post",
-            return_value=response(OLLAMA_EMBED_URL, content=b"private provider payload {"),
+            return_value=response(
+                OLLAMA_EMBED_URL, content=b"private provider payload {"
+            ),
         ):
             self.assert_response_error("embedding", lambda: embed_text("passage"))
 
-        failed = response(OLLAMA_EMBED_URL, payload={"error": "provider error"}, status_code=500)
+        failed = response(
+            OLLAMA_EMBED_URL, payload={"error": "provider error"}, status_code=500
+        )
         with patch("app.embeddings.httpx.post", return_value=failed):
             with self.assertRaises(httpx.HTTPStatusError):
                 embed_text("passage")
@@ -185,29 +238,48 @@ class ProviderResponseTests(unittest.TestCase):
 
         def handle(request: httpx.Request) -> httpx.Response:
             payloads.append(json.loads(request.content))
-            return response(OLLAMA_EMBED_URL, payload={"embeddings": [[0] * 768, [1.5] * 768]})
+            return response(
+                OLLAMA_EMBED_URL, payload={"embeddings": [[0] * 768, [1.5] * 768]}
+            )
 
-        with httpx.Client(transport=httpx.MockTransport(handle)) as client, capture_calls() as calls:
+        with (
+            httpx.Client(transport=httpx.MockTransport(handle)) as client,
+            capture_calls() as calls,
+        ):
             vectors = embed_texts(["First", "Second β"], client=client)
             self.assertFalse(client.is_closed)
         self.assertTrue(client.is_closed)
         self.assertEqual(vectors, [[0.0] * 768, [1.5] * 768])
-        self.assertEqual(payloads, [{"model": EMBEDDING_MODEL, "input": ["First", "Second β"]}])
-        self.assertEqual([(c.operation, c.status) for c in calls], [("embedding", "complete")])
+        self.assertEqual(
+            payloads, [{"model": EMBEDDING_MODEL, "input": ["First", "Second β"]}]
+        )
+        self.assertEqual(
+            [(c.operation, c.status) for c in calls], [("embedding", "complete")]
+        )
 
     def test_batch_rejects_wrong_cardinality_and_invalid_later_vectors(self) -> None:
         invalid: list[object] = [
-            [], [[0.0] * 768], [[0.0] * 768] * 3,
+            [],
+            [[0.0] * 768],
+            [[0.0] * 768] * 3,
             [[0.0] * 768, [0.0] * 767],
             [[0.0] * 768, [0.0] * 767 + [True]],
             [[0.0] * 768, [0.0] * 767 + [math.nan]],
         ]
         for vectors in invalid:
-            with self.subTest(vectors=vectors), patch(
-                "app.embeddings.httpx.post",
-                return_value=response(OLLAMA_EMBED_URL, payload={"embeddings": vectors}),
-            ), capture_calls() as calls:
-                self.assert_response_error("embedding", lambda: embed_texts(["First", "Second"]))
+            with (
+                self.subTest(vectors=vectors),
+                patch(
+                    "app.embeddings.httpx.post",
+                    return_value=response(
+                        OLLAMA_EMBED_URL, payload={"embeddings": vectors}
+                    ),
+                ),
+                capture_calls() as calls,
+            ):
+                self.assert_response_error(
+                    "embedding", lambda: embed_texts(["First", "Second"])
+                )
             self.assertEqual([c.status for c in calls], ["failed"])
 
     def test_empty_and_oversized_batches_do_not_call_provider(self) -> None:

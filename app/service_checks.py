@@ -12,7 +12,6 @@ from app.config import SETTINGS
 from app.db.models import Chunk, DocumentIndex
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 
-
 CHECK_TIMEOUT_SECONDS = 3
 DATABASE_URL = SETTINGS.database_url
 GROUNDING_MODEL = SETTINGS.grounding_model
@@ -32,18 +31,30 @@ class ServiceStatus(BaseModel):
 
 def check_database() -> ServiceCheck:
     # Isolate probe timeouts from normal queries and avoid retaining a probe pool.
-    probe = create_engine(DATABASE_URL, poolclass=NullPool, connect_args={
-        "connect_timeout": CHECK_TIMEOUT_SECONDS,
-        "options": f"-c statement_timeout={CHECK_TIMEOUT_SECONDS * 1000}",
-    })
+    probe = create_engine(
+        DATABASE_URL,
+        poolclass=NullPool,
+        connect_args={
+            "connect_timeout": CHECK_TIMEOUT_SECONDS,
+            "options": f"-c statement_timeout={CHECK_TIMEOUT_SECONDS * 1000}",
+        },
+    )
     try:
         with probe.connect() as connection:
             # LIMIT 0 checks every expected column without reading paper text.
             connection.execute(select(Chunk).limit(0))
             connection.execute(select(DocumentIndex).limit(0))
-        return ServiceCheck(name="database", status="ok", message="Database and paper-index schema are accessible.")
+        return ServiceCheck(
+            name="database",
+            status="ok",
+            message="Database and paper-index schema are accessible.",
+        )
     except SQLAlchemyError:
-        return ServiceCheck(name="database", status="error", message="Check PostgreSQL and your .env settings, then run uv run python -m scripts.init_db. Use Refresh papers afterward to update the paper list.")
+        return ServiceCheck(
+            name="database",
+            status="error",
+            message="Check PostgreSQL and your .env settings, then run uv run python -m scripts.init_db. Use Refresh papers afterward to update the paper list.",
+        )
     finally:
         probe.dispose()
 
@@ -64,25 +75,49 @@ def check_ollama() -> list[ServiceCheck]:
             if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
                 raise ValueError("invalid model entry")
             names.add(model_tag(entry["name"]))
-    except (httpx.HTTPError, ValueError):
+    except httpx.HTTPError, ValueError:
         return [
-            ServiceCheck(name="ollama", status="error", message="Could not read Ollama's model list. Open Ollama or run ollama serve, then check services again."),
-            ServiceCheck(name="answer_model", status="unknown", message="Answer model not checked because Ollama's model list is unavailable."),
-            ServiceCheck(name="embedding_model", status="unknown", message="Embedding model not checked because Ollama's model list is unavailable."),
+            ServiceCheck(
+                name="ollama",
+                status="error",
+                message="Could not read Ollama's model list. Open Ollama or run ollama serve, then check services again.",
+            ),
+            ServiceCheck(
+                name="answer_model",
+                status="unknown",
+                message="Answer model not checked because Ollama's model list is unavailable.",
+            ),
+            ServiceCheck(
+                name="embedding_model",
+                status="unknown",
+                message="Embedding model not checked because Ollama's model list is unavailable.",
+            ),
         ]
-    checks = [ServiceCheck(name="ollama", status="ok", message="Ollama's model list is accessible.")]
+    checks = [
+        ServiceCheck(
+            name="ollama", status="ok", message="Ollama's model list is accessible."
+        )
+    ]
     models: list[tuple[Literal["answer_model", "embedding_model"], str]] = [
-        ("answer_model", GROUNDING_MODEL), ("embedding_model", EMBEDDING_MODEL),
+        ("answer_model", GROUNDING_MODEL),
+        ("embedding_model", EMBEDDING_MODEL),
     ]
     for name, model in models:
         installed = model_tag(model) in names
-        checks.append(ServiceCheck(
-            name=name, status="ok" if installed else "error",
-            message=f"{model} is installed." if installed else f"Install the missing model with ollama pull {model}.",
-        ))
+        checks.append(
+            ServiceCheck(
+                name=name,
+                status="ok" if installed else "error",
+                message=f"{model} is installed."
+                if installed
+                else f"Install the missing model with ollama pull {model}.",
+            )
+        )
     return checks
 
 
 def service_status() -> ServiceStatus:
     checks = [check_database(), *check_ollama()]
-    return ServiceStatus(available=all(check.status == "ok" for check in checks), checks=checks)
+    return ServiceStatus(
+        available=all(check.status == "ok" for check in checks), checks=checks
+    )

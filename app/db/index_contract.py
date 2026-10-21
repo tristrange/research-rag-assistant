@@ -30,13 +30,20 @@ def lock_index(db: Session, *, shared: bool = False) -> None:
 def require_compatible_index(db: Session, document: str | None = None) -> None:
     """Refuse unknown/mismatched vectors before sending a question to Ollama."""
     model, dimensions = embedding_profile()
-    statement = select(Chunk.id).outerjoin(
-        DocumentIndex, DocumentIndex.document == Chunk.document,
-    ).where(or_(
-        DocumentIndex.document.is_(None),
-        DocumentIndex.embedding_model != model,
-        DocumentIndex.embedding_dimensions != dimensions,
-    ))
+    statement = (
+        select(Chunk.id)
+        .outerjoin(
+            DocumentIndex,
+            DocumentIndex.document == Chunk.document,
+        )
+        .where(
+            or_(
+                DocumentIndex.document.is_(None),
+                DocumentIndex.embedding_model != model,
+                DocumentIndex.embedding_dimensions != dimensions,
+            )
+        )
+    )
     if document is not None:
         statement = statement.where(Chunk.document == document)
     if db.scalar(statement.limit(1)) is not None:

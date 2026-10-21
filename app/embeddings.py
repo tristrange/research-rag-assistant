@@ -6,7 +6,6 @@ from app.config import SETTINGS
 from app.llm.errors import OllamaResponseError, response_object
 from app.llm.telemetry import observe_call, record_metadata
 
-
 OLLAMA_EMBED_URL = SETTINGS.ollama_embed_url
 EMBEDDING_MODEL = SETTINGS.embedding_model
 # The persisted pgvector column in app.db.models has this fixed dimension.
@@ -19,17 +18,24 @@ def embed_text(text: str) -> list[float]:
     return _embed(text, 1)[0]
 
 
-def embed_texts(texts: list[str], *, client: httpx.Client | None = None) -> list[list[float]]:
+def embed_texts(
+    texts: list[str], *, client: httpx.Client | None = None
+) -> list[list[float]]:
     """Embed a bounded batch in input order; reject the whole invalid response."""
     if len(texts) > MAX_EMBEDDING_BATCH_SIZE:
-        raise ValueError(f"An embedding batch must contain at most {MAX_EMBEDDING_BATCH_SIZE} texts")
+        raise ValueError(
+            f"An embedding batch must contain at most {MAX_EMBEDDING_BATCH_SIZE} texts"
+        )
     if not texts:
         return []
     return _embed(texts, len(texts), client=client)
 
 
 def _embed(
-    inputs: str | list[str], count: int, *, client: httpx.Client | None = None,
+    inputs: str | list[str],
+    count: int,
+    *,
+    client: httpx.Client | None = None,
 ) -> list[list[float]]:
     with observe_call("embedding", EMBEDDING_MODEL) as call:
         post = httpx.post if client is None else client.post

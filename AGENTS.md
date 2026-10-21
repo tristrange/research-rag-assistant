@@ -8,6 +8,9 @@ current commands rather than copying its full instructions here.
 ## Checks
 
 - Install dependencies with `uv sync`.
+- Run linting and formatting checks with `uv run ruff check .` and
+  `uv run ruff format --check .`; apply fixes with `uv run ruff check --fix .`
+  and `uv run ruff format .`.
 - Run relevant regression tests with `uv run python -m unittest discover -s tests -v`.
 - Run strict type checking with `uv run mypy` after Python changes.
 - Unit tests use local stubs and SQLite. Targeted live verifier checks need

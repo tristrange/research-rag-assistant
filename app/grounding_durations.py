@@ -1,21 +1,43 @@
 """Check explicit numerical durations against approved quotes, not retrieved context."""
 
+import re
 from fractions import Fraction
 from hashlib import sha256
 from pathlib import Path
-import re
 
-
-_SMALL_NUMBERS = dict(zip(
-    ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-     "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
-     "seventeen", "eighteen", "nineteen"),
-    range(20),
-))
-_TENS = dict(zip(
-    ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"),
-    range(20, 100, 10),
-))
+_SMALL_NUMBERS = dict(
+    zip(
+        (
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen",
+            "eighteen",
+            "nineteen",
+        ),
+        range(20),
+    )
+)
+_TENS = dict(
+    zip(
+        ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"),
+        range(20, 100, 10),
+    )
+)
 _DASHES = re.escape("-\u2010\u2011\u2012\u2013\u2014\u2015")
 _WORD_NUMBER = (
     rf"(?:{'|'.join(_TENS)})(?:[\s{_DASHES}]+(?:{'|'.join(list(_SMALL_NUMBERS)[1:10])}))?"
@@ -36,7 +58,9 @@ type Duration = tuple[str, Fraction, Fraction]
 
 def _number(value: str) -> Fraction:
     if value[0].isdigit() or value[0] in "+-\u2212.":
-        return Fraction(re.sub(r"\s+", "", value).replace(",", "").replace("\u2212", "-"))
+        return Fraction(
+            re.sub(r"\s+", "", value).replace(",", "").replace("\u2212", "-")
+        )
     words = re.split(rf"[\s{_DASHES}]+", value.casefold())
     return Fraction(sum((_SMALL_NUMBERS | _TENS)[word] for word in words))
 
@@ -46,8 +70,11 @@ def _durations(text: str, *, reject_invalid: bool = False) -> dict[Duration, str
     for match in _DURATION.finditer(text):
         # Do not misread the tail of an unsupported compound such as
         # "one hundred and three days" or "one point five days" as a smaller value.
-        if re.search(r"\b(?:hundred|thousand|million|billion|point)(?:\s+and)?\s*$",
-                     text[:match.start()], re.IGNORECASE):
+        if re.search(
+            r"\b(?:hundred|thousand|million|billion|point)(?:\s+and)?\s*$",
+            text[: match.start()],
+            re.IGNORECASE,
+        ):
             continue
         try:
             start = _number(match["start"])
@@ -73,9 +100,14 @@ def validate_duration_evidence(claim_text: str, evidence_quotes: list[str]) -> N
     words through ninety-nine. It is a consistency gate, not semantic entailment
     or complete extraction of every possible temporal expression.
     """
-    supported = {duration for quote in evidence_quotes for duration in _durations(quote)}
-    missing = [label for duration, label in _durations(claim_text, reject_invalid=True).items()
-               if duration not in supported]
+    supported = {
+        duration for quote in evidence_quotes for duration in _durations(quote)
+    }
+    missing = [
+        label
+        for duration, label in _durations(claim_text, reject_invalid=True).items()
+        if duration not in supported
+    ]
     if missing:
         raise ValueError(
             f"approved evidence does not contain claimed duration(s): {', '.join(missing)}. "

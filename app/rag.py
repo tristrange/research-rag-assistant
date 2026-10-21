@@ -5,10 +5,13 @@ from app.llm.ollama import generate
 from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, VERIFIED_CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, merge_selected_chunks, render_context
-from app.retrieval.rerank import rerank_chunks, rerank_with_page_reserve, with_vector_reserve
+from app.retrieval.rerank import (
+    rerank_chunks,
+    rerank_with_page_reserve,
+    with_vector_reserve,
+)
 from app.retrieval.search import QuestionEmbedding, list_documents, search_chunks
 from app.types import AnswerClaim, AnswerResult, ChunkData
-
 
 OVERVIEW_SECTION_PRIORITY = (
     ("conclusion",),
@@ -33,8 +36,10 @@ def answer_question(
     if limit is None:
         limit = default_top_k(
             expand_context,
-            verified=answer_mode == "verified" and use_reranking
-            and not overview and not reserve_vector_candidate,
+            verified=answer_mode == "verified"
+            and use_reranking
+            and not overview
+            and not reserve_vector_candidate,
         )
     if limit < 1:
         raise ValueError("limit must be positive")
@@ -43,12 +48,17 @@ def answer_question(
     if reserve_vector_candidate and limit >= CANDIDATE_COUNT:
         raise ValueError(f"vector reserve requires limit below {CANDIDATE_COUNT}")
     balanced_verified = (
-        answer_mode == "verified" and use_reranking and not expand_context
-        and not overview and not reserve_vector_candidate
+        answer_mode == "verified"
+        and use_reranking
+        and not expand_context
+        and not overview
+        and not reserve_vector_candidate
     )
     candidate_count = VERIFIED_CANDIDATE_COUNT if balanced_verified else CANDIDATE_COUNT
     candidate_limit = max(candidate_count, limit) if use_reranking else limit
-    embedding = QuestionEmbedding(question) if query_embedding is None else query_embedding
+    embedding = (
+        QuestionEmbedding(question) if query_embedding is None else query_embedding
+    )
     if embedding.question != question:
         raise ValueError("The embedding must belong to the requested question")
     if overview:
@@ -57,7 +67,9 @@ def answer_question(
         candidates = []
         for sections in OVERVIEW_SECTION_PRIORITY:
             candidates = search_chunks(
-                question, limit=candidate_limit, document=document,
+                question,
+                limit=candidate_limit,
+                document=document,
                 sections=sections,
                 query_embedding=embedding,
             )
@@ -65,10 +77,18 @@ def answer_question(
                 break
         if not candidates:
             candidates = search_chunks(
-                question, limit=candidate_limit, document=document, query_embedding=embedding,
+                question,
+                limit=candidate_limit,
+                document=document,
+                query_embedding=embedding,
             )
     else:
-        candidates = search_chunks(question, limit=candidate_limit, document=document, query_embedding=embedding)
+        candidates = search_chunks(
+            question,
+            limit=candidate_limit,
+            document=document,
+            query_embedding=embedding,
+        )
     if not candidates:
         return {
             "answer": INSUFFICIENT_EVIDENCE,
@@ -79,7 +99,11 @@ def answer_question(
     if balanced_verified:
         chunks = rerank_with_page_reserve(question, candidates, limit=limit)
     else:
-        chunks = rerank_chunks(question, candidates, limit=limit) if use_reranking else candidates
+        chunks = (
+            rerank_chunks(question, candidates, limit=limit)
+            if use_reranking
+            else candidates
+        )
     if reserve_vector_candidate:
         chunks = with_vector_reserve(chunks, candidates)
 
@@ -116,7 +140,9 @@ def answer_question(
     }
     if answer_mode == "verified":
         result["claim_evidence"] = claim_evidence
-        result["outcome"] = "insufficient_evidence" if answer == INSUFFICIENT_EVIDENCE else "answered"
+        result["outcome"] = (
+            "insufficient_evidence" if answer == INSUFFICIENT_EVIDENCE else "answered"
+        )
     return result
 
 
@@ -129,7 +155,11 @@ def answer_each_document(
     """Answer independently for every indexed paper, preserving attribution."""
     documents = list_documents()
     if not documents:
-        return {"answer": INSUFFICIENT_EVIDENCE, "sources": [], "outcome": "insufficient_evidence"}
+        return {
+            "answer": INSUFFICIENT_EVIDENCE,
+            "sources": [],
+            "outcome": "insufficient_evidence",
+        }
 
     heading = "Overviews" if overview else "Answers"
     sections = [f"{heading} by paper, based on retrieved passages:"]
@@ -139,25 +169,41 @@ def answer_each_document(
     answered_count = 0
     for document in documents:
         result = answer_question(
-            question, document=document, answer_mode=answer_mode, overview=overview,
+            question,
+            document=document,
+            answer_mode=answer_mode,
+            overview=overview,
             query_embedding=embedding,
         )
         sections.append(f"{document}:\n{result['answer']}")
         if result.get("outcome") == "answered":
             answered_count += 1
         for claim in result.get("claim_evidence", []):
-            claim_evidence.append({
-                **claim,
-                "citations": [{
-                    **citation, "source_index": citation["source_index"] + len(sources),
-                } for citation in claim["citations"]],
-            })
+            claim_evidence.append(
+                {
+                    **claim,
+                    "citations": [
+                        {
+                            **citation,
+                            "source_index": citation["source_index"] + len(sources),
+                        }
+                        for citation in claim["citations"]
+                    ],
+                }
+            )
         sources.extend(result["sources"])
 
-    combined: AnswerResult = {"answer": "\n\n".join(sections), "sources": sources, "claim_evidence": claim_evidence}
+    combined: AnswerResult = {
+        "answer": "\n\n".join(sections),
+        "sources": sources,
+        "claim_evidence": claim_evidence,
+    }
     if answer_mode == "verified":
         combined["outcome"] = (
-            "answered" if answered_count == len(documents)
-            else "partial" if answered_count else "insufficient_evidence"
+            "answered"
+            if answered_count == len(documents)
+            else "partial"
+            if answered_count
+            else "insufficient_evidence"
         )
     return combined
