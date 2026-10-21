@@ -116,3 +116,40 @@ The ignored report and runner are
 Application/runtime metadata and generation fingerprint matched before and after
 the run. Regression checks pass: 433 Python tests (17 skipped) and strict typing
 across 79 files. The earlier v38 reports remain unchanged.
+
+## Question-copy typography
+
+The verifier must still reproduce the whole question. The copy comparison now
+normalizes whitespace and a fixed set of typographic dash characters
+(U+2010–U+2015, U+2212, U+FE58, U+FE63 and U+FF0D) to ASCII hyphen-minus before
+comparing `question_excerpt` with the original question. This handles the recorded
+U+2011/U+002D copy failure without asking the model to reproduce punctuation.
+
+The change is limited to that copy comparison. It does not alter
+`_normalize_whitespace`, evidence spans, named-identifier extraction, duration
+validation, coverage, attribution, proof, retrieval, prompts, schemas or model
+settings. Numbers, words, spelling, conditions, study names and inserted or
+removed hyphens remain exact: `cohort 2` versus `cohort 3`, `tumor-bearing` versus
+`tumor bearing`, and `tumour-bearing` are still rejected. A dash substitution
+cannot turn an incomplete or unrelated answer into a supported one because every
+semantic and evidence guard runs unchanged. The remaining risk is that a
+meaningful dash distinction inside the copied question is ignored; the excerpt is
+used only for question binding and cannot select evidence.
+
+Regression coverage is
+`test_question_copy_normalizes_typographic_dashes_only` in
+[`tests/test_grounding.py`](../tests/test_grounding.py). The prompt and schema
+bytes and inference settings are unchanged, but `grounding_fingerprint()` now
+includes the question-copy rule. The contract fingerprint therefore changes from
+`1022b865c6cb487aa84e16474565e9bf23f2eedc898f7f71ce290377f1d77892`
+to `08bd094b08d183c4d2f4fe2930031575c3614b4714bf5e73e029737cacc63291`.
+`validate_resume_consistency()` rejects a report saved under the old comparison
+instead of mixing old refusals with new accepts. Replay provenance also hashes
+the grounding modules. The 21 October development replay ran at `d88baa6` before
+this fingerprint-only review follow-up, so its report records the earlier
+fingerprint; the comparison and generation path did not change after that run.
+See the [bounded drafting follow-up](draft-fidelity-check.md) for the observed
+failure and development evidence. The 21 October development replay did not
+reproduce the U+2011 copy live; the [public aggregate](../benchmarks/verifier-question-typography-results-2026-10-21.json)
+records that limitation. The deterministic regression remains the direct evidence
+for the comparison change.

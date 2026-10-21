@@ -415,6 +415,11 @@ class GroundingTests(unittest.TestCase):
         ] = [1]
         return result
 
+    def test_question_copy_rule_changes_grounding_fingerprint(self) -> None:
+        original = grounding_fingerprint()
+        with patch("app.grounding._QUESTION_COPY_RULE", "changed rule"):
+            self.assertNotEqual(grounding_fingerprint(), original)
+
     def test_inference_settings_change_grounding_fingerprint(self) -> None:
         original = grounding_fingerprint()
         for setting, value in [
@@ -899,6 +904,72 @@ class GroundingTests(unittest.TestCase):
                         verifier=lambda _prompt, _schema: verdict,
                     )
                 )
+
+    def test_question_copy_normalizes_typographic_dashes_only(self) -> None:
+        question = (
+            "In cohort 2, how many tumor cells were injected into each "
+            "tumor-bearing mouse?"
+        )
+        draft = GroundedDraft.model_validate(DRAFT)
+        base = approved(question)
+
+        def verdict_with_excerpt(excerpt: str) -> dict[str, object]:
+            verdict = deepcopy(base)
+            cast(dict[str, object], verdict["requested_answer"])["question_excerpt"] = (
+                excerpt
+            )
+            return verdict
+
+        def verify_excerpt(excerpt: str) -> bool:
+            verdict = verdict_with_excerpt(excerpt)
+            return verify_draft(
+                question,
+                draft,
+                [SOURCE],
+                verifier=lambda _prompt, _schema: verdict,
+            )
+
+        for hyphen in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63\uff0d":
+            with self.subTest(hyphen=hex(ord(hyphen))):
+                excerpt = question.replace("-", hyphen)
+                self.assertTrue(verify_excerpt(excerpt))
+
+        for excerpt in [
+            question.replace("cohort 2", "cohort 3"),
+            question.replace("cohort 2", "cohort-2"),
+            question.replace("tumor-bearing", "tumor bearing"),
+            question.replace("tumor-bearing", "tumour-bearing"),
+            question.replace("tumor-bearing mouse", "tumor-bearing mice"),
+            question.replace("each", "every"),
+        ]:
+            with self.subTest(excerpt=excerpt):
+                self.assertFalse(verify_excerpt(excerpt))
+
+    def test_question_copy_rejects_changed_dose_and_attribution(self) -> None:
+        question = "Did Asp et al. report a 30 mg dose in cohort-2 mice?"
+        draft = GroundedDraft.model_validate(DRAFT)
+        base = approved(question)
+
+        def verify_excerpt(excerpt: str) -> bool:
+            verdict = deepcopy(base)
+            cast(dict[str, object], verdict["requested_answer"])["question_excerpt"] = (
+                excerpt
+            )
+            return verify_draft(
+                question,
+                draft,
+                [SOURCE],
+                verifier=lambda _prompt, _schema: verdict,
+            )
+
+        self.assertTrue(verify_excerpt(question.replace("cohort-2", "cohort\u20112")))
+        for excerpt in [
+            question.replace("Asp", "Smith"),
+            question.replace("30 mg", "3 mg"),
+            question.replace("cohort-2", "cohort-3"),
+        ]:
+            with self.subTest(excerpt=excerpt):
+                self.assertFalse(verify_excerpt(excerpt))
 
     def test_full_question_cannot_borrow_an_unclaimed_measurement(self) -> None:
         question = "By what percentage did total fat mass decrease?"

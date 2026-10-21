@@ -60,7 +60,80 @@ whole-question coverage, claim support, attribution, evidence binding and final
 proof; a formatting fix must not approve incomplete or unrelated answers. Missing
 evidence selection and unsupported repair wording remain separate issues.
 
-## Verification and limits
+## Question-copy typography follow-up (21 October 2026)
+
+**Hypothesis.** The recorded U+2011/U+002D copy change is a non-semantic
+typographic substitution, not a different question. Refusing both source-faithful
+drafts for it is a reliability failure. The minimal decision change is to compare
+the verifier's `question_excerpt` after whitespace normalization and a fixed
+typographic-dash translation only.
+
+**False-accept risk.** Numbers, words, spelling, conditions, study attribution and
+inserted or removed hyphens still differ and remain rejected. The excerpt is a
+binding check; supporting evidence is selected and validated separately. No claim
+support, citation, named-identifier, duration, coverage, attribution or proof
+guard is relaxed.
+
+**Expected improvement.** Both recorded drafts would no longer be refused solely
+for the copied dash. An answer is not guaranteed: the initial inoculum verifier
+also selected an excerpt from another cohort, and the mitochondrial repair had a
+separate unsupported full-rescue qualifier.
+
+**Stop rule.** Run the two saved-source development cases once each under frozen
+model and index settings, and preserve every outcome without a retry. If the replay
+displays a material unsupported claim or attribution error, or accepts any
+non-dash identifier change, revert the change. A development pass is not
+reliability validation: newly reserved questions and independent human source
+review are required for that. If those are unavailable, report fresh validation as
+**not completed**, not passed.
+
+## Development replay (21 October 2026)
+
+The fixed v41 application ran each saved-source case once with GPT-OSS 20B and
+the same sampling, budgets and six saved passages. It used nine chat calls in
+466 seconds. The [public aggregate](../benchmarks/verifier-question-typography-results-2026-10-21.json)
+records the protocol, artifact hashes, outcomes and limitations; raw prompts,
+responses and passages remain in the ignored report directory.
+
+| Development case | Outcome | Finding |
+| --- | --- | --- |
+| Cohort-2 inoculum | Supported answer | Verifier and isolated proof accepted; count and cohort supported |
+| VDAC1/Bax/PPID comparison | Safe refusal | Both proofs rejected missing Mfn1KD population scope for Bax/PPID |
+
+The cohort verification copied the question with ASCII hyphens, so this live
+trial did **not** reproduce the recorded U+2011 failure. The direct evidence for
+the target change is the deterministic regression test, not this generation.
+The displayed cohort answer named C26 cells, narrower than the earlier r3 reviewed
+generic tumor-cell count; the cited passage supports that C26 group count and no
+unsupported number or attribution was observed. The mitochondrial refusal is the
+known adjacent-context proof failure, not a typography regression.
+
+A first replay attempt was invalid because the harness tried to serialize an
+in-progress diagnostic record while checkpointing the first verifier call. It
+produced no verifier response or answer. The invalid report is preserved and no
+model output was reused; the trial above is a new generation run.
+
+**Review follow-up.** The question-copy rule is now an explicit key in
+`grounding_fingerprint()`, so a report saved under the earlier comparison cannot
+be resumed after the change. The replay above ran at `d88baa6` before that
+fingerprint-only key was added and records the earlier fingerprint
+`1022b865c6cb487aa84e16474565e9bf23f2eedc898f7f71ce290377f1d77892`; the final
+fingerprint is
+`08bd094b08d183c4d2f4fe2930031575c3614b4714bf5e73e029737cacc63291`.
+Prompts, schemas, settings and generation behavior did not change after the
+replay.
+
+Fresh reserved questions with independent human source review were not available,
+so newly reserved validation is **not completed**. This development replay does
+not mark reliability fixed or approve a release.
+
+The follow-up passed 455 Python tests (17 PostgreSQL contracts skipped without a
+configured test database), 29 JavaScript tests, 7 real-browser smoke tests, strict
+mypy and Ruff check/format. Docker was unavailable, so the opt-in PostgreSQL
+contracts were not run locally. These checks establish compatibility, not semantic
+success.
+
+## Verification and limits (12 October draft-fidelity trial)
 
 The primary Codex agent reviewed all four drafts against their cited saved
 passages and inspected final evidence selections. All 27 catalogue quote

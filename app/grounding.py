@@ -59,6 +59,7 @@ from app.grounding_prompts import (
 )
 from app.grounding_validation import (
     _INLINE_CITATION,
+    _QUESTION_COPY_RULE,
     _is_reference_source,
     _validate_draft,
     _validate_question_identifiers,
@@ -441,6 +442,7 @@ def grounding_fingerprint() -> str:
         "question_identifier_pattern": _IDENTIFIER_TOKEN.pattern,
         "question_identifier_filter": "Scan maximal Unicode word tokens, then require ASCII, letter-leading, alphanumeric question tokens containing a digit",
         "question_identifier_guard": "Letter-leading contiguous ASCII alphanumeric question tokens containing a digit must occur as case-insensitive whole tokens in final approved claim quotes; lexical presence never replaces semantic proof",
+        "question_copy_rule": _QUESTION_COPY_RULE,
         "deterministic_repair_feedback": "Collect missing question identifiers and every claim's duration failures before the single repair",
         "model": GROUNDING_MODEL,
         "context_tokens": GROUNDING_CONTEXT_TOKENS,

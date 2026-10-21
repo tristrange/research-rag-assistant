@@ -18,6 +18,22 @@ _INLINE_CITATION = re.compile(
     r"\[|\]|\bpages?\b|\.pdf\b|\bpp?\.\s*\d+\b|\b(?:source|document|doc)\s*(?:#|no\.?|:)?\s*\d+\b",
     re.IGNORECASE,
 )
+_QUESTION_COPY_DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63\uff0d"
+_QUESTION_COPY_TRANSLATION = str.maketrans(
+    _QUESTION_COPY_DASHES, "-" * len(_QUESTION_COPY_DASHES)
+)
+_QUESTION_COPY_RULE = (
+    "requested_answer.question_excerpt must equal the entire original question after "
+    "whitespace normalization and translation of these typographic dashes to ASCII "
+    "hyphen-minus: "
+    + ", ".join(f"U+{ord(character):04X}" for character in _QUESTION_COPY_DASHES)
+    + "; all other characters remain exact"
+)
+
+
+def _normalize_question_copy(text: str) -> str:
+    """Ignore whitespace and typographic dash differences in a copied question."""
+    return _normalize_whitespace(text.translate(_QUESTION_COPY_TRANSLATION))
 
 
 def _is_reference_source(source: ChunkData) -> bool:
@@ -76,9 +92,10 @@ def validate_verification_structure(
                     "claim verdict cited evidence from a source it did not cite"
                 )
 
-    normalized_question = _normalize_whitespace(question)
     requested_answer = result.requested_answer
-    if _normalize_whitespace(requested_answer.question_excerpt) != normalized_question:
+    if _normalize_question_copy(
+        requested_answer.question_excerpt
+    ) != _normalize_question_copy(question):
         raise ValueError("requested_answer must quote the entire question")
     validate_evidence_ids(requested_answer.supporting_evidence_ids)
     for requirement in result.requirements:
