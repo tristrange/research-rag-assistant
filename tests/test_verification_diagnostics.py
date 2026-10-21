@@ -130,6 +130,44 @@ class VerificationDiagnosticsTests(unittest.TestCase):
             ["draft", "verification", "repair_draft"],
         )
 
+    def test_malformed_refusal_is_invalid_schema_without_changing_decision(
+        self,
+    ) -> None:
+        malformed = {"answerable": False, "claims": [{"text": "Incomplete."}]}
+        diagnostics: list[VerificationTrace] = []
+        with patch("app.grounding.generate_json", side_effect=[malformed]) as grounded:
+            answer = grounded_answer(QUESTION, [SOURCE], diagnostics=diagnostics)
+
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        grounded.assert_called_once()
+        self.assertEqual(
+            [
+                (item.stage, item.parse_status, item.reason_category)
+                for item in diagnostics
+            ],
+            [("draft", "invalid_schema", "schema_mismatch")],
+        )
+
+    def test_malformed_repair_refusal_is_invalid_schema_without_extra_repair(
+        self,
+    ) -> None:
+        malformed = {"answerable": False, "claims": [{"text": "Incomplete."}]}
+        diagnostics: list[VerificationTrace] = []
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[DRAFT, {}, malformed],
+        ) as grounded:
+            answer = grounded_answer(QUESTION, [SOURCE], diagnostics=diagnostics)
+
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(grounded.call_count, 3)
+        repair = [item for item in diagnostics if item.stage == "repair_draft"]
+        self.assertEqual(len(repair), 1)
+        self.assertEqual(
+            (repair[0].parse_status, repair[0].reason_category),
+            ("invalid_schema", "schema_mismatch"),
+        )
+
     def test_structural_draft_rejection_is_classified(self) -> None:
         invalid = {
             "answerable": True,

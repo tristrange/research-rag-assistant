@@ -243,6 +243,31 @@ class ReplayGroundingTests(unittest.TestCase):
             self.assertNotIn("diagnostics", report)
             self.assertNotIn("diagnostics", report["results"][0])
 
+    def test_existing_sidecar_rolls_back_the_primary_reservation(self) -> None:
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "replay.json"
+            sidecar = Path(directory) / "replay.diagnostics.json"
+            sidecar.write_text("keep", encoding="utf-8")
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--diagnostics",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
+                self.assertRaisesRegex(ValueError, "Report already exists"),
+            ):
+                main()
+            self.assertFalse(output.exists())
+            self.assertEqual(sidecar.read_text(encoding="utf-8"), "keep")
+
     def test_replay_preserves_nondefault_source_cutoffs(self) -> None:
         for strategy, top_k, candidates in [
             ("expanded", 3, 10),

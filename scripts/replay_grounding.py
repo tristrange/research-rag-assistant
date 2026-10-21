@@ -30,14 +30,18 @@ def main() -> None:
         help="write sanitized verification diagnostics beside the report",
     )
     args = parser.parse_args()
+    diagnostics_path = args.output.with_suffix(".diagnostics.json")
     saved = load_report(args.report)
     cases = [r for r in saved.results if args.ids is None or r.case.id in args.ids]
     if not cases or (args.ids and set(args.ids) != {r.case.id for r in cases}):
         parser.error("Selected case IDs must exist in the saved results")
     reserve_output(args.output)
-    diagnostics_path = args.output.with_suffix(".diagnostics.json")
     if args.diagnostics:
-        reserve_output(diagnostics_path)
+        try:
+            reserve_output(diagnostics_path)
+        except ValueError:
+            args.output.unlink(missing_ok=True)
+            raise
     diagnostics_cases: list[dict[str, object]] = []
     before = runtime_snapshot([GROUNDING_MODEL])
     results: list[dict[str, object]] = []

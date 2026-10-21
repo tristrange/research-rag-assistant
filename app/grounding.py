@@ -71,6 +71,7 @@ from app.ingestion.chunking import (
 )
 from app.llm.ollama import generate_json
 from app.llm.telemetry import (
+    ReasonCategory,
     VerificationStage,
     VerificationTrace,
     append_verification_trace,
@@ -305,6 +306,23 @@ def verify_draft(
     return accepted
 
 
+def _classify_refusal(
+    diagnostic: VerificationTrace | None,
+    draft_data: dict[str, object],
+    reason: ReasonCategory,
+) -> None:
+    """Label a refusal that skipped validation without changing the decision."""
+    if diagnostic is None:
+        return
+    try:
+        GroundedDraft.model_validate(draft_data)
+    except ValueError:
+        diagnostic.parse_status = "invalid_schema"
+        diagnostic.reason_category = "schema_mismatch"
+    else:
+        diagnostic.reason_category = reason
+
+
 def grounded_answer(
     question: str,
     sources: list[ChunkData],
@@ -338,8 +356,7 @@ def grounded_answer(
             if trace is not None:
                 trace.append({"stage": "draft", "output": draft_data})
             if draft_data.get("answerable") is False:
-                if diagnostic is not None:
-                    diagnostic.reason_category = "draft_unanswerable"
+                _classify_refusal(diagnostic, draft_data, "draft_unanswerable")
                 return INSUFFICIENT_EVIDENCE
             draft = GroundedDraft.model_validate(draft_data)
     except ValueError as error:
@@ -376,8 +393,7 @@ def grounded_answer(
             if trace is not None:
                 trace.append({"stage": "repair_draft", "output": repair_data})
             if repair_data.get("answerable") is False:
-                if repair_diagnostic is not None:
-                    repair_diagnostic.reason_category = "repair_unanswerable"
+                _classify_refusal(repair_diagnostic, repair_data, "repair_unanswerable")
                 return INSUFFICIENT_EVIDENCE
             repaired_draft = GroundedDraft.model_validate(repair_data)
     except ValueError as error:
