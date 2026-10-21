@@ -6,12 +6,24 @@ from app.grounding_durations import validate_duration_evidence
 class DurationEvidenceTests(unittest.TestCase):
     def test_cardinal_numbers_and_time_units_match_semantically(self) -> None:
         cases = [
-            ("The observation lasted zero seconds.", "The observation lasted 0 second."),
+            (
+                "The observation lasted zero seconds.",
+                "The observation lasted 0 second.",
+            ),
             ("The delay lasted five minutes.", "The delay lasted 5 minute."),
             ("The fast lasted twelve hours.", "The fast lasted 12 hours."),
-            ("Follow-up continued for twenty-one days.", "Follow-up continued for 21 day."),
-            ("The intervention lasted ninety-nine weeks.", "The intervention lasted 99 weeks."),
-            ("The cohort was followed for 3 months.", "The cohort was followed for three month."),
+            (
+                "Follow-up continued for twenty-one days.",
+                "Follow-up continued for 21 day.",
+            ),
+            (
+                "The intervention lasted ninety-nine weeks.",
+                "The intervention lasted 99 weeks.",
+            ),
+            (
+                "The cohort was followed for 3 months.",
+                "The cohort was followed for three month.",
+            ),
             ("The protocol lasted forty years.", "The protocol lasted 40 year."),
         ]
         for claim, quote in cases:
@@ -24,13 +36,24 @@ class DurationEvidenceTests(unittest.TestCase):
             ["Animals were monitored for sixteen to eighteen days."],
         )
         with self.assertRaisesRegex(ValueError, "duration"):
-            validate_duration_evidence("Animals were monitored for 16–18 days.", ["Animals were monitored for 16 days and 18 days."])
+            validate_duration_evidence(
+                "Animals were monitored for 16–18 days.",
+                ["Animals were monitored for 16 days and 18 days."],
+            )
 
-    def test_fixed_week_day_conversion_is_allowed_but_month_day_conversion_is_not(self) -> None:
-        validate_duration_evidence("The washout lasted one week.", ["The washout lasted 7 days."])
-        validate_duration_evidence("The delay lasted two minutes.", ["The delay lasted 120 seconds."])
+    def test_fixed_week_day_conversion_is_allowed_but_month_day_conversion_is_not(
+        self,
+    ) -> None:
+        validate_duration_evidence(
+            "The washout lasted one week.", ["The washout lasted 7 days."]
+        )
+        validate_duration_evidence(
+            "The delay lasted two minutes.", ["The delay lasted 120 seconds."]
+        )
         with self.assertRaisesRegex(ValueError, "duration"):
-            validate_duration_evidence("The follow-up lasted one month.", ["The follow-up lasted 30 days."])
+            validate_duration_evidence(
+                "The follow-up lasted one month.", ["The follow-up lasted 30 days."]
+            )
 
     def test_duration_quantities_must_be_supported_by_the_union_of_quotes(self) -> None:
         validate_duration_evidence(
@@ -40,13 +63,21 @@ class DurationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duration"):
             validate_duration_evidence(
                 "The animals were fasted for six hours and observed for three days.",
-                ["Animals were fasted for 6 hours.", "Animals were observed for 2 days."],
+                [
+                    "Animals were fasted for 6 hours.",
+                    "Animals were observed for 2 days.",
+                ],
             )
 
     def test_fold_multipliers_are_not_durations(self) -> None:
-        validate_duration_evidence("The response was 6-fold versus 3-fold.", ["The response was six-fold versus three-fold."])
+        validate_duration_evidence(
+            "The response was 6-fold versus 3-fold.",
+            ["The response was six-fold versus three-fold."],
+        )
 
-    def test_signed_grouped_and_fractional_quantities_are_not_read_as_suffixes(self) -> None:
+    def test_signed_grouped_and_fractional_quantities_are_not_read_as_suffixes(
+        self,
+    ) -> None:
         mismatches = [
             ("The protocol lasted -3 days.", ["The protocol lasted 3 days."]),
             ("The protocol lasted 1,003 days.", ["The protocol lasted 3 days."]),
@@ -56,7 +87,10 @@ class DurationEvidenceTests(unittest.TestCase):
             ("The protocol lasted 3 days.", ["The protocol lasted -3 days."]),
         ]
         for claim, quotes in mismatches:
-            with self.subTest(claim=claim), self.assertRaisesRegex(ValueError, "duration"):
+            with (
+                self.subTest(claim=claim),
+                self.assertRaisesRegex(ValueError, "duration"),
+            ):
                 validate_duration_evidence(claim, quotes)
 
         exact_matches = [
@@ -71,7 +105,9 @@ class DurationEvidenceTests(unittest.TestCase):
 
     def test_missing_duration_evidence_raises_a_duration_error(self) -> None:
         with self.assertRaisesRegex(ValueError, "duration"):
-            validate_duration_evidence("The cohort lasted three days.", ["The cohort was followed throughout."])
+            validate_duration_evidence(
+                "The cohort lasted three days.", ["The cohort was followed throughout."]
+            )
 
     def test_and_ranges_preserve_both_bounds_in_claims_and_quotes(self) -> None:
         for expression in ("between 16 and 18 days", "16 and 18 days"):

@@ -36,8 +36,16 @@ from scripts.evaluate_answers import (
 
 
 def sources_for(chunks: list[Chunk]) -> list[ChunkData]:
-    return [ChunkData(document=c.document, page=c.page, chunk_index=c.chunk_index,
-                      text=c.text, section=c.section or "unknown") for c in chunks]
+    return [
+        ChunkData(
+            document=c.document,
+            page=c.page,
+            chunk_index=c.chunk_index,
+            text=c.text,
+            section=c.section or "unknown",
+        )
+        for c in chunks
+    ]
 
 
 def coverage(case: AnswerEvaluationCase, sources: list[ChunkData]) -> list[bool]:
@@ -45,8 +53,11 @@ def coverage(case: AnswerEvaluationCase, sources: list[ChunkData]) -> list[bool]
 
 
 def compare_case(
-    case: AnswerEvaluationCase, cutoffs: list[int], *,
-    document: str, candidate_count: int = CANDIDATE_COUNT,
+    case: AnswerEvaluationCase,
+    cutoffs: list[int],
+    *,
+    document: str,
+    candidate_count: int = CANDIDATE_COUNT,
 ) -> dict[str, object]:
     start = perf_counter()
     candidates = search_chunks(case["question"], candidate_count, document=document)
@@ -60,14 +71,18 @@ def compare_case(
         elapsed_ms = (perf_counter() - expanding) * 1000
         variants[str(cutoff)] = {
             "seed_hits": coverage(case, sources_for(ranked[:cutoff])),
-            "expanded_hits": coverage(case, sources), "sources": sources,
-            "context_chars": len(render_context(sources)), "expansion_ms": elapsed_ms,
+            "expanded_hits": coverage(case, sources),
+            "sources": sources,
+            "context_chars": len(render_context(sources)),
+            "expansion_ms": elapsed_ms,
             "retrieval_total_ms": (reranked - start) * 1000 + elapsed_ms,
         }
     return {
-        "case": case, "candidate_sources": sources_for(candidates),
+        "case": case,
+        "candidate_sources": sources_for(candidates),
         "candidate_hits": coverage(case, sources_for(candidates)),
-        "reranked_sources": sources_for(ranked), "variants": variants,
+        "reranked_sources": sources_for(ranked),
+        "variants": variants,
         "search_ms": (searched - start) * 1000,
         "rerank_ms": (reranked - searched) * 1000,
     }
@@ -77,17 +92,29 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--benchmark", type=Path)
     parser.add_argument("--pdf", type=Path, default=Path("data/sample.pdf"))
-    parser.add_argument("--case", dest="case_ids", action="append",
-                        help="select an answerable benchmark case; repeat to select more")
-    parser.add_argument("--candidates", type=int, choices=range(1, 101), default=CANDIDATE_COUNT,
-                        metavar="1..100", help="vector candidate pool to inspect (default: 10)")
+    parser.add_argument(
+        "--case",
+        dest="case_ids",
+        action="append",
+        help="select an answerable benchmark case; repeat to select more",
+    )
+    parser.add_argument(
+        "--candidates",
+        type=int,
+        choices=range(1, 101),
+        default=CANDIDATE_COUNT,
+        metavar="1..100",
+        help="vector candidate pool to inspect (default: 10)",
+    )
     parser.add_argument("--baseline-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--top-k", type=int, default=EXPANDED_TOP_K)
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if not 1 <= args.baseline_k < args.top_k <= args.candidates or args.repetitions < 1:
-        parser.error("cutoffs require 1 <= baseline-k < top-k <= candidates and repetitions >= 1")
+        parser.error(
+            "cutoffs require 1 <= baseline-k < top-k <= candidates and repetitions >= 1"
+        )
     cases = ANSWER_CASES
     paper_hash = PAPER_SHA256
     document = "sample.pdf"
@@ -105,8 +132,13 @@ def main() -> None:
         selected = set(args.case_ids)
         cases = [case for case in cases if case["id"] in selected]
         if any(not case["answerable"] for case in cases):
-            parser.error("Selected cases must be answerable; coverage does not measure refusals")
-    if args.pdf.name != document or sha256(args.pdf.read_bytes()).hexdigest() != paper_hash:
+            parser.error(
+                "Selected cases must be answerable; coverage does not measure refusals"
+            )
+    if (
+        args.pdf.name != document
+        or sha256(args.pdf.read_bytes()).hexdigest() != paper_hash
+    ):
         parser.error("PDF must match the benchmark filename and fingerprint")
     if args.output.exists():
         parser.error("Output exists; choose a new path")
@@ -118,20 +150,30 @@ def main() -> None:
     before = snapshot(document)
     # Both retrieval and PDF-text validation use the benchmark's exact filename.
     # The full-library snapshot still detects changes anywhere during the run.
-    selected_sources = [source for source in indexed_sources() if source["document"] == document]
+    selected_sources = [
+        source for source in indexed_sources() if source["document"] == document
+    ]
     if not selected_sources:
         parser.error("The evaluation paper has no indexed text")
     validate_index(selected_sources, pages)
     results: list[dict[str, object]] = []
     report: dict[str, object] = {
-        "status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
-        "document": document, "requested_case_ids": [case["id"] for case in cases],
-        "corpus": before, "paper_sha256": paper_hash, "cases_sha256": cases_hash(cases),
+        "status": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "document": document,
+        "requested_case_ids": [case["id"] for case in cases],
+        "corpus": before,
+        "paper_sha256": paper_hash,
+        "cases_sha256": cases_hash(cases),
         "script_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
-        "embedding_model": EMBEDDING_MODEL, "reranker_model": MODEL_NAME,
-        "baseline_k": args.baseline_k, "top_k": args.top_k,
-        "candidates": args.candidates, "repetitions": args.repetitions,
-        "neighbor_radius": NEIGHBOR_RADIUS, "max_context_chars": MAX_CONTEXT_CHARS,
+        "embedding_model": EMBEDDING_MODEL,
+        "reranker_model": MODEL_NAME,
+        "baseline_k": args.baseline_k,
+        "top_k": args.top_k,
+        "candidates": args.candidates,
+        "repetitions": args.repetitions,
+        "neighbor_radius": NEIGHBOR_RADIUS,
+        "max_context_chars": MAX_CONTEXT_CHARS,
         "methodology": "Inspected development labels, not a held-out quality estimate. "
         "One warmup on the first case; no generation or judge calls. "
         "Cutoffs share one candidate search and reranking per case/repetition; "
@@ -147,16 +189,24 @@ def main() -> None:
     save_report(args.output, report)
     try:
         cutoffs = [args.baseline_k, args.top_k]
-        compare_case(cases[0], cutoffs, document=document, candidate_count=args.candidates)
+        compare_case(
+            cases[0], cutoffs, document=document, candidate_count=args.candidates
+        )
         for repetition in range(args.repetitions):
             for case in cases:
-                result = compare_case(case, cutoffs, document=document, candidate_count=args.candidates)
+                result = compare_case(
+                    case, cutoffs, document=document, candidate_count=args.candidates
+                )
                 result["repetition"] = repetition + 1
                 results.append(result)
                 save_report(args.output, report)
-                print(f"Completed repetition {repetition + 1}: {case['id']}", flush=True)
+                print(
+                    f"Completed repetition {repetition + 1}: {case['id']}", flush=True
+                )
         if snapshot(document) != before:
-            raise RuntimeError("Corpus changed during comparison; discard these results")
+            raise RuntimeError(
+                "Corpus changed during comparison; discard these results"
+            )
         report["status"] = "complete"
     except BaseException as error:
         report["status"] = "failed"

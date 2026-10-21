@@ -8,11 +8,19 @@ class OllamaTests(unittest.TestCase):
     @patch("app.llm.ollama.httpx.post")
     def test_sampling_and_timeout_are_request_specific(self, post: Mock) -> None:
         post.return_value.json.return_value = {"message": {"content": "{}"}}
-        generate_json("Verify", {}, think=True, sampling={"temperature": 0.6, "top_p": 0.95, "top_k": 20},
-                      timeout_seconds=450.0, num_predict=2048)
+        generate_json(
+            "Verify",
+            {},
+            think=True,
+            sampling={"temperature": 0.6, "top_p": 0.95, "top_k": 20},
+            timeout_seconds=450.0,
+            num_predict=2048,
+        )
         self.assertEqual(post.call_args.kwargs["timeout"], 450.0)
-        self.assertEqual(post.call_args.kwargs["json"]["options"],
-                         {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "num_predict": 2048})
+        self.assertEqual(
+            post.call_args.kwargs["json"]["options"],
+            {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "num_predict": 2048},
+        )
         generate_json("Judge", {})
         self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
         self.assertEqual(post.call_args.kwargs["json"]["options"], {"temperature": 0.0})
@@ -21,8 +29,13 @@ class OllamaTests(unittest.TestCase):
         self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
 
     @patch("app.llm.ollama.httpx.post")
-    def test_exhausted_output_budget_is_not_accepted_even_with_valid_json(self, post: Mock) -> None:
-        post.return_value.json.return_value = {"message": {"content": '{"answerable": false}'}, "done_reason": "length"}
+    def test_exhausted_output_budget_is_not_accepted_even_with_valid_json(
+        self, post: Mock
+    ) -> None:
+        post.return_value.json.return_value = {
+            "message": {"content": '{"answerable": false}'},
+            "done_reason": "length",
+        }
         with self.assertRaisesRegex(OllamaOutputLimitError, "output token budget"):
             generate_json("Verify", {})
         post.assert_called_once()
@@ -54,8 +67,10 @@ class OllamaTests(unittest.TestCase):
         generate_json("Question", {}, think=True, num_ctx=12288, num_predict=4096)
         self.assertEqual(post.call_args.kwargs["timeout"], 300.0)
         self.assertIs(post.call_args.kwargs["json"]["think"], True)
-        self.assertEqual(post.call_args.kwargs["json"]["options"],
-                         {"temperature": 0.0, "num_ctx": 12288, "num_predict": 4096})
+        self.assertEqual(
+            post.call_args.kwargs["json"]["options"],
+            {"temperature": 0.0, "num_ctx": 12288, "num_predict": 4096},
+        )
         generate_json("Question", {}, think=False)
         self.assertEqual(post.call_args.kwargs["timeout"], 120.0)
 
@@ -73,7 +88,10 @@ class OllamaTests(unittest.TestCase):
     @patch("app.llm.ollama.httpx.post")
     def test_distinct_model_roles_reach_ollama(self, post: Mock) -> None:
         post.return_value.json.return_value = {"message": {"content": "{}"}}
-        with patch("app.llm.ollama.MODEL", "generator:test"), patch("app.llm.ollama.JUDGE_MODEL", "judge:test"):
+        with (
+            patch("app.llm.ollama.MODEL", "generator:test"),
+            patch("app.llm.ollama.JUDGE_MODEL", "judge:test"),
+        ):
             generate("Question")
             self.assertEqual(post.call_args.kwargs["json"]["model"], "generator:test")
             generate_json("Judge", {})
@@ -89,26 +107,36 @@ class OllamaTests(unittest.TestCase):
 
     @patch("app.llm.ollama.httpx.post")
     def test_single_json_fence_preserves_values(self, post: Mock) -> None:
-        post.return_value.json.return_value = {"message": {"content":
-            ' \n```json\n{"quote": "Line 1\\nLine 2", "path": "C:\\\\papers", '
-            '"literal": "\\\\n", "supported": false}\n```\n '
-        }}
-        self.assertEqual(generate_json("Verify", {}, allow_json_fence=True), {
-            "quote": "Line 1\nLine 2", "path": "C:\\papers", "literal": "\\n", "supported": False,
-        })
+        post.return_value.json.return_value = {
+            "message": {
+                "content": ' \n```json\n{"quote": "Line 1\\nLine 2", "path": "C:\\\\papers", '
+                '"literal": "\\\\n", "supported": false}\n```\n '
+            }
+        }
+        self.assertEqual(
+            generate_json("Verify", {}, allow_json_fence=True),
+            {
+                "quote": "Line 1\nLine 2",
+                "path": "C:\\papers",
+                "literal": "\\n",
+                "supported": False,
+            },
+        )
         post.assert_called_once()
 
     @patch("app.llm.ollama.httpx.post")
-    def test_fence_does_not_recover_ambiguous_or_malformed_content(self, post: Mock) -> None:
+    def test_fence_does_not_recover_ambiguous_or_malformed_content(
+        self, post: Mock
+    ) -> None:
         for content in [
-            'Here is the answer:\n```json\n{}\n```',
-            '```json\n{}\n```\nAdditional explanation.',
-            '```json\n{}\n```\n```json\n{}\n```',
-            '```json\n{} {}\n```',
+            "Here is the answer:\n```json\n{}\n```",
+            "```json\n{}\n```\nAdditional explanation.",
+            "```json\n{}\n```\n```json\n{}\n```",
+            "```json\n{} {}\n```",
             '```json\n{"supported": true,}\n```',
-            '```json\n{}',
-            '```json\\n{}\\n```',
-            '```json\n[]\n```',
+            "```json\n{}",
+            "```json\\n{}\\n```",
+            "```json\n[]\n```",
             '```json\n"{}"\n```',
         ]:
             with self.subTest(content=content):
@@ -118,9 +146,9 @@ class OllamaTests(unittest.TestCase):
 
     @patch("app.llm.ollama.httpx.post")
     def test_evaluation_judge_keeps_strict_bare_json_decoding(self, post: Mock) -> None:
-        post.return_value.json.return_value = {"message": {"content":
-            '```json\n{"correctness": 2}\n```'
-        }}
+        post.return_value.json.return_value = {
+            "message": {"content": '```json\n{"correctness": 2}\n```'}
+        }
         with self.assertRaises(ValueError):
             generate_json("Judge", {"type": "object"})
 

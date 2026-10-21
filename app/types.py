@@ -21,7 +21,9 @@ class EvidenceQuote(TypedDict):
 
 class AnswerClaim(TypedDict):
     text: str
-    attribution: Literal["this_document_authors", "external_publication", "non_study_context"]
+    attribution: Literal[
+        "this_document_authors", "external_publication", "non_study_context"
+    ]
     citations: list[EvidenceQuote]
 
 

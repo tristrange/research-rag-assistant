@@ -8,7 +8,9 @@ from app.main import app
 
 class BrowserUiTests(unittest.TestCase):
     def test_home_serves_labeled_query_form_and_result_regions(self) -> None:
-        response = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)).get("/")
+        response = TestClient(
+            app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)
+        ).get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
         for fragment in [
@@ -29,15 +31,17 @@ class BrowserUiTests(unittest.TestCase):
             'id="copy-answer-button" type="button" aria-describedby="copy-status" disabled',
             'id="copy-status" class="copy-status" role="status" aria-live="polite"',
             'id="answer-guidance" class="field-note" hidden',
-            'Each paper (overview)',
-            'Each paper (targeted search)',
+            "Each paper (overview)",
+            "Each paper (targeted search)",
         ]:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, response.text)
         self.assertNotIn('class="step"', response.text)
 
     def test_browser_assets_and_local_api_docs_are_served(self) -> None:
-        client = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000))
+        client = TestClient(
+            app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)
+        )
         script = client.get("/static/app.js?v=15")
         stylesheet = client.get("/static/styles.css?v=11")
         docs = client.get("/docs")
@@ -55,10 +59,26 @@ class BrowserUiTests(unittest.TestCase):
 
         with patch("app.main.list_documents", return_value=["paper.pdf"]):
             self.assertEqual(client.get("/documents").json(), ["paper.pdf"])
-        with patch("app.main.answer_question", return_value={"answer": "Supported answer", "sources": [], "claim_evidence": [], "outcome": "answered"}):
+        with patch(
+            "app.main.answer_question",
+            return_value={
+                "answer": "Supported answer",
+                "sources": [],
+                "claim_evidence": [],
+                "outcome": "answered",
+            },
+        ):
             response = client.post("/query", json={"question": "What happened?"})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"answer": "Supported answer", "sources": [], "claim_evidence": [], "outcome": "answered"})
+        self.assertEqual(
+            response.json(),
+            {
+                "answer": "Supported answer",
+                "sources": [],
+                "claim_evidence": [],
+                "outcome": "answered",
+            },
+        )
 
 
 if __name__ == "__main__":

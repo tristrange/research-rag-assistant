@@ -30,10 +30,14 @@ def extract_pages(
         for page_number, page in enumerate(document, start=1):
             text = page.get_text("text")
             if max_page_chars is not None and len(text) > max_page_chars:
-                raise ValueError(f"PDF page {page_number} exceeds the {max_page_chars}-character limit")
+                raise ValueError(
+                    f"PDF page {page_number} exceeds the {max_page_chars}-character limit"
+                )
             total_chars += len(text)
             if max_total_chars is not None and total_chars > max_total_chars:
-                raise ValueError(f"PDF exceeds the {max_total_chars}-character text limit")
+                raise ValueError(
+                    f"PDF exceeds the {max_total_chars}-character text limit"
+                )
 
             pages.append(
                 {

@@ -52,8 +52,10 @@ def saved_report() -> Mock:
 
 class ReplayGroundingTests(unittest.TestCase):
     def setUp(self) -> None:
-        runtime = patch("scripts.replay_grounding.runtime_snapshot",
-                        return_value=RuntimeSnapshot(ollama_version=None, model_digests={}))
+        runtime = patch(
+            "scripts.replay_grounding.runtime_snapshot",
+            return_value=RuntimeSnapshot(ollama_version=None, model_digests={}),
+        )
         runtime.start()
         self.addCleanup(runtime.stop)
 
@@ -61,11 +63,20 @@ class ReplayGroundingTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             output = Path(directory) / "replay.json"
             with (
-                patch("sys.argv", [
-                    "replay_grounding", "saved.json", "--case", "unknown-case",
-                    "--output", str(output),
-                ]),
-                patch("scripts.replay_grounding.load_report", return_value=saved_report()),
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--case",
+                        "unknown-case",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
                 patch("scripts.replay_grounding.reserve_output") as reserve,
                 patch("scripts.replay_grounding.grounded_answer") as grounded,
                 redirect_stderr(io.StringIO()),
@@ -82,10 +93,18 @@ class ReplayGroundingTests(unittest.TestCase):
             original = "existing report\n"
             output.write_text(original, encoding="utf-8")
             with (
-                patch("sys.argv", [
-                    "replay_grounding", "saved.json", "--output", str(output),
-                ]),
-                patch("scripts.replay_grounding.load_report", return_value=saved_report()),
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
                 patch("scripts.replay_grounding.grounded_answer") as grounded,
                 self.assertRaisesRegex(ValueError, "Report already exists"),
             ):
@@ -111,20 +130,33 @@ class ReplayGroundingTests(unittest.TestCase):
             self.assertIsNotNone(trace)
             cast(list[dict[str, object]], trace).extend(trace_entries)
             self.assertIsNotNone(claim_evidence)
-            cast(list[AnswerClaim], claim_evidence).append({
-                "text": "The response increased.", "attribution": "this_document_authors",
-                "citations": [{"source_index": 0, "quote": SOURCE["text"]}],
-            })
+            cast(list[AnswerClaim], claim_evidence).append(
+                {
+                    "text": "The response increased.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_index": 0, "quote": SOURCE["text"]}],
+                }
+            )
             return "The response increased. (paper.pdf, page 2)"
 
         with TemporaryDirectory() as directory:
             output = Path(directory) / "replay.json"
             with (
-                patch("sys.argv", [
-                    "replay_grounding", "saved.json", "--output", str(output),
-                ]),
-                patch("scripts.replay_grounding.load_report", return_value=saved_report()),
-                patch("scripts.replay_grounding.grounded_answer", side_effect=ground) as grounded,
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
+                patch(
+                    "scripts.replay_grounding.grounded_answer", side_effect=ground
+                ) as grounded,
                 redirect_stdout(io.StringIO()),
             ):
                 main()
@@ -135,14 +167,22 @@ class ReplayGroundingTests(unittest.TestCase):
             self.assertEqual(len(report["results"]), 1)
             item = report["results"][0]
             self.assertEqual(item["trace"], trace_entries)
-            self.assertEqual(item["answer"], "The response increased. (paper.pdf, page 2)")
-            self.assertEqual(item["claim_evidence"][0]["citations"][0]["source_index"], 0)
+            self.assertEqual(
+                item["answer"], "The response increased. (paper.pdf, page 2)"
+            )
+            self.assertEqual(
+                item["claim_evidence"][0]["citations"][0]["source_index"], 0
+            )
             self.assertEqual(item["answer_calls"], [])
             self.assertEqual(report["schema_version"], 2)
             self.assertGreaterEqual(item["elapsed_ms"], 0)
 
     def test_replay_preserves_nondefault_source_cutoffs(self) -> None:
-        for strategy, top_k, candidates in [("expanded", 3, 10), ("vector", 5, 5), ("reranked", 7, 10)]:
+        for strategy, top_k, candidates in [
+            ("expanded", 3, 10),
+            ("vector", 5, 5),
+            ("reranked", 7, 10),
+        ]:
             with self.subTest(strategy=strategy), TemporaryDirectory() as directory:
                 saved = saved_report()
                 saved.settings.strategy = strategy
@@ -150,9 +190,15 @@ class ReplayGroundingTests(unittest.TestCase):
                 saved.settings.candidate_count = candidates
                 output = Path(directory) / "replay.json"
                 with (
-                    patch("sys.argv", ["replay_grounding", "saved.json", "--output", str(output)]),
+                    patch(
+                        "sys.argv",
+                        ["replay_grounding", "saved.json", "--output", str(output)],
+                    ),
                     patch("scripts.replay_grounding.load_report", return_value=saved),
-                    patch("scripts.replay_grounding.grounded_answer", return_value="Answer") as grounded,
+                    patch(
+                        "scripts.replay_grounding.grounded_answer",
+                        return_value="Answer",
+                    ) as grounded,
                     redirect_stdout(io.StringIO()),
                 ):
                     main()
@@ -165,7 +211,8 @@ class ReplayGroundingTests(unittest.TestCase):
 
     def test_interrupted_run_retains_partial_trace_and_failed_status(self) -> None:
         trace_entry: dict[str, object] = {
-            "stage": "draft", "output": {"answerable": True, "claims": []}
+            "stage": "draft",
+            "output": {"answerable": True, "claims": []},
         }
 
         def interrupt(
@@ -182,18 +229,30 @@ class ReplayGroundingTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             output = Path(directory) / "replay.json"
             with (
-                patch("sys.argv", [
-                    "replay_grounding", "saved.json", "--output", str(output),
-                ]),
-                patch("scripts.replay_grounding.load_report", return_value=saved_report()),
-                patch("scripts.replay_grounding.grounded_answer", side_effect=interrupt),
+                patch(
+                    "sys.argv",
+                    [
+                        "replay_grounding",
+                        "saved.json",
+                        "--output",
+                        str(output),
+                    ],
+                ),
+                patch(
+                    "scripts.replay_grounding.load_report", return_value=saved_report()
+                ),
+                patch(
+                    "scripts.replay_grounding.grounded_answer", side_effect=interrupt
+                ),
                 redirect_stdout(io.StringIO()),
                 self.assertRaisesRegex(KeyboardInterrupt, "operator stopped replay"),
             ):
                 main()
             report = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(report["status"], "failed")
-            self.assertEqual(report["error"], "KeyboardInterrupt: operator stopped replay")
+            self.assertEqual(
+                report["error"], "KeyboardInterrupt: operator stopped replay"
+            )
             self.assertIn("finished_at", report)
             self.assertEqual(len(report["results"]), 1)
             item = report["results"][0]

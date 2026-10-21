@@ -37,27 +37,54 @@ from app.grounding import (
 from app.llm.ollama import OllamaOutputLimitError
 from app.types import AnswerClaim, ChunkData
 
-SOURCE = ChunkData(document="paper.pdf", page=10, chunk_index=2,
-                   section="references", text="Asp et al. reported the study. Treatment delayed weight loss.")
+SOURCE = ChunkData(
+    document="paper.pdf",
+    page=10,
+    chunk_index=2,
+    section="references",
+    text="Asp et al. reported the study. Treatment delayed weight loss.",
+)
 DRAFT: dict[str, object] = {
     "answerable": True,
-    "claims": [{"text": "The cited treatment delayed weight loss.",
-                "attribution": "external_publication",
-                "citations": [{"source_id": 1}]}],
+    "claims": [
+        {
+            "text": "The cited treatment delayed weight loss.",
+            "attribution": "external_publication",
+            "citations": [{"source_id": 1}],
+        }
+    ],
 }
+
+
 def approved(question: str = "What did the cited study report?") -> dict[str, object]:
     requested_answer = {
-        "status": "supported", "question_excerpt": question,
-        "supporting_evidence_ids": [2], "reason": "Established by source.",
+        "status": "supported",
+        "question_excerpt": question,
+        "supporting_evidence_ids": [2],
+        "reason": "Established by source.",
     }
     return {
-        "requirements": [{"requirement": "Requested finding", "supported": True,
-                          "reason": "Established by source.", "supporting_evidence_ids": [2]}],
-        "requested_answer": requested_answer, "answers_question": True,
+        "requirements": [
+            {
+                "requirement": "Requested finding",
+                "supported": True,
+                "reason": "Established by source.",
+                "supporting_evidence_ids": [2],
+            }
+        ],
+        "requested_answer": requested_answer,
+        "answers_question": True,
         "reason": "The requested fact is supported.",
-        "verdicts": [{"claim_index": 1, "reason": "Evidence assessment.",
-                      "supported": True, "correct_attribution": True,
-                      "relevant": True, "supporting_evidence_ids": [2]}],
+        "verdicts": [
+            {
+                "claim_index": 1,
+                "reason": "Evidence assessment.",
+                "supported": True,
+                "correct_attribution": True,
+                "relevant": True,
+                "supporting_evidence_ids": [2],
+            }
+        ],
     }
 
 
@@ -74,20 +101,30 @@ class GroundingTests(unittest.TestCase):
     def setUp(self) -> None:
         # These tests isolate the existing full-context checks; ApprovedProofTests
         # exercise the real proof stage and combined pipeline separately.
-        proof = patch("app.grounding.generate_approved_proof_json", return_value={
-            "supported": True, "reason": "Complete evidence.",
-        })
+        proof = patch(
+            "app.grounding.generate_approved_proof_json",
+            return_value={
+                "supported": True,
+                "reason": "Complete evidence.",
+            },
+        )
         proof.start()
         self.addCleanup(proof.stop)
 
     def test_scientific_abbreviations_preserve_exact_quote_choices(self) -> None:
         text = "Asp et al. observed 3.9% uptake (Fig. 1F). Values differed vs. ST mice. Final result."
-        self.assertEqual(_evidence_spans(text), [
-            "Asp et al. observed 3.9% uptake (Fig. 1F).",
-            "Values differed vs. ST mice.", "Final result.",
-        ])
+        self.assertEqual(
+            _evidence_spans(text),
+            [
+                "Asp et al. observed 3.9% uptake (Fig. 1F).",
+                "Values differed vs. ST mice.",
+                "Final result.",
+            ],
+        )
 
-    def test_sentence_final_abbreviation_preserves_separate_attribution_quotes(self) -> None:
+    def test_sentence_final_abbreviation_preserves_separate_attribution_quotes(
+        self,
+    ) -> None:
         external = "The effect was reported by Smith et al."
         current = "Our experiments found no effect."
         text = f"{external} {current}"
@@ -96,107 +133,224 @@ class GroundingTests(unittest.TestCase):
         source = ChunkData(document="study.pdf", page=1, chunk_index=0, text=text)
         question = "What did the cited study report?"
         verdict = self.approval_for_single_span(question)
-        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [2]
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [2]
-        cast(list[dict[str, object]], verdict["requirements"])[0]["supporting_evidence_ids"] = [2]
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "The cited study reported the effect.", "attribution": "external_publication",
-            "citations": [{"source_id": 1}],
-        }]})
-        self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [2]
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [2]
+        cast(list[dict[str, object]], verdict["requirements"])[0][
+            "supporting_evidence_ids"
+        ] = [2]
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "The cited study reported the effect.",
+                        "attribution": "external_publication",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
+        self.assertTrue(
+            verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+        )
         schema = json.dumps(_bounded_draft_schema([source]))
         for quote in (external, current, text):
             self.assertNotIn(json.dumps(quote), schema)
 
     def test_supported_requirement_without_evidence_ids_fails_closed(self) -> None:
         verdict = approved()
-        cast(list[dict[str, object]], verdict["requirements"])[0].pop("supporting_evidence_ids", None)
-        self.assertFalse(verify_draft("What did the cited study report?",
-                                     GroundedDraft.model_validate(DRAFT), [SOURCE],
-                                     verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["requirements"])[0].pop(
+            "supporting_evidence_ids", None
+        )
+        self.assertFalse(
+            verify_draft(
+                "What did the cited study report?",
+                GroundedDraft.model_validate(DRAFT),
+                [SOURCE],
+                verifier=lambda _p, _s: verdict,
+            )
+        )
 
     def test_qualifier_evidence_must_appear_in_approved_claims(self) -> None:
         question = "How did uptake change in male mice?"
-        source = ChunkData(document="study.pdf", page=1, chunk_index=0,
-                           text="We studied male mice. Uptake increased.")
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "Uptake increased in male mice.", "attribution": "this_document_authors",
-            "citations": [{"source_id": 1}],
-        }]})
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="We studied male mice. Uptake increased.",
+        )
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "Uptake increased in male mice.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
         verdict = approved(question)
         verdict["requirements"] = [
-            {"requirement": "Uptake finding", "supported": True,
-             "reason": "Uptake increased.", "supporting_evidence_ids": [2]},
-            {"requirement": "Male cohort", "supported": True,
-             "reason": "The methods establish the cohort.", "supporting_evidence_ids": [1]},
+            {
+                "requirement": "Uptake finding",
+                "supported": True,
+                "reason": "Uptake increased.",
+                "supporting_evidence_ids": [2],
+            },
+            {
+                "requirement": "Male cohort",
+                "supported": True,
+                "reason": "The methods establish the cohort.",
+                "supporting_evidence_ids": [1],
+            },
         ]
         # Both booleans are positive, but the displayed result excerpt omits scope.
-        self.assertFalse(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1, 2]
-        self.assertFalse(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
-        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
-        self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [2]
-        self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
-        with patch("app.grounding.generate_approved_proof_json", return_value={
-            "supported": False, "reason": "Different cohort.",
-        }):
-            self.assertFalse(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        self.assertFalse(
+            verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+        )
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [1, 2]
+        self.assertFalse(
+            verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+        )
+        cast(list[dict[str, object]], verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1, 2]
+        self.assertTrue(
+            verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+        )
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [2]
+        self.assertTrue(
+            verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+        )
+        with patch(
+            "app.grounding.generate_approved_proof_json",
+            return_value={
+                "supported": False,
+                "reason": "Different cohort.",
+            },
+        ):
+            self.assertFalse(
+                verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+            )
 
-    def test_display_evidence_uses_verifier_selections_and_exact_source_indexes(self) -> None:
-        source = ChunkData(document="study.pdf", page=2, chunk_index=7, section="results",
-                           text="Ten mice received treatment. Treatment delayed weight loss.")
+    def test_display_evidence_uses_verifier_selections_and_exact_source_indexes(
+        self,
+    ) -> None:
+        source = ChunkData(
+            document="study.pdf",
+            page=2,
+            chunk_index=7,
+            section="results",
+            text="Ten mice received treatment. Treatment delayed weight loss.",
+        )
         draft = deepcopy(DRAFT)
         first_citation(draft)["source_id"] = 2
         verdict = approved()
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [2]
-        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [2, 1]
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [2]
+        cast(list[dict[str, object]], verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [2, 1]
         evidence: list[AnswerClaim] = []
-        with patch("app.grounding.generate_json", side_effect=[draft, verdict]) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE, source], claim_evidence=evidence)
+        with patch(
+            "app.grounding.generate_json", side_effect=[draft, verdict]
+        ) as model:
+            answer = grounded_answer(
+                "What did the cited study report?",
+                [SOURCE, source],
+                claim_evidence=evidence,
+            )
         self.assertIn("study.pdf, page 2", answer)
         self.assertEqual(model.call_count, 2)
-        self.assertEqual(evidence, [{
-            "text": "The cited treatment delayed weight loss.", "attribution": "external_publication",
-            "citations": [
-                {"source_index": 1, "quote": "Treatment delayed weight loss."},
-                {"source_index": 1, "quote": "Ten mice received treatment."},
+        self.assertEqual(
+            evidence,
+            [
+                {
+                    "text": "The cited treatment delayed weight loss.",
+                    "attribution": "external_publication",
+                    "citations": [
+                        {"source_index": 1, "quote": "Treatment delayed weight loss."},
+                        {"source_index": 1, "quote": "Ten mice received treatment."},
+                    ],
+                }
             ],
-        }])
+        )
 
     def test_only_accepted_repair_exposes_evidence(self) -> None:
         evidence: list[AnswerClaim] = []
         with patch("app.grounding.generate_json", side_effect=[{}, DRAFT, APPROVED]):
-            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+            answer = grounded_answer(
+                "What did the cited study report?", [SOURCE], claim_evidence=evidence
+            )
         self.assertNotEqual(answer, INSUFFICIENT_EVIDENCE)
-        self.assertEqual(evidence[0]["citations"], [{"source_index": 0, "quote": "Treatment delayed weight loss."}])
+        self.assertEqual(
+            evidence[0]["citations"],
+            [{"source_index": 0, "quote": "Treatment delayed weight loss."}],
+        )
 
-    def test_repair_with_supported_result_and_rejected_commentary_refuses_whole_answer(self) -> None:
+    def test_repair_with_supported_result_and_rejected_commentary_refuses_whole_answer(
+        self,
+    ) -> None:
         replacement = deepcopy(DRAFT)
         claims = cast(list[dict[str, object]], replacement["claims"])
-        claims.append({**deepcopy(claims[0]), "text": "All requested qualifiers are satisfied."})
+        claims.append(
+            {**deepcopy(claims[0]), "text": "All requested qualifiers are satisfied."}
+        )
         verdict = deepcopy(APPROVED)
-        cast(list[dict[str, object]], verdict["verdicts"]).append({
-            "claim_index": 2, "supported": False, "correct_attribution": False,
-            "relevant": False, "reason": "Checking commentary is not a source finding.",
-            "supporting_evidence_ids": [],
-        })
+        cast(list[dict[str, object]], verdict["verdicts"]).append(
+            {
+                "claim_index": 2,
+                "supported": False,
+                "correct_attribution": False,
+                "relevant": False,
+                "reason": "Checking commentary is not a source finding.",
+                "supporting_evidence_ids": [],
+            }
+        )
         evidence: list[AnswerClaim] = []
-        with patch("app.grounding.generate_json", side_effect=[{}, replacement, verdict]) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+        with patch(
+            "app.grounding.generate_json", side_effect=[{}, replacement, verdict]
+        ) as model:
+            answer = grounded_answer(
+                "What did the cited study report?", [SOURCE], claim_evidence=evidence
+            )
         self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(evidence, [])
         self.assertEqual(model.call_count, 3)
 
     def test_display_evidence_binds_reordered_verdicts_to_their_claims(self) -> None:
-        source = ChunkData(document="study.pdf", page=2, chunk_index=0,
-                           text="Treatment reduced body mass. Glucose uptake was unchanged.")
-        draft = {"answerable": True, "claims": [
-            {"text": "Treatment reduced body mass.", "attribution": "this_document_authors",
-             "citations": [{"source_id": 1}]},
-            {"text": "Glucose uptake was unchanged.", "attribution": "this_document_authors",
-             "citations": [{"source_id": 1}]},
-        ]}
+        source = ChunkData(
+            document="study.pdf",
+            page=2,
+            chunk_index=0,
+            text="Treatment reduced body mass. Glucose uptake was unchanged.",
+        )
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "Treatment reduced body mass.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                },
+                {
+                    "text": "Glucose uptake was unchanged.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                },
+            ],
+        }
         question = "What happened to body mass and glucose uptake?"
         verdict = approved(question)
         first = cast(list[dict[str, object]], verdict["verdicts"])[0]
@@ -204,12 +358,16 @@ class GroundingTests(unittest.TestCase):
             {**first, "claim_index": 2, "supporting_evidence_ids": [2]},
             {**first, "claim_index": 1, "supporting_evidence_ids": [1]},
         ]
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1, 2]
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [1, 2]
         evidence: list[AnswerClaim] = []
         with patch("app.grounding.generate_json", side_effect=[draft, verdict]):
             grounded_answer(question, [source], claim_evidence=evidence)
-        self.assertEqual([claim["citations"][0]["quote"] for claim in evidence],
-                         ["Treatment reduced body mass.", "Glucose uptake was unchanged."])
+        self.assertEqual(
+            [claim["citations"][0]["quote"] for claim in evidence],
+            ["Treatment reduced body mass.", "Glucose uptake was unchanged."],
+        )
 
     def test_refusals_and_rejected_drafts_never_expose_claim_evidence(self) -> None:
         rejected = deepcopy(APPROVED)
@@ -217,19 +375,44 @@ class GroundingTests(unittest.TestCase):
         for responses in [
             [{"answerable": False, "claims": []}],
             [DRAFT, rejected, {"answerable": False, "claims": []}],
-            [{}, {},],
+            [
+                {},
+                {},
+            ],
         ]:
-            evidence: list[AnswerClaim] = [{"text": "Old claim", "attribution": "this_document_authors", "citations": []}]
-            with self.subTest(responses=responses), patch("app.grounding.generate_json", side_effect=responses):
-                self.assertEqual(grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence), INSUFFICIENT_EVIDENCE)
+            evidence: list[AnswerClaim] = [
+                {
+                    "text": "Old claim",
+                    "attribution": "this_document_authors",
+                    "citations": [],
+                }
+            ]
+            with (
+                self.subTest(responses=responses),
+                patch("app.grounding.generate_json", side_effect=responses),
+            ):
+                self.assertEqual(
+                    grounded_answer(
+                        "What did the cited study report?",
+                        [SOURCE],
+                        claim_evidence=evidence,
+                    ),
+                    INSUFFICIENT_EVIDENCE,
+                )
             self.assertEqual(evidence, [])
 
     @staticmethod
     def approval_for_single_span(question: str) -> dict[str, object]:
         result = approved(question)
-        cast(list[dict[str, object]], result["requirements"])[0]["supporting_evidence_ids"] = [1]
-        cast(dict[str, object], result["requested_answer"])["supporting_evidence_ids"] = [1]
-        cast(list[dict[str, object]], result["verdicts"])[0]["supporting_evidence_ids"] = [1]
+        cast(list[dict[str, object]], result["requirements"])[0][
+            "supporting_evidence_ids"
+        ] = [1]
+        cast(dict[str, object], result["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [1]
+        cast(list[dict[str, object]], result["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1]
         return result
 
     def test_inference_settings_change_grounding_fingerprint(self) -> None:
@@ -240,7 +423,10 @@ class GroundingTests(unittest.TestCase):
             ("GROUNDING_VERIFIER_TIMEOUT_SECONDS", 450.0),
             ("GROUNDING_OUTPUT_TOKENS", 2048),
         ]:
-            with self.subTest(setting=setting), patch(f"app.grounding.{setting}", value):
+            with (
+                self.subTest(setting=setting),
+                patch(f"app.grounding.{setting}", value),
+            ):
                 self.assertNotEqual(grounding_fingerprint(), original)
 
     def test_budget_exhaustion_propagates_without_repair_or_safe_refusal(self) -> None:
@@ -248,24 +434,44 @@ class GroundingTests(unittest.TestCase):
             ([OllamaOutputLimitError("budget exhausted")], 1),
             ([DRAFT, OllamaOutputLimitError("budget exhausted")], 2),
         ]:
-            with self.subTest(expected_calls=expected_calls), patch(
-                "app.grounding.generate_json", side_effect=responses,
-            ) as model, self.assertRaises(OllamaOutputLimitError):
+            with (
+                self.subTest(expected_calls=expected_calls),
+                patch(
+                    "app.grounding.generate_json",
+                    side_effect=responses,
+                ) as model,
+                self.assertRaises(OllamaOutputLimitError),
+            ):
                 grounded_answer("What did the cited study report?", [SOURCE])
             self.assertEqual(model.call_count, expected_calls)
 
     def test_repair_and_verification_share_explicit_sampling_and_timeouts(self) -> None:
-        with patch("app.grounding.GROUNDING_SAMPLING", GroundingSampling(temperature=0.6, top_k=20)), patch(
-            "app.grounding.GROUNDING_DRAFT_TIMEOUT_SECONDS", 450.0,
-        ), patch("app.grounding.GROUNDING_VERIFIER_TIMEOUT_SECONDS", 240.0), patch(
-            "app.grounding.generate_json", side_effect=[{}, DRAFT, APPROVED],
-        ) as model:
+        with (
+            patch(
+                "app.grounding.GROUNDING_SAMPLING",
+                GroundingSampling(temperature=0.6, top_k=20),
+            ),
+            patch(
+                "app.grounding.GROUNDING_DRAFT_TIMEOUT_SECONDS",
+                450.0,
+            ),
+            patch("app.grounding.GROUNDING_VERIFIER_TIMEOUT_SECONDS", 240.0),
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[{}, DRAFT, APPROVED],
+            ) as model,
+        ):
             result = grounded_answer("What did the cited study report?", [SOURCE])
         self.assertIn("delayed weight loss", result)
         self.assertEqual(model.call_count, 3)
-        self.assertEqual([call.kwargs["timeout_seconds"] for call in model.call_args_list], [450.0, 240.0, 240.0])
-        self.assertEqual([call.kwargs["think"] for call in model.call_args_list],
-                         [DRAFT_THINK, VERIFIER_THINK, VERIFIER_THINK])
+        self.assertEqual(
+            [call.kwargs["timeout_seconds"] for call in model.call_args_list],
+            [450.0, 240.0, 240.0],
+        )
+        self.assertEqual(
+            [call.kwargs["think"] for call in model.call_args_list],
+            [DRAFT_THINK, VERIFIER_THINK, VERIFIER_THINK],
+        )
         for call in model.call_args_list:
             self.assertEqual(call.kwargs["sampling"], {"temperature": 0.6, "top_k": 20})
 
@@ -274,35 +480,68 @@ class GroundingTests(unittest.TestCase):
             generate_draft_json("Draft", {})
             generate_verification_json("Verify", {})
         self.assertEqual(model.call_count, 2)
-        self.assertEqual(model.call_args_list[0].kwargs, {
-            "think": DRAFT_THINK, "model": GROUNDING_MODEL,
-            "allow_json_fence": True,
-            "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
-            "sampling": {"temperature": 1.0, "top_p": 1.0}, "timeout_seconds": 300.0,
-        })
-        self.assertEqual(model.call_args_list[1].kwargs, {
-            "think": VERIFIER_THINK, "model": GROUNDING_MODEL,
-            "allow_json_fence": True,
-            "num_ctx": GROUNDING_CONTEXT_TOKENS, "num_predict": GROUNDING_OUTPUT_TOKENS,
-            "sampling": {"temperature": 1.0, "top_p": 1.0}, "timeout_seconds": 300.0,
-        })
+        self.assertEqual(
+            model.call_args_list[0].kwargs,
+            {
+                "think": DRAFT_THINK,
+                "model": GROUNDING_MODEL,
+                "allow_json_fence": True,
+                "num_ctx": GROUNDING_CONTEXT_TOKENS,
+                "num_predict": GROUNDING_OUTPUT_TOKENS,
+                "sampling": {"temperature": 1.0, "top_p": 1.0},
+                "timeout_seconds": 300.0,
+            },
+        )
+        self.assertEqual(
+            model.call_args_list[1].kwargs,
+            {
+                "think": VERIFIER_THINK,
+                "model": GROUNDING_MODEL,
+                "allow_json_fence": True,
+                "num_ctx": GROUNDING_CONTEXT_TOKENS,
+                "num_predict": GROUNDING_OUTPUT_TOKENS,
+                "sampling": {"temperature": 1.0, "top_p": 1.0},
+                "timeout_seconds": 300.0,
+            },
+        )
 
     def test_supported_cited_claim_gets_application_owned_page(self) -> None:
-        with patch("app.grounding.generate_json", side_effect=[DRAFT, APPROVED]) as model:
+        with patch(
+            "app.grounding.generate_json", side_effect=[DRAFT, APPROVED]
+        ) as model:
             result = grounded_answer("What did the cited study report?", [SOURCE])
-        self.assertEqual(result, "Cited literature: The cited treatment delayed weight loss. (paper.pdf, page 10)")
+        self.assertEqual(
+            result,
+            "Cited literature: The cited treatment delayed weight loss. (paper.pdf, page 10)",
+        )
         self.assertEqual(model.call_count, 2)
 
     def test_valid_this_document_authors_claim_with_source_only_citation(self) -> None:
-        source = ChunkData(document="methods.pdf", page=2, chunk_index=0,
-                           section="methods", text="We measured grip strength\nthree times.")
-        draft = {"answerable": True, "claims": [{
-            "text": "The authors measured grip strength three times.",
-            "attribution": "this_document_authors", "citations": [{"source_id": 1}],
-        }]}
-        with patch("app.grounding.generate_json", side_effect=[draft, self.approval_for_single_span("How many times?")]):
-            self.assertEqual(grounded_answer("How many times?", [source]),
-                             "The authors measured grip strength three times. (methods.pdf, page 2)")
+        source = ChunkData(
+            document="methods.pdf",
+            page=2,
+            chunk_index=0,
+            section="methods",
+            text="We measured grip strength\nthree times.",
+        )
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "The authors measured grip strength three times.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                }
+            ],
+        }
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[draft, self.approval_for_single_span("How many times?")],
+        ):
+            self.assertEqual(
+                grounded_answer("How many times?", [source]),
+                "The authors measured grip strength three times. (methods.pdf, page 2)",
+            )
 
     def test_bad_ids_and_reference_attribution_get_one_repair_attempt(self) -> None:
         for changes in [
@@ -319,21 +558,32 @@ class GroundingTests(unittest.TestCase):
                 raw = draft.model_dump()
                 raw["claims"][0].update(changes)
                 unanswerable = {"answerable": False, "claims": []}
-                with patch("app.grounding.generate_json", side_effect=[raw, unanswerable]) as model:
-                    self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+                with patch(
+                    "app.grounding.generate_json", side_effect=[raw, unanswerable]
+                ) as model:
+                    self.assertEqual(
+                        grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+                    )
                 self.assertEqual(model.call_count, 2)
 
     def test_semantic_rejection_discards_whole_answer(self) -> None:
         for field in ["supported", "correct_attribution", "relevant"]:
             verdict = approved("Question")
             cast(list[dict[str, object]], verdict["verdicts"])[0][field] = False
-            with self.subTest(field=field), patch(
-                "app.grounding.generate_json",
-                side_effect=[DRAFT, verdict, {"answerable": False, "claims": []}],
+            with (
+                self.subTest(field=field),
+                patch(
+                    "app.grounding.generate_json",
+                    side_effect=[DRAFT, verdict, {"answerable": False, "claims": []}],
+                ),
             ):
-                self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+                self.assertEqual(
+                    grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+                )
 
-    def test_incomplete_duplicated_wrong_index_or_malformed_verdict_fails_closed(self) -> None:
+    def test_incomplete_duplicated_wrong_index_or_malformed_verdict_fails_closed(
+        self,
+    ) -> None:
         good = cast(list[dict[str, object]], approved("Question")["verdicts"])[0]
         cases = [
             {**approved("Question"), "verdicts": []},
@@ -344,26 +594,45 @@ class GroundingTests(unittest.TestCase):
             {},
         ]
         for verdict in cases:
-            with self.subTest(verdict=verdict), patch(
-                "app.grounding.generate_json",
-                side_effect=[DRAFT, verdict, {"answerable": False, "claims": []}],
+            with (
+                self.subTest(verdict=verdict),
+                patch(
+                    "app.grounding.generate_json",
+                    side_effect=[DRAFT, verdict, {"answerable": False, "claims": []}],
+                ),
             ):
-                self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+                self.assertEqual(
+                    grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+                )
 
-    def test_model_declared_unanswerability_does_not_repair_or_call_verifier(self) -> None:
-        for draft in [{"answerable": False, "claims": []},
-                      {**DRAFT, "answerable": False}]:
-            with self.subTest(draft=draft), patch("app.grounding.generate_json", return_value=draft) as model:
-                self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+    def test_model_declared_unanswerability_does_not_repair_or_call_verifier(
+        self,
+    ) -> None:
+        for draft in [
+            {"answerable": False, "claims": []},
+            {**DRAFT, "answerable": False},
+        ]:
+            with (
+                self.subTest(draft=draft),
+                patch("app.grounding.generate_json", return_value=draft) as model,
+            ):
+                self.assertEqual(
+                    grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+                )
                 self.assertEqual(model.call_count, 1)
 
     def test_malformed_draft_gets_one_repair_attempt(self) -> None:
         for draft in [{}, {"answerable": True, "claims": []}]:
-            with self.subTest(draft=draft), patch(
-                "app.grounding.generate_json",
-                side_effect=[draft, {"answerable": False, "claims": []}],
-            ) as model:
-                self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+            with (
+                self.subTest(draft=draft),
+                patch(
+                    "app.grounding.generate_json",
+                    side_effect=[draft, {"answerable": False, "claims": []}],
+                ) as model,
+            ):
+                self.assertEqual(
+                    grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+                )
                 self.assertEqual(model.call_count, 2)
 
     def test_initial_json_parse_failure_can_be_repaired(self) -> None:
@@ -378,21 +647,28 @@ class GroundingTests(unittest.TestCase):
         self.assertIn('"previous_draft": null', repair_prompt)
         self.assertIn("invalid JSON", repair_prompt)
 
-    def test_repair_json_parse_failure_fails_closed_without_a_third_attempt(self) -> None:
+    def test_repair_json_parse_failure_fails_closed_without_a_third_attempt(
+        self,
+    ) -> None:
         invalid = deepcopy(DRAFT)
         first_citation(invalid)["source_id"] = 13
         with patch(
             "app.grounding.generate_json",
             side_effect=[invalid, ValueError("invalid repair JSON")],
         ) as model:
-            self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+            self.assertEqual(
+                grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+            )
         self.assertEqual(model.call_count, 2)
 
     def test_no_sources_skips_model_and_transport_failures_propagate(self) -> None:
         with patch("app.grounding.generate_json") as model:
             self.assertEqual(grounded_answer("Question", []), INSUFFICIENT_EVIDENCE)
             model.assert_not_called()
-        for responses in [[httpx.ReadTimeout("offline")], [DRAFT, httpx.ReadTimeout("offline")]]:
+        for responses in [
+            [httpx.ReadTimeout("offline")],
+            [DRAFT, httpx.ReadTimeout("offline")],
+        ]:
             with patch("app.grounding.generate_json", side_effect=responses):
                 with self.assertRaises(httpx.ReadTimeout):
                     grounded_answer("Question", [SOURCE])
@@ -400,10 +676,13 @@ class GroundingTests(unittest.TestCase):
     def test_transport_failure_during_repair_propagates_without_retry(self) -> None:
         invalid = deepcopy(DRAFT)
         first_citation(invalid)["source_id"] = 13
-        with patch(
-            "app.grounding.generate_json",
-            side_effect=[invalid, httpx.ReadTimeout("repair offline")],
-        ) as model, self.assertRaises(httpx.ReadTimeout):
+        with (
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[invalid, httpx.ReadTimeout("repair offline")],
+            ) as model,
+            self.assertRaises(httpx.ReadTimeout),
+        ):
             grounded_answer("Question", [SOURCE])
         self.assertEqual(model.call_count, 2)
 
@@ -412,7 +691,10 @@ class GroundingTests(unittest.TestCase):
         first_citation(draft)["quote"] = "Not in the source"
         trace: list[dict[str, object]] = []
         with patch("app.grounding.generate_json", return_value=draft) as model:
-            self.assertEqual(grounded_answer("Question", [SOURCE], trace=trace), INSUFFICIENT_EVIDENCE)
+            self.assertEqual(
+                grounded_answer("Question", [SOURCE], trace=trace),
+                INSUFFICIENT_EVIDENCE,
+            )
         self.assertEqual(
             [entry["stage"] for entry in trace],
             ["draft", "rejected", "repair_draft", "repair_rejected"],
@@ -422,64 +704,130 @@ class GroundingTests(unittest.TestCase):
 
     def test_trace_preserves_semantic_verdict(self) -> None:
         trace: list[dict[str, object]] = []
-        with patch("app.grounding.generate_json", side_effect=[DRAFT, approved("Question")]):
+        with patch(
+            "app.grounding.generate_json", side_effect=[DRAFT, approved("Question")]
+        ):
             grounded_answer("Question", [SOURCE], trace=trace)
-        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification", "verification_proof"])
+        self.assertEqual(
+            [entry["stage"] for entry in trace],
+            ["draft", "verification", "verification_proof"],
+        )
         self.assertEqual(trace[1]["output"], approved("Question"))
         self.assertIn("evidence_catalogue", trace[1])
 
-    def test_verifier_selected_quotes_use_evidence_ids_instead_of_passage_ids(self) -> None:
+    def test_verifier_selected_quotes_use_evidence_ids_instead_of_passage_ids(
+        self,
+    ) -> None:
         sources = [
-            ChunkData(document="study.pdf", page=1, chunk_index=0,
-                      text="Outcome A increased seven-fold. Outcome B increased six-fold."),
-            ChunkData(document="study.pdf", page=2, chunk_index=0,
-                      text="The study lasted three days."),
+            ChunkData(
+                document="study.pdf",
+                page=1,
+                chunk_index=0,
+                text="Outcome A increased seven-fold. Outcome B increased six-fold.",
+            ),
+            ChunkData(
+                document="study.pdf",
+                page=2,
+                chunk_index=0,
+                text="The study lasted three days.",
+            ),
         ]
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "Outcome B increased six-fold in the three-day study.",
-            "attribution": "this_document_authors", "citations": [
-                {"source_id": 1},
-                {"source_id": 2},
-            ],
-        }]})
-        payload = json.loads(build_verifier_prompt("What happened to outcome B?", draft.claims, sources)
-                             .split("Verification input JSON:\n", 1)[1])
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "Outcome B increased six-fold in the three-day study.",
+                        "attribution": "this_document_authors",
+                        "citations": [
+                            {"source_id": 1},
+                            {"source_id": 2},
+                        ],
+                    }
+                ],
+            }
+        )
+        payload = json.loads(
+            build_verifier_prompt(
+                "What happened to outcome B?", draft.claims, sources
+            ).split("Verification input JSON:\n", 1)[1]
+        )
         self.assertEqual(payload["claims"][0]["source_ids"], [1, 2])
-        self.assertEqual(payload["claims"][0]["cited_passages"], [
-            {"source_id": 1, "document": "study.pdf", "page": 1, "section": "unknown",
-             "text": "Outcome A increased seven-fold. Outcome B increased six-fold."},
-            {"source_id": 2, "document": "study.pdf", "page": 2, "section": "unknown",
-             "text": "The study lasted three days."},
-        ])
+        self.assertEqual(
+            payload["claims"][0]["cited_passages"],
+            [
+                {
+                    "source_id": 1,
+                    "document": "study.pdf",
+                    "page": 1,
+                    "section": "unknown",
+                    "text": "Outcome A increased seven-fold. Outcome B increased six-fold.",
+                },
+                {
+                    "source_id": 2,
+                    "document": "study.pdf",
+                    "page": 2,
+                    "section": "unknown",
+                    "text": "The study lasted three days.",
+                },
+            ],
+        )
         self.assertNotIn("evidence_quotes", payload["claims"][0])
-        self.assertEqual(payload["evidence_catalogue"], [
-            {"evidence_id": 1, "claim_indexes": [1], "source_id": 1,
-             "quote": "Outcome A increased seven-fold."},
-            {"evidence_id": 2, "claim_indexes": [1], "source_id": 1,
-             "quote": "Outcome B increased six-fold."},
-            {"evidence_id": 3, "claim_indexes": [1], "source_id": 2,
-             "quote": "The study lasted three days."},
-        ])
+        self.assertEqual(
+            payload["evidence_catalogue"],
+            [
+                {
+                    "evidence_id": 1,
+                    "claim_indexes": [1],
+                    "source_id": 1,
+                    "quote": "Outcome A increased seven-fold.",
+                },
+                {
+                    "evidence_id": 2,
+                    "claim_indexes": [1],
+                    "source_id": 1,
+                    "quote": "Outcome B increased six-fold.",
+                },
+                {
+                    "evidence_id": 3,
+                    "claim_indexes": [1],
+                    "source_id": 2,
+                    "quote": "The study lasted three days.",
+                },
+            ],
+        )
         self.assertEqual(payload["claims"][0]["eligible_evidence_ids"], [1, 2, 3])
 
     def test_unexpected_quote_field_is_rejected_by_generation_schema(self) -> None:
         invalid = GroundedDraft.model_validate(DRAFT).model_dump()
         invalid["claims"][0]["citations"][0]["quote"] = "Treatment"
-        with patch("app.grounding.generate_json", side_effect=[invalid, invalid]) as model:
-            self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+        with patch(
+            "app.grounding.generate_json", side_effect=[invalid, invalid]
+        ) as model:
+            self.assertEqual(
+                grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+            )
         self.assertEqual(model.call_count, 2)
 
-    def test_unsupported_question_requirement_overrides_positive_claim_verdict(self) -> None:
+    def test_unsupported_question_requirement_overrides_positive_claim_verdict(
+        self,
+    ) -> None:
         question = "What happened in female mice?"
         verdict = approved(question)
-        cast(list[dict[str, object]], verdict["requirements"]).append({
-            "requirement": "Female mice", "supported": False,
-            "reason": "The source only establishes male mice.", "supporting_evidence_ids": [],
-        })
+        cast(list[dict[str, object]], verdict["requirements"]).append(
+            {
+                "requirement": "Female mice",
+                "supported": False,
+                "reason": "The source only establishes male mice.",
+                "supporting_evidence_ids": [],
+            }
+        )
         draft = GroundedDraft.model_validate(DRAFT)
         with patch("app.grounding.generate_json", return_value=verdict):
             self.assertFalse(verify_draft(question, draft, [SOURCE]))
-        with patch("app.grounding.generate_json", side_effect=[DRAFT, verdict, DRAFT, verdict]):
+        with patch(
+            "app.grounding.generate_json", side_effect=[DRAFT, verdict, DRAFT, verdict]
+        ):
             self.assertEqual(grounded_answer(question, [SOURCE]), INSUFFICIENT_EVIDENCE)
 
     def test_missing_requirements_or_full_question_check_fail_closed(self) -> None:
@@ -487,29 +835,47 @@ class GroundingTests(unittest.TestCase):
             verdict = approved("At what dose did treatment delay weight loss?")
             del verdict[field]
             with self.subTest(field=field):
-                self.assertFalse(verify_draft(
-                    "At what dose did treatment delay weight loss?",
-                    GroundedDraft.model_validate(DRAFT), [SOURCE],
-                    verifier=lambda _prompt, _schema: verdict,
-                ))
+                self.assertFalse(
+                    verify_draft(
+                        "At what dose did treatment delay weight loss?",
+                        GroundedDraft.model_validate(DRAFT),
+                        [SOURCE],
+                        verifier=lambda _prompt, _schema: verdict,
+                    )
+                )
 
-    def test_evidence_and_question_anchors_are_validated_before_acceptance(self) -> None:
+    def test_evidence_and_question_anchors_are_validated_before_acceptance(
+        self,
+    ) -> None:
         question = "At what dose did treatment delay weight loss?"
         base = approved(question)
         cases: list[dict[str, object]] = []
-        for update in cast(list[dict[str, object]], [
-            {"supporting_evidence_ids": []}, {"supporting_evidence_ids": [999]},
-            {"supporting_evidence_ids": [2, 2]}, {"question_excerpt": "What effect did treatment have?"},
-            {"question_excerpt": "dose"}, {"question_excerpt": ""},
-            {"question_excerpt": " \n"}, {"question_excerpt": None},
-            {"status": "not_requested"}, {"extra": True},
-        ]):
+        for update in cast(
+            list[dict[str, object]],
+            [
+                {"supporting_evidence_ids": []},
+                {"supporting_evidence_ids": [999]},
+                {"supporting_evidence_ids": [2, 2]},
+                {"question_excerpt": "What effect did treatment have?"},
+                {"question_excerpt": "dose"},
+                {"question_excerpt": ""},
+                {"question_excerpt": " \n"},
+                {"question_excerpt": None},
+                {"status": "not_requested"},
+                {"extra": True},
+            ],
+        ):
             verdict = deepcopy(base)
             cast(dict[str, object], verdict["requested_answer"]).update(update)
             cases.append(verdict)
-        for update in cast(list[dict[str, object]], [
-            {"requirement": None}, {"supported": "true"}, {"category": "dose"},
-        ]):
+        for update in cast(
+            list[dict[str, object]],
+            [
+                {"requirement": None},
+                {"supported": "true"},
+                {"category": "dose"},
+            ],
+        ):
             verdict = deepcopy(base)
             cast(list[dict[str, object]], verdict["requirements"])[0].update(update)
             cases.append(verdict)
@@ -519,177 +885,340 @@ class GroundingTests(unittest.TestCase):
             cases.append(verdict)
         for ids in [[], [999], [2, 2]]:
             verdict = deepcopy(base)
-            cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = ids
+            cast(list[dict[str, object]], verdict["verdicts"])[0][
+                "supporting_evidence_ids"
+            ] = ids
             cases.append(verdict)
         for verdict in cases:
             with self.subTest(verdict=verdict):
-                self.assertFalse(verify_draft(question, GroundedDraft.model_validate(DRAFT), [SOURCE],
-                                            verifier=lambda _prompt, _schema: verdict))
+                self.assertFalse(
+                    verify_draft(
+                        question,
+                        GroundedDraft.model_validate(DRAFT),
+                        [SOURCE],
+                        verifier=lambda _prompt, _schema: verdict,
+                    )
+                )
 
     def test_full_question_cannot_borrow_an_unclaimed_measurement(self) -> None:
         question = "By what percentage did total fat mass decrease?"
-        source = ChunkData(document="paper.pdf", page=1, chunk_index=0,
-                           text="Total fat mass decreased by 35%. Regional tissue weight decreased by 24%.")
+        source = ChunkData(
+            document="paper.pdf",
+            page=1,
+            chunk_index=0,
+            text="Total fat mass decreased by 35%. Regional tissue weight decreased by 24%.",
+        )
         draft_data = {
             "answerable": True,
-            "claims": [{"text": "Regional tissue weight decreased by 24%.",
-                        "attribution": "this_document_authors",
-                        "citations": [{"source_id": 1}]}],
+            "claims": [
+                {
+                    "text": "Regional tissue weight decreased by 24%.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                }
+            ],
         }
         verdict = approved(question)
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1]
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [1]
         draft = GroundedDraft.model_validate(draft_data)
         # Both IDs exist in the cited source, but coverage must come from the answer's claims.
-        validate_verification_structure(question, VerificationResult.model_validate(verdict),
-                                        draft.claims, [source])
-        self.assertFalse(verify_draft(question, draft, [source],
-                                     verifier=lambda _p, _s: verdict))
-        with patch("app.grounding.generate_json",
-                   side_effect=[draft_data, verdict, draft_data, verdict]) as model:
+        validate_verification_structure(
+            question, VerificationResult.model_validate(verdict), draft.claims, [source]
+        )
+        self.assertFalse(
+            verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+        )
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[draft_data, verdict, draft_data, verdict],
+        ) as model:
             self.assertEqual(grounded_answer(question, [source]), INSUFFICIENT_EVIDENCE)
         self.assertEqual(model.call_count, 4)
 
-    def test_full_question_gate_rejects_when_sparse_requirements_omit_a_requested_detail(self) -> None:
+    def test_full_question_gate_rejects_when_sparse_requirements_omit_a_requested_detail(
+        self,
+    ) -> None:
         question = "At what dose did treatment delay weight loss?"
         verdict = approved(question)
         cast(dict[str, object], verdict["requested_answer"]).update(
-            status="unsupported", supporting_evidence_ids=[], reason="The dose was not reported.",
+            status="unsupported",
+            supporting_evidence_ids=[],
+            reason="The dose was not reported.",
         )
-        self.assertFalse(verify_draft(question, GroundedDraft.model_validate(DRAFT), [SOURCE],
-                                     verifier=lambda _p, _s: verdict))
+        self.assertFalse(
+            verify_draft(
+                question,
+                GroundedDraft.model_validate(DRAFT),
+                [SOURCE],
+                verifier=lambda _p, _s: verdict,
+            )
+        )
 
     @staticmethod
     def duration_sources() -> list[ChunkData]:
         return [
-            ChunkData(document="paper.pdf", page=4, chunk_index=0, section="results",
-                      text="Treatment produced a 6-fold response versus a 3-fold control."),
-            ChunkData(document="paper.pdf", page=2, chunk_index=0, section="methods",
-                      text="The cohort lasted three days."),
+            ChunkData(
+                document="paper.pdf",
+                page=4,
+                chunk_index=0,
+                section="results",
+                text="Treatment produced a 6-fold response versus a 3-fold control.",
+            ),
+            ChunkData(
+                document="paper.pdf",
+                page=2,
+                chunk_index=0,
+                section="methods",
+                text="The cohort lasted three days.",
+            ),
         ]
 
     @staticmethod
     def duration_claim(source_ids: list[int]) -> dict[str, object]:
-        citations = [
-            {"source_id": 1}
-        ]
+        citations = [{"source_id": 1}]
         if 2 in source_ids:
             citations.append({"source_id": 2})
-        return {"answerable": True, "claims": [{
-            "text": "In the three-day cohort, treatment produced a 6-fold response versus a 3-fold control.",
-            "attribution": "this_document_authors", "citations": citations,
-        }]}
+        return {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "In the three-day cohort, treatment produced a 6-fold response versus a 3-fold control.",
+                    "attribution": "this_document_authors",
+                    "citations": citations,
+                }
+            ],
+        }
 
     @staticmethod
     def duration_approval(question: str, evidence_ids: list[int]) -> dict[str, object]:
         verdict = approved(question)
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = evidence_ids
-        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = evidence_ids
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = evidence_ids
+        cast(list[dict[str, object]], verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = evidence_ids
         return verdict
 
     def test_claim_duration_cannot_borrow_from_an_uncited_retrieved_chunk(self) -> None:
         question = "What happened in the cohort?"
         positive_verdict = self.duration_approval(question, [1])
-        with patch("app.grounding.generate_json", side_effect=[
-            self.duration_claim([1]), positive_verdict,
-            self.duration_claim([1]), positive_verdict,
-        ]) as model:
-            self.assertEqual(grounded_answer(question, self.duration_sources()), INSUFFICIENT_EVIDENCE)
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                self.duration_claim([1]),
+                positive_verdict,
+                self.duration_claim([1]),
+                positive_verdict,
+            ],
+        ) as model:
+            self.assertEqual(
+                grounded_answer(question, self.duration_sources()),
+                INSUFFICIENT_EVIDENCE,
+            )
         self.assertEqual(model.call_count, 4)
 
-    def test_duration_repair_must_add_duration_citation_and_expose_both_pages(self) -> None:
+    def test_duration_repair_must_add_duration_citation_and_expose_both_pages(
+        self,
+    ) -> None:
         question = "What happened in the cohort?"
         sources = self.duration_sources()
         numeric_only = self.duration_claim([1])
         complete = self.duration_claim([1, 2])
         evidence: list[AnswerClaim] = []
-        with patch("app.grounding.generate_json", side_effect=[
-            numeric_only, self.duration_approval(question, [1]),
-            complete, self.duration_approval(question, [1, 2]),
-        ]) as model:
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                numeric_only,
+                self.duration_approval(question, [1]),
+                complete,
+                self.duration_approval(question, [1, 2]),
+            ],
+        ) as model:
             answer = grounded_answer(question, sources, claim_evidence=evidence)
         self.assertEqual(model.call_count, 4)
         self.assertIn("paper.pdf, page 4", answer)
         self.assertIn("paper.pdf, page 2", answer)
         self.assertEqual(
-            {citation["source_index"] for citation in evidence[0]["citations"]}, {0, 1},
+            {citation["source_index"] for citation in evidence[0]["citations"]},
+            {0, 1},
         )
 
-    def test_repair_with_uncorroborated_duration_selection_refuses_after_four_calls(self) -> None:
+    def test_repair_with_uncorroborated_duration_selection_refuses_after_four_calls(
+        self,
+    ) -> None:
         question = "What happened in the cohort?"
         draft = self.duration_claim([1, 2])
         positive_verdict = self.duration_approval(question, [1])
-        with patch("app.grounding.generate_json", side_effect=[
-            draft, positive_verdict, draft, positive_verdict,
-        ]) as model:
-            self.assertEqual(grounded_answer(question, self.duration_sources()), INSUFFICIENT_EVIDENCE)
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                draft,
+                positive_verdict,
+                draft,
+                positive_verdict,
+            ],
+        ) as model:
+            self.assertEqual(
+                grounded_answer(question, self.duration_sources()),
+                INSUFFICIENT_EVIDENCE,
+            )
         self.assertEqual(model.call_count, 4)
 
-    def test_valid_negative_verdict_is_structurally_complete_but_not_accepted(self) -> None:
+    def test_valid_negative_verdict_is_structurally_complete_but_not_accepted(
+        self,
+    ) -> None:
         question = "At what dose did treatment delay weight loss?"
         draft = GroundedDraft.model_validate(DRAFT)
         for evidence_ids in [[], [2]]:
             verdict = approved(question)
             cast(dict[str, object], verdict["requested_answer"]).update(
-                status="unsupported", supporting_evidence_ids=evidence_ids,
+                status="unsupported",
+                supporting_evidence_ids=evidence_ids,
             )
-            verdict["requirements"] = [{"requirement": "Requested dose", "supported": False,
-                                        "reason": "The title does not report a dose.", "supporting_evidence_ids": []}]
+            verdict["requirements"] = [
+                {
+                    "requirement": "Requested dose",
+                    "supported": False,
+                    "reason": "The title does not report a dose.",
+                    "supporting_evidence_ids": [],
+                }
+            ]
             with self.subTest(evidence_ids=evidence_ids):
                 result = VerificationResult.model_validate(verdict)
-                validate_verification_structure(question, result, draft.claims, [SOURCE])
-                self.assertFalse(verify_draft(question, draft, [SOURCE], verifier=lambda _p, _s: verdict))
+                validate_verification_structure(
+                    question, result, draft.claims, [SOURCE]
+                )
+                self.assertFalse(
+                    verify_draft(
+                        question, draft, [SOURCE], verifier=lambda _p, _s: verdict
+                    )
+                )
 
-    def test_evidence_catalogue_includes_scope_sentences_only_from_cited_sources(self) -> None:
-        source = ChunkData(document="study.pdf", page=1, chunk_index=0, section="results",
-                           text="We studied male mice. Uptake increased.")
-        extra = ChunkData(document="other.pdf", page=1, chunk_index=0, text="Female mice.")
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "Uptake increased.", "attribution": "this_document_authors",
-            "citations": [{"source_id": 1}],
-        }]})
+    def test_evidence_catalogue_includes_scope_sentences_only_from_cited_sources(
+        self,
+    ) -> None:
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            section="results",
+            text="We studied male mice. Uptake increased.",
+        )
+        extra = ChunkData(
+            document="other.pdf", page=1, chunk_index=0, text="Female mice."
+        )
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "Uptake increased.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
         evidence = build_verifier_evidence(draft.claims, [source, extra])
-        self.assertEqual(evidence, [
-            {"evidence_id": 1, "claim_indexes": [1], "source_id": 1, "quote": "We studied male mice."},
-            {"evidence_id": 2, "claim_indexes": [1], "source_id": 1, "quote": "Uptake increased."},
-        ])
+        self.assertEqual(
+            evidence,
+            [
+                {
+                    "evidence_id": 1,
+                    "claim_indexes": [1],
+                    "source_id": 1,
+                    "quote": "We studied male mice.",
+                },
+                {
+                    "evidence_id": 2,
+                    "claim_indexes": [1],
+                    "source_id": 1,
+                    "quote": "Uptake increased.",
+                },
+            ],
+        )
         question = "How did uptake change in male mice?"
         verdict = approved(question)
-        cast(list[dict[str, object]], verdict["requirements"]).append({
-            "requirement": "Male mice", "supported": True,
-            "reason": "The studied population was male.", "supporting_evidence_ids": [1],
-        })
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1, 2]
-        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
-        self.assertTrue(verify_draft(question, draft, [source, extra], verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["requirements"]).append(
+            {
+                "requirement": "Male mice",
+                "supported": True,
+                "reason": "The studied population was male.",
+                "supporting_evidence_ids": [1],
+            }
+        )
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [1, 2]
+        cast(list[dict[str, object]], verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1, 2]
+        self.assertTrue(
+            verify_draft(
+                question, draft, [source, extra], verifier=lambda _p, _s: verdict
+            )
+        )
 
     def test_claims_citing_the_same_source_share_evidence_ids(self) -> None:
         draft = GroundedDraft.model_validate(DRAFT)
         draft.claims.append(draft.claims[0].model_copy())
         verdict = approved("Question")
-        cast(list[dict[str, object]], verdict["verdicts"]).append({
-            "claim_index": 2, "supported": True, "correct_attribution": True, "relevant": True,
-            "supporting_evidence_ids": [2], "reason": "Both claims cite the same source.",
-        })
-        self.assertTrue(verify_draft("Question", draft, [SOURCE], verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["verdicts"]).append(
+            {
+                "claim_index": 2,
+                "supported": True,
+                "correct_attribution": True,
+                "relevant": True,
+                "supporting_evidence_ids": [2],
+                "reason": "Both claims cite the same source.",
+            }
+        )
+        self.assertTrue(
+            verify_draft("Question", draft, [SOURCE], verifier=lambda _p, _s: verdict)
+        )
         evidence = build_verifier_evidence(draft.claims, [SOURCE])
         self.assertEqual(len(evidence), 2)
         self.assertTrue(all(entry["claim_indexes"] == [1, 2] for entry in evidence))
 
     def test_identical_quotes_from_other_sources_cannot_be_borrowed(self) -> None:
-        other = ChunkData(document="another.pdf", page=7, chunk_index=0,
-                          section="references", text=SOURCE["text"])
+        other = ChunkData(
+            document="another.pdf",
+            page=7,
+            chunk_index=0,
+            section="references",
+            text=SOURCE["text"],
+        )
         draft = GroundedDraft.model_validate(DRAFT)
         second = draft.claims[0].model_copy(deep=True)
         second.citations[0].source_id = 2
         draft.claims.append(second)
         verdict = approved("Question")
-        cast(list[dict[str, object]], verdict["verdicts"]).append({
-            "claim_index": 2, "supported": True, "correct_attribution": True, "relevant": True,
-            "supporting_evidence_ids": [2], "reason": "Wrong source despite identical wording.",
-        })
-        self.assertFalse(verify_draft("Question", draft, [SOURCE, other], verifier=lambda _p, _s: verdict))
-        cast(list[dict[str, object]], verdict["verdicts"])[1]["supporting_evidence_ids"] = [4]
-        self.assertTrue(verify_draft("Question", draft, [SOURCE, other], verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["verdicts"]).append(
+            {
+                "claim_index": 2,
+                "supported": True,
+                "correct_attribution": True,
+                "relevant": True,
+                "supporting_evidence_ids": [2],
+                "reason": "Wrong source despite identical wording.",
+            }
+        )
+        self.assertFalse(
+            verify_draft(
+                "Question", draft, [SOURCE, other], verifier=lambda _p, _s: verdict
+            )
+        )
+        cast(list[dict[str, object]], verdict["verdicts"])[1][
+            "supporting_evidence_ids"
+        ] = [4]
+        self.assertTrue(
+            verify_draft(
+                "Question", draft, [SOURCE, other], verifier=lambda _p, _s: verdict
+            )
+        )
         evidence = build_verifier_evidence(draft.claims, [SOURCE, other])
         self.assertEqual([entry["source_id"] for entry in evidence], [1, 1, 2, 2])
         self.assertEqual(evidence[1]["quote"], evidence[3]["quote"])
@@ -697,56 +1226,116 @@ class GroundingTests(unittest.TestCase):
 
     def test_multiclaim_methods_answer_accepts_shared_ids_without_repair(self) -> None:
         question = "How long were mice fasted, and when was glucose measured?"
-        source = ChunkData(document="methods.pdf", page=2, chunk_index=0, section="methods",
-                           text="Mice were fasted for six hours. Glucose was measured at 0, 15 and 30 minutes.")
-        draft = {"answerable": True, "claims": [
-            {"text": "Mice were fasted for six hours.", "attribution": "this_document_authors",
-             "citations": [{"source_id": 1}]},
-            {"text": "Glucose was measured at 0, 15 and 30 minutes.", "attribution": "this_document_authors",
-             "citations": [{"source_id": 1}]},
-        ]}
+        source = ChunkData(
+            document="methods.pdf",
+            page=2,
+            chunk_index=0,
+            section="methods",
+            text="Mice were fasted for six hours. Glucose was measured at 0, 15 and 30 minutes.",
+        )
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "Mice were fasted for six hours.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                },
+                {
+                    "text": "Glucose was measured at 0, 15 and 30 minutes.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                },
+            ],
+        }
         verdict = approved(question)
-        cast(dict[str, object], verdict["requested_answer"])["supporting_evidence_ids"] = [1, 2]
+        cast(dict[str, object], verdict["requested_answer"])[
+            "supporting_evidence_ids"
+        ] = [1, 2]
         verdicts = cast(list[dict[str, object]], verdict["verdicts"])
         verdicts[0]["supporting_evidence_ids"] = [1]
-        verdicts.append({"claim_index": 2, "supported": True, "correct_attribution": True,
-                         "relevant": True, "supporting_evidence_ids": [2], "reason": "Source specifies timing."})
+        verdicts.append(
+            {
+                "claim_index": 2,
+                "supported": True,
+                "correct_attribution": True,
+                "relevant": True,
+                "supporting_evidence_ids": [2],
+                "reason": "Source specifies timing.",
+            }
+        )
         trace: list[dict[str, object]] = []
-        with patch("app.grounding.generate_json", side_effect=[draft, verdict]) as model:
+        with patch(
+            "app.grounding.generate_json", side_effect=[draft, verdict]
+        ) as model:
             answer = grounded_answer(question, [source], trace=trace)
         self.assertEqual(model.call_count, 2)
         self.assertIn("six hours", answer)
         self.assertIn("0, 15 and 30", answer)
-        self.assertEqual([entry["stage"] for entry in trace], ["draft", "verification", "verification_proof"])
+        self.assertEqual(
+            [entry["stage"] for entry in trace],
+            ["draft", "verification", "verification_proof"],
+        )
 
     def test_shared_source_ids_are_stable_across_claim_and_citation_order(self) -> None:
-        other = ChunkData(document="other.pdf", page=1, chunk_index=0, section="results", text="Uptake increased.")
+        other = ChunkData(
+            document="other.pdf",
+            page=1,
+            chunk_index=0,
+            section="results",
+            text="Uptake increased.",
+        )
         draft = GroundedDraft.model_validate(DRAFT)
         second = draft.claims[0].model_copy(deep=True)
         second.citations[0].source_id = 2
         draft.claims.append(second)
         first = build_verifier_evidence(draft.claims, [SOURCE, other])
-        reordered = build_verifier_evidence(list(reversed(draft.claims)), [SOURCE, other])
-        def identities(entries: list[dict[str, object]]) -> list[tuple[object, object, object]]:
-            return [(entry["evidence_id"], entry["source_id"], entry["quote"]) for entry in entries]
-        self.assertEqual(identities(cast(list[dict[str, object]], first)),
-                         identities(cast(list[dict[str, object]], reordered)))
+        reordered = build_verifier_evidence(
+            list(reversed(draft.claims)), [SOURCE, other]
+        )
+
+        def identities(
+            entries: list[dict[str, object]],
+        ) -> list[tuple[object, object, object]]:
+            return [
+                (entry["evidence_id"], entry["source_id"], entry["quote"])
+                for entry in entries
+            ]
+
+        self.assertEqual(
+            identities(cast(list[dict[str, object]], first)),
+            identities(cast(list[dict[str, object]], reordered)),
+        )
         draft.claims[0].citations.append(draft.claims[0].citations[0].model_copy())
         self.assertEqual(build_verifier_evidence(draft.claims, [SOURCE, other]), first)
 
     def test_whole_question_anchor_allows_normalized_whitespace(self) -> None:
         verdict = approved("What did the cited study report?")
-        self.assertTrue(verify_draft("What did  the cited study\nreport?", GroundedDraft.model_validate(DRAFT),
-                                     [SOURCE], verifier=lambda _p, _s: verdict))
+        self.assertTrue(
+            verify_draft(
+                "What did  the cited study\nreport?",
+                GroundedDraft.model_validate(DRAFT),
+                [SOURCE],
+                verifier=lambda _p, _s: verdict,
+            )
+        )
 
     def test_whole_question_anchor_supports_api_maximum_question_length(self) -> None:
         question = "Q" * 2000
-        self.assertTrue(verify_draft(question, GroundedDraft.model_validate(DRAFT), [SOURCE],
-                                     verifier=lambda _p, _s: approved(question)))
+        self.assertTrue(
+            verify_draft(
+                question,
+                GroundedDraft.model_validate(DRAFT),
+                [SOURCE],
+                verifier=lambda _p, _s: approved(question),
+            )
+        )
 
     def test_verifier_sees_only_cited_passages(self) -> None:
         draft = GroundedDraft.model_validate(DRAFT)
-        extra = ChunkData(document="other.pdf", page=3, chunk_index=0, text="Uncited secret detail.")
+        extra = ChunkData(
+            document="other.pdf", page=3, chunk_index=0, text="Uncited secret detail."
+        )
         prompt = build_verifier_prompt("Question", draft.claims, [SOURCE, extra])
         self.assertIn(SOURCE["text"], prompt)
         self.assertNotIn(extra["text"], prompt)
@@ -755,10 +1344,16 @@ class GroundingTests(unittest.TestCase):
         draft = GroundedDraft.model_validate(DRAFT)
         draft.claims.append(draft.claims[0].model_copy())
         verdict = approved("Question")
-        cast(list[dict[str, object]], verdict["verdicts"]).append({
-            "claim_index": 2, "reason": "Evidence assessment.", "supported": False,
-            "correct_attribution": True, "relevant": True, "supporting_evidence_ids": [],
-        })
+        cast(list[dict[str, object]], verdict["verdicts"]).append(
+            {
+                "claim_index": 2,
+                "reason": "Evidence assessment.",
+                "supported": False,
+                "correct_attribution": True,
+                "relevant": True,
+                "supporting_evidence_ids": [],
+            }
+        )
         with patch("app.grounding.generate_json", return_value=verdict):
             self.assertFalse(verify_draft("Question", draft, [SOURCE]))
 
@@ -766,7 +1361,8 @@ class GroundingTests(unittest.TestCase):
         bad_id = deepcopy(DRAFT)
         first_citation(bad_id)["source_id"] = 13
         with patch(
-            "app.grounding.generate_json", side_effect=[bad_id, DRAFT, APPROVED],
+            "app.grounding.generate_json",
+            side_effect=[bad_id, DRAFT, APPROVED],
         ) as model:
             result = grounded_answer("What did the cited study report?", [SOURCE])
         self.assertIn("Cited literature:", result)
@@ -785,12 +1381,21 @@ class GroundingTests(unittest.TestCase):
             "app.grounding.generate_json",
             side_effect=[DRAFT, rejected, DRAFT, APPROVED],
         ) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE], trace=trace)
+            answer = grounded_answer(
+                "What did the cited study report?", [SOURCE], trace=trace
+            )
         self.assertIn("Cited literature:", answer)
         self.assertEqual(model.call_count, 4)
         self.assertEqual(
             [entry["stage"] for entry in trace],
-            ["draft", "verification", "rejected", "repair_draft", "repair_verification", "repair_verification_proof"],
+            [
+                "draft",
+                "verification",
+                "rejected",
+                "repair_draft",
+                "repair_verification",
+                "repair_verification_proof",
+            ],
         )
         repair_prompt = model.call_args_list[2].args[0]
         self.assertIn("The draft omitted the requested comparison.", repair_prompt)
@@ -813,8 +1418,12 @@ class GroundingTests(unittest.TestCase):
     def test_invalid_repair_refuses_without_a_third_attempt(self) -> None:
         invalid = deepcopy(DRAFT)
         first_citation(invalid)["source_id"] = 13
-        with patch("app.grounding.generate_json", side_effect=[invalid, invalid]) as model:
-            self.assertEqual(grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE)
+        with patch(
+            "app.grounding.generate_json", side_effect=[invalid, invalid]
+        ) as model:
+            self.assertEqual(
+                grounded_answer("Question", [SOURCE]), INSUFFICIENT_EVIDENCE
+            )
         self.assertEqual(model.call_count, 2)
 
     def test_evidence_spans_are_exact_normalized_substrings(self) -> None:
@@ -828,14 +1437,20 @@ class GroundingTests(unittest.TestCase):
     def test_long_evidence_span_is_split_contiguously_without_loss(self) -> None:
         text = "".join(f"{index:05d}" for index in range(1604)) + "tail-marker-1234567"
         spans = _evidence_spans(text)
-        self.assertEqual([len(span) for span in spans], [MAX_QUOTE_CHARS, MAX_QUOTE_CHARS, 39])
+        self.assertEqual(
+            [len(span) for span in spans], [MAX_QUOTE_CHARS, MAX_QUOTE_CHARS, 39]
+        )
         self.assertEqual("".join(spans), text)
 
     def test_schema_limits_citations_to_original_source_ids(self) -> None:
         baseline = deepcopy(DRAFT_SCHEMA)
         blank = ChunkData(document="blank.pdf", page=1, chunk_index=0, text="  \n")
-        third = ChunkData(document="other.pdf", page=3, chunk_index=0,
-                          text="Gamma finding! Delta result.")
+        third = ChunkData(
+            document="other.pdf",
+            page=3,
+            chunk_index=0,
+            text="Gamma finding! Delta result.",
+        )
         schema = _bounded_draft_schema([SOURCE, blank, third])
         definitions = cast(dict[str, object], schema["$defs"])
         citation = cast(dict[str, object], definitions["ClaimCitation"])
@@ -847,23 +1462,34 @@ class GroundingTests(unittest.TestCase):
         self.assertNotIn("quote", first_properties)
         self.assertEqual(third_properties["source_id"]["const"], 3)
         self.assertNotIn("quote", third_properties)
-        self.assertTrue(all(variant["required"] == ["source_id"] for variant in variants))
+        self.assertTrue(
+            all(variant["required"] == ["source_id"] for variant in variants)
+        )
         self.assertEqual(DRAFT_SCHEMA, baseline)
 
         prompt = build_draft_prompt("Question", [SOURCE, blank, third])
-        self.assertIn('"text": "Asp et al. reported the study. Treatment delayed weight loss."', prompt)
+        self.assertIn(
+            '"text": "Asp et al. reported the study. Treatment delayed weight loss."',
+            prompt,
+        )
         self.assertNotIn('"evidence_quotes":', prompt)
 
     def test_schema_calls_are_fresh_and_do_not_mutate_global_schema(self) -> None:
         baseline = deepcopy(DRAFT_SCHEMA)
         first = _bounded_draft_schema([SOURCE])
-        second_source = ChunkData(document="paper.pdf", page=11, chunk_index=0,
-                                  text="Jones et al. Another study.")
+        second_source = ChunkData(
+            document="paper.pdf",
+            page=11,
+            chunk_index=0,
+            text="Jones et al. Another study.",
+        )
         second = _bounded_draft_schema([SOURCE, second_source])
         self.assertIsNot(first, second)
         self.assertEqual(DRAFT_SCHEMA, baseline)
 
-    def test_verifier_schema_limits_evidence_ids_and_preserves_global_schema(self) -> None:
+    def test_verifier_schema_limits_evidence_ids_and_preserves_global_schema(
+        self,
+    ) -> None:
         baseline = deepcopy(VERIFIER_SCHEMA)
         draft = GroundedDraft.model_validate(DRAFT)
         first = _bounded_verifier_schema("Question", draft.claims, [SOURCE])
@@ -875,13 +1501,22 @@ class GroundingTests(unittest.TestCase):
             self.assertEqual(len(variants), 2)
             for variant in variants:
                 properties = cast(dict[str, dict[str, object]], variant["properties"])
-                self.assertEqual(properties["supporting_evidence_ids"]["items"],
-                                 {"type": "integer", "enum": [1, 2]})
-                state = properties["status" if name == "RequestedAnswerCoverage" else "supported"]["const"]
+                self.assertEqual(
+                    properties["supporting_evidence_ids"]["items"],
+                    {"type": "integer", "enum": [1, 2]},
+                )
+                state = properties[
+                    "status" if name == "RequestedAnswerCoverage" else "supported"
+                ]["const"]
                 if state is True or state == "supported":
-                    self.assertEqual(properties["supporting_evidence_ids"]["minItems"], 1)
+                    self.assertEqual(
+                        properties["supporting_evidence_ids"]["minItems"], 1
+                    )
                 if name == "RequestedAnswerCoverage":
-                    self.assertEqual(properties["question_excerpt"], {"type": "string", "const": "Question"})
+                    self.assertEqual(
+                        properties["question_excerpt"],
+                        {"type": "string", "const": "Question"},
+                    )
         self.assertEqual(VERIFIER_SCHEMA, baseline)
         with self.assertRaises(ValueError):
             _bounded_verifier_schema("Question", [], [])
@@ -892,16 +1527,24 @@ class GroundingTests(unittest.TestCase):
         draft = GroundedDraft.model_validate(DRAFT)
         prompt = build_verifier_prompt("Question", draft.claims, [SOURCE])
         schema_text = prompt.split("Response shape JSON schema:\n", 1)[1].split(
-            "\n\nVerification input JSON:", 1)[0]
-        self.assertEqual(json.loads(schema_text),
-                         _bounded_verifier_schema("Question", draft.claims, [SOURCE]))
+            "\n\nVerification input JSON:", 1
+        )[0]
+        self.assertEqual(
+            json.loads(schema_text),
+            _bounded_verifier_schema("Question", draft.claims, [SOURCE]),
+        )
         payload = json.loads(prompt.split("Verification input JSON:\n", 1)[1])
         self.assertEqual(payload["question"], "Question")
         self.assertEqual(payload["claims"][0]["eligible_evidence_ids"], [1, 2])
 
     def test_verifier_schema_binds_each_claim_to_only_its_cited_sources(self) -> None:
-        other = ChunkData(document="other.pdf", page=1, chunk_index=0,
-                          section="references", text="A separate study reported improved uptake.")
+        other = ChunkData(
+            document="other.pdf",
+            page=1,
+            chunk_index=0,
+            section="references",
+            text="A separate study reported improved uptake.",
+        )
         draft = GroundedDraft.model_validate(DRAFT)
         second = draft.claims[0].model_copy(deep=True)
         second.citations[0].source_id = 2
@@ -913,8 +1556,10 @@ class GroundingTests(unittest.TestCase):
         for variant in variants:
             props = cast(dict[str, dict[str, object]], variant["properties"])
             index = props["claim_index"]["const"]
-            self.assertEqual(props["supporting_evidence_ids"]["items"],
-                             {"type": "integer", "enum": [1, 2] if index == 1 else [3]})
+            self.assertEqual(
+                props["supporting_evidence_ids"]["items"],
+                {"type": "integer", "enum": [1, 2] if index == 1 else [3]},
+            )
         prompt = build_verifier_prompt("Question", draft.claims, [SOURCE, other])
         payload = json.loads(prompt.split("Verification input JSON:\n", 1)[1])
         self.assertEqual(payload["claims"][0]["source_ids"], [1])
@@ -924,26 +1569,58 @@ class GroundingTests(unittest.TestCase):
         self.assertIn('"eligible_evidence_ids": [1, 2]', prompt)
         self.assertIn('"eligible_evidence_ids": [3]', prompt)
         # A supported full-question assessment can combine evidence across claims.
-        for variant in cast(list[dict[str, object]], definitions["RequestedAnswerCoverage"]["anyOf"]):
+        for variant in cast(
+            list[dict[str, object]], definitions["RequestedAnswerCoverage"]["anyOf"]
+        ):
             props = cast(dict[str, dict[str, object]], variant["properties"])
-            self.assertEqual(props["supporting_evidence_ids"]["items"],
-                             {"type": "integer", "enum": [1, 2, 3]})
+            self.assertEqual(
+                props["supporting_evidence_ids"]["items"],
+                {"type": "integer", "enum": [1, 2, 3]},
+            )
 
-    def test_verifier_preserves_original_reasoning_shape_and_appends_full_question_check(self) -> None:
+    def test_verifier_preserves_original_reasoning_shape_and_appends_full_question_check(
+        self,
+    ) -> None:
         draft = GroundedDraft.model_validate(DRAFT)
         schema = _bounded_verifier_schema("Question", draft.claims, [SOURCE])
-        self.assertEqual(list(cast(dict[str, object], schema["properties"])),
-                         ["requirements", "answers_question", "reason", "verdicts", "requested_answer"])
+        self.assertEqual(
+            list(cast(dict[str, object], schema["properties"])),
+            [
+                "requirements",
+                "answers_question",
+                "reason",
+                "verdicts",
+                "requested_answer",
+            ],
+        )
         definitions = cast(dict[str, dict[str, object]], schema["$defs"])
-        requirement_variant = cast(list[dict[str, object]], definitions["QuestionRequirement"]["anyOf"])[0]
-        requirement = cast(dict[str, dict[str, object]], requirement_variant["properties"])
-        self.assertEqual(list(requirement), ["requirement", "supported", "reason", "supporting_evidence_ids"])
+        requirement_variant = cast(
+            list[dict[str, object]], definitions["QuestionRequirement"]["anyOf"]
+        )[0]
+        requirement = cast(
+            dict[str, dict[str, object]], requirement_variant["properties"]
+        )
+        self.assertEqual(
+            list(requirement),
+            ["requirement", "supported", "reason", "supporting_evidence_ids"],
+        )
         self.assertEqual(requirement["requirement"]["maxLength"], 200)
         self.assertEqual(requirement["reason"]["maxLength"], 300)
-        for variant in cast(list[dict[str, object]], definitions["ClaimVerdict"]["anyOf"]):
+        for variant in cast(
+            list[dict[str, object]], definitions["ClaimVerdict"]["anyOf"]
+        ):
             properties = cast(dict[str, dict[str, object]], variant["properties"])
-            self.assertEqual(list(properties), ["claim_index", "supported", "correct_attribution",
-                                               "relevant", "reason", "supporting_evidence_ids"])
+            self.assertEqual(
+                list(properties),
+                [
+                    "claim_index",
+                    "supported",
+                    "correct_attribution",
+                    "relevant",
+                    "reason",
+                    "supporting_evidence_ids",
+                ],
+            )
             self.assertEqual(properties["reason"]["maxLength"], 300)
 
     def test_blank_sources_refuse_without_model_or_empty_anyof_schema(self) -> None:
@@ -952,7 +1629,9 @@ class GroundingTests(unittest.TestCase):
             ChunkData(document="space.pdf", page=2, chunk_index=0, text=" \n\t "),
         ]
         with patch("app.grounding.generate_json") as model:
-            self.assertEqual(grounded_answer("Question", blank_sources), INSUFFICIENT_EVIDENCE)
+            self.assertEqual(
+                grounded_answer("Question", blank_sources), INSUFFICIENT_EVIDENCE
+            )
             model.assert_not_called()
         with self.assertRaisesRegex(ValueError, "nonempty source"):
             _bounded_draft_schema(blank_sources)
@@ -960,205 +1639,454 @@ class GroundingTests(unittest.TestCase):
 
 class ApprovedProofTests(unittest.TestCase):
     def test_fenced_verifier_still_requires_final_proof(self) -> None:
-        responses = [json.dumps(DRAFT), f"```json\n{json.dumps(APPROVED)}\n```",
-                     '{"supported": true, "reason": "Complete evidence."}']
+        responses = [
+            json.dumps(DRAFT),
+            f"```json\n{json.dumps(APPROVED)}\n```",
+            '{"supported": true, "reason": "Complete evidence."}',
+        ]
         evidence: list[AnswerClaim] = []
         with patch("app.llm.ollama.chat", side_effect=responses) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+            answer = grounded_answer(
+                "What did the cited study report?", [SOURCE], claim_evidence=evidence
+            )
         self.assertIn("Cited literature:", answer)
-        self.assertEqual(evidence[0]["citations"], [{
-            "source_index": 0, "quote": "Treatment delayed weight loss.",
-        }])
+        self.assertEqual(
+            evidence[0]["citations"],
+            [
+                {
+                    "source_index": 0,
+                    "quote": "Treatment delayed weight loss.",
+                }
+            ],
+        )
         self.assertEqual(model.call_count, 3)
 
     def test_fenced_proof_rejection_cannot_publish_claims(self) -> None:
-        responses = [json.dumps(DRAFT), json.dumps(APPROVED),
-                     '```json\n{"supported": false, "reason": "Missing support."}\n```',
-                     '{"answerable": false, "claims": []}']
+        responses = [
+            json.dumps(DRAFT),
+            json.dumps(APPROVED),
+            '```json\n{"supported": false, "reason": "Missing support."}\n```',
+            '{"answerable": false, "claims": []}',
+        ]
         evidence: list[AnswerClaim] = []
         with patch("app.llm.ollama.chat", side_effect=responses) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+            answer = grounded_answer(
+                "What did the cited study report?", [SOURCE], claim_evidence=evidence
+            )
         self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(evidence, [])
         self.assertEqual(model.call_count, 4)
 
     def test_fenced_object_must_pass_verifier_schema(self) -> None:
-        responses = [json.dumps(DRAFT), '```json\n{"answers_question": true}\n```',
-                     '{"answerable": false, "claims": []}']
+        responses = [
+            json.dumps(DRAFT),
+            '```json\n{"answers_question": true}\n```',
+            '{"answerable": false, "claims": []}',
+        ]
         evidence: list[AnswerClaim] = []
         with patch("app.llm.ollama.chat", side_effect=responses) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE], claim_evidence=evidence)
+            answer = grounded_answer(
+                "What did the cited study report?", [SOURCE], claim_evidence=evidence
+            )
         self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(evidence, [])
         self.assertEqual(model.call_count, 3)
 
     def test_single_repair_receives_both_missing_identifier_and_duration(self) -> None:
         question = "How did FGF21 change in C26-bearing mice after three days?"
-        sources = [ChunkData(document="study.pdf", page=1, chunk_index=0, text="FGF21 increased by 86%."),
-                   ChunkData(document="study.pdf", page=2, chunk_index=0, text="We studied C26-bearing mice."),
-                   ChunkData(document="study.pdf", page=3, chunk_index=0, text="These mice were observed for three days.")]
-        draft = {"answerable": True, "claims": [{
-            "text": "After three days, FGF21 increased by 86% in C26-bearing mice.",
-            "attribution": "this_document_authors", "citations": [{"source_id": 1}],
-        }]}
+        sources = [
+            ChunkData(
+                document="study.pdf",
+                page=1,
+                chunk_index=0,
+                text="FGF21 increased by 86%.",
+            ),
+            ChunkData(
+                document="study.pdf",
+                page=2,
+                chunk_index=0,
+                text="We studied C26-bearing mice.",
+            ),
+            ChunkData(
+                document="study.pdf",
+                page=3,
+                chunk_index=0,
+                text="These mice were observed for three days.",
+            ),
+        ]
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "After three days, FGF21 increased by 86% in C26-bearing mice.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                }
+            ],
+        }
         numeric_verdict = approved(question)
-        for item in [numeric_verdict["requested_answer"], *cast(list[object], numeric_verdict["requirements"]),
-                     *cast(list[object], numeric_verdict["verdicts"])]:
+        for item in [
+            numeric_verdict["requested_answer"],
+            *cast(list[object], numeric_verdict["requirements"]),
+            *cast(list[object], numeric_verdict["verdicts"]),
+        ]:
             cast(dict[str, object], item)["supporting_evidence_ids"] = [1]
         repaired = deepcopy(draft)
-        cast(list[dict[str, object]], repaired["claims"])[0]["citations"] = [{"source_id": i} for i in [1, 2, 3]]
+        cast(list[dict[str, object]], repaired["claims"])[0]["citations"] = [
+            {"source_id": i} for i in [1, 2, 3]
+        ]
         complete_verdict = deepcopy(numeric_verdict)
-        cast(list[dict[str, object]], complete_verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2, 3]
+        cast(list[dict[str, object]], complete_verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1, 2, 3]
         evidence: list[AnswerClaim] = []
-        with patch("app.grounding.generate_json", side_effect=[
-            draft, numeric_verdict, repaired, complete_verdict,
-        ]) as model, patch("app.grounding.generate_approved_proof_json", return_value={
-            "supported": True, "reason": "Same cohort, duration and result.",
-        }) as proof:
-            self.assertNotEqual(grounded_answer(question, sources, claim_evidence=evidence), INSUFFICIENT_EVIDENCE)
-        repair_input = json.loads(model.call_args_list[2].args[0].split("Repair input JSON:\n", 1)[1])
+        with (
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[
+                    draft,
+                    numeric_verdict,
+                    repaired,
+                    complete_verdict,
+                ],
+            ) as model,
+            patch(
+                "app.grounding.generate_approved_proof_json",
+                return_value={
+                    "supported": True,
+                    "reason": "Same cohort, duration and result.",
+                },
+            ) as proof,
+        ):
+            self.assertNotEqual(
+                grounded_answer(question, sources, claim_evidence=evidence),
+                INSUFFICIENT_EVIDENCE,
+            )
+        repair_input = json.loads(
+            model.call_args_list[2].args[0].split("Repair input JSON:\n", 1)[1]
+        )
         reason = repair_input["rejection_feedback"][-1]["reason"]
         self.assertIn("question identifier(s): C26", reason)
         self.assertIn("claimed duration(s): three days", reason)
         proof.assert_called_once()
-        self.assertEqual([c["source_index"] for c in evidence[0]["citations"]], [0, 1, 2])
+        self.assertEqual(
+            [c["source_index"] for c in evidence[0]["citations"]], [0, 1, 2]
+        )
 
-    def test_long_word_and_unicode_boundaries_cannot_supply_partial_identifiers(self) -> None:
+    def test_long_word_and_unicode_boundaries_cannot_supply_partial_identifiers(
+        self,
+    ) -> None:
         long_word = "A" * 100_000 + "1_tail"
         with self.assertRaisesRegex(ValueError, "C26"):
-            _validate_question_identifiers(f"{long_word} What happened in C26?", ["éC26 C26_other"])
-        _validate_question_identifiers(f"{long_word} What happened in C26?", ["(c26)-bearing mice."])
+            _validate_question_identifiers(
+                f"{long_word} What happened in C26?", ["éC26 C26_other"]
+            )
+        _validate_question_identifiers(
+            f"{long_word} What happened in C26?", ["(c26)-bearing mice."]
+        )
 
-    def test_missing_question_identifier_cannot_borrow_unselected_context_or_model_approval(self) -> None:
+    def test_missing_question_identifier_cannot_borrow_unselected_context_or_model_approval(
+        self,
+    ) -> None:
         question = "How did FGF21 change in C26-bearing mice?"
-        sources = [ChunkData(document="C26.pdf", page=1, chunk_index=0,
-                             text="We studied C26-bearing mice. FGF21 increased by 86%."),
-                   ChunkData(document="scope.pdf", page=2, chunk_index=0, text="C26-bearing mice.")]
-        for claim_text in ["FGF21 increased by 86%.", "FGF21 increased by 86% in C26-bearing mice."]:
-            draft = {"answerable": True, "claims": [{
-                "text": claim_text, "attribution": "this_document_authors",
-                "citations": [{"source_id": 1}],
-            }]}
+        sources = [
+            ChunkData(
+                document="C26.pdf",
+                page=1,
+                chunk_index=0,
+                text="We studied C26-bearing mice. FGF21 increased by 86%.",
+            ),
+            ChunkData(
+                document="scope.pdf", page=2, chunk_index=0, text="C26-bearing mice."
+            ),
+        ]
+        for claim_text in [
+            "FGF21 increased by 86%.",
+            "FGF21 increased by 86% in C26-bearing mice.",
+        ]:
+            draft = {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": claim_text,
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
             trace: list[dict[str, object]] = []
             evidence: list[AnswerClaim] = []
-            with self.subTest(claim=claim_text), patch("app.grounding.generate_json", side_effect=[
-                draft, approved(question), draft, approved(question),
-            ]) as model, patch("app.grounding.generate_approved_proof_json", return_value={
-                "supported": True, "reason": "C26 inferred from the result.",
-            }) as proof:
-                self.assertEqual(grounded_answer(question, sources, trace=trace, claim_evidence=evidence),
-                                 INSUFFICIENT_EVIDENCE)
+            with (
+                self.subTest(claim=claim_text),
+                patch(
+                    "app.grounding.generate_json",
+                    side_effect=[
+                        draft,
+                        approved(question),
+                        draft,
+                        approved(question),
+                    ],
+                ) as model,
+                patch(
+                    "app.grounding.generate_approved_proof_json",
+                    return_value={
+                        "supported": True,
+                        "reason": "C26 inferred from the result.",
+                    },
+                ) as proof,
+            ):
+                self.assertEqual(
+                    grounded_answer(
+                        question, sources, trace=trace, claim_evidence=evidence
+                    ),
+                    INSUFFICIENT_EVIDENCE,
+                )
             self.assertEqual(model.call_count, 4)
             proof.assert_not_called()
             self.assertEqual(evidence, [])
             self.assertIn("C26", str(trace[-1]["reason"]))
 
-    def test_identifier_repair_must_select_scope_and_expose_it_with_the_result(self) -> None:
+    def test_identifier_repair_must_select_scope_and_expose_it_with_the_result(
+        self,
+    ) -> None:
         question = "How did FGF21 change in C26-bearing mice?"
-        sources = [ChunkData(document="result.pdf", page=7, chunk_index=0,
-                             text="FGF21 increased by 86%."),
-                   ChunkData(document="result.pdf", page=4, chunk_index=0,
-                             text="We compared housing temperatures in C26-bearing mice.")]
-        draft = {"answerable": True, "claims": [{
-            "text": "FGF21 increased by 86% in C26-bearing mice.", "attribution": "this_document_authors",
-            "citations": [{"source_id": 1}, {"source_id": 2}],
-        }]}
+        sources = [
+            ChunkData(
+                document="result.pdf",
+                page=7,
+                chunk_index=0,
+                text="FGF21 increased by 86%.",
+            ),
+            ChunkData(
+                document="result.pdf",
+                page=4,
+                chunk_index=0,
+                text="We compared housing temperatures in C26-bearing mice.",
+            ),
+        ]
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "FGF21 increased by 86% in C26-bearing mice.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}, {"source_id": 2}],
+                }
+            ],
+        }
         numeric_verdict = approved(question)
-        for item in [numeric_verdict["requested_answer"], *cast(list[object], numeric_verdict["requirements"]),
-                     *cast(list[object], numeric_verdict["verdicts"])]:
+        for item in [
+            numeric_verdict["requested_answer"],
+            *cast(list[object], numeric_verdict["requirements"]),
+            *cast(list[object], numeric_verdict["verdicts"]),
+        ]:
             cast(dict[str, object], item)["supporting_evidence_ids"] = [1]
         complete_verdict = deepcopy(numeric_verdict)
-        cast(list[dict[str, object]], complete_verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
+        cast(list[dict[str, object]], complete_verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1, 2]
         evidence: list[AnswerClaim] = []
-        with patch("app.grounding.generate_json", side_effect=[
-            draft, numeric_verdict, draft, complete_verdict,
-        ]) as model, patch("app.grounding.generate_approved_proof_json", return_value={
-            "supported": True, "reason": "Same experiment, complete scope and result.",
-        }) as proof:
+        with (
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[
+                    draft,
+                    numeric_verdict,
+                    draft,
+                    complete_verdict,
+                ],
+            ) as model,
+            patch(
+                "app.grounding.generate_approved_proof_json",
+                return_value={
+                    "supported": True,
+                    "reason": "Same experiment, complete scope and result.",
+                },
+            ) as proof,
+        ):
             answer = grounded_answer(question, sources, claim_evidence=evidence)
         self.assertEqual(model.call_count, 4)
         proof.assert_called_once()
         self.assertIn("page 7", answer)
         self.assertIn("page 4", answer)
-        self.assertEqual([c["quote"] for c in evidence[0]["citations"]], [s["text"] for s in sources])
+        self.assertEqual(
+            [c["quote"] for c in evidence[0]["citations"]], [s["text"] for s in sources]
+        )
 
     def test_identifier_matching_preserves_token_boundaries_and_case(self) -> None:
         question = "What happened in C26?"
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "Uptake increased.", "attribution": "this_document_authors", "citations": [{"source_id": 1}],
-        }]})
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "Uptake increased.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
         verdict = approved(question)
-        for item in [verdict["requested_answer"], *cast(list[object], verdict["requirements"]),
-                     *cast(list[object], verdict["verdicts"])]:
+        for item in [
+            verdict["requested_answer"],
+            *cast(list[object], verdict["requirements"]),
+            *cast(list[object], verdict["verdicts"]),
+        ]:
             cast(dict[str, object], item)["supporting_evidence_ids"] = [1]
-        for text, expected in [("(c26)-bearing mice had increased uptake.", True),
-                               ("C260 mice had increased uptake.", False),
-                               ("C26A mice had increased uptake.", False),
-                               ("XC26 mice had increased uptake.", False),
-                               ("C26_other mice had increased uptake.", False)]:
+        for text, expected in [
+            ("(c26)-bearing mice had increased uptake.", True),
+            ("C260 mice had increased uptake.", False),
+            ("C26A mice had increased uptake.", False),
+            ("XC26 mice had increased uptake.", False),
+            ("C26_other mice had increased uptake.", False),
+        ]:
             source = ChunkData(document="C26.pdf", page=1, chunk_index=0, text=text)
-            with self.subTest(text=text), patch("app.grounding.generate_approved_proof_json", return_value={
-                "supported": True, "reason": "Complete evidence.",
-            }) as proof:
-                self.assertEqual(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict), expected)
+            with (
+                self.subTest(text=text),
+                patch(
+                    "app.grounding.generate_approved_proof_json",
+                    return_value={
+                        "supported": True,
+                        "reason": "Complete evidence.",
+                    },
+                ) as proof,
+            ):
+                self.assertEqual(
+                    verify_draft(
+                        question, draft, [source], verifier=lambda _p, _s: verdict
+                    ),
+                    expected,
+                )
             self.assertEqual(proof.call_count, int(expected))
 
     def test_identifier_presence_does_not_bypass_semantic_proof(self) -> None:
         question = "How did FGF21 change in C26-bearing mice?"
-        source = ChunkData(document="study.pdf", page=1, chunk_index=0,
-                           text="C26 mice had unchanged leptin. FGF21 increased in another cohort.")
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "FGF21 increased in C26 mice.", "attribution": "this_document_authors",
-            "citations": [{"source_id": 1}],
-        }]})
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="C26 mice had unchanged leptin. FGF21 increased in another cohort.",
+        )
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "FGF21 increased in C26 mice.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
         verdict = approved(question)
-        cast(list[dict[str, object]], verdict["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
-        with patch("app.grounding.generate_approved_proof_json", return_value={
-            "supported": False, "reason": "The outcome belongs to another cohort.",
-        }) as proof:
-            self.assertFalse(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        cast(list[dict[str, object]], verdict["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1, 2]
+        with patch(
+            "app.grounding.generate_approved_proof_json",
+            return_value={
+                "supported": False,
+                "reason": "The outcome belongs to another cohort.",
+            },
+        ) as proof:
+            self.assertFalse(
+                verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+            )
         proof.assert_called_once()
 
     def test_acronym_expansion_and_plain_numbers_remain_semantic_checks(self) -> None:
         question = "Did ATP change after 3 days?"
-        source = ChunkData(document="study.pdf", page=1, chunk_index=0,
-                           text="After three days, adenosine triphosphate was unchanged.")
-        draft = GroundedDraft.model_validate({"answerable": True, "claims": [{
-            "text": "ATP was unchanged.", "attribution": "this_document_authors",
-            "citations": [{"source_id": 1}],
-        }]})
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="After three days, adenosine triphosphate was unchanged.",
+        )
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "ATP was unchanged.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
         verdict = approved(question)
-        for item in [verdict["requested_answer"], *cast(list[object], verdict["requirements"]),
-                     *cast(list[object], verdict["verdicts"])]:
+        for item in [
+            verdict["requested_answer"],
+            *cast(list[object], verdict["requirements"]),
+            *cast(list[object], verdict["verdicts"]),
+        ]:
             cast(dict[str, object], item)["supporting_evidence_ids"] = [1]
-        with patch("app.grounding.generate_approved_proof_json", return_value={
-            "supported": True, "reason": "Supported negative result and ordinary acronym expansion.",
-        }) as proof:
-            self.assertTrue(verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict))
+        with patch(
+            "app.grounding.generate_approved_proof_json",
+            return_value={
+                "supported": True,
+                "reason": "Supported negative result and ordinary acronym expansion.",
+            },
+        ) as proof:
+            self.assertTrue(
+                verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+            )
         proof.assert_called_once()
 
     def test_proof_sees_only_displayed_excerpts_and_not_prior_approval(self) -> None:
-        source = ChunkData(document="study.pdf", page=1, chunk_index=0,
-                           text="We studied male mice. Uptake increased.")
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="We studied male mice. Uptake increased.",
+        )
         question = "How did uptake change in male mice?"
-        draft = {"answerable": True, "claims": [{
-            "text": "Uptake increased in male mice.", "attribution": "this_document_authors",
-            "citations": [{"source_id": 1}],
-        }]}
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "Uptake increased in male mice.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                }
+            ],
+        }
         verdict = approved(question)
         trace: list[dict[str, object]] = []
-        with patch("app.grounding.generate_json", side_effect=[draft, verdict, {
-            "supported": False, "reason": "The approved excerpt omits the male cohort.",
-        }, {"answerable": False, "claims": []}]) as model:
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                draft,
+                verdict,
+                {
+                    "supported": False,
+                    "reason": "The approved excerpt omits the male cohort.",
+                },
+                {"answerable": False, "claims": []},
+            ],
+        ) as model:
             answer = grounded_answer(question, [source], trace=trace)
         self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(model.call_count, 4)
         proof_prompt = model.call_args_list[2].args[0]
         payload = json.loads(proof_prompt.split("Untrusted input JSON:\n", 1)[1])
-        self.assertEqual(payload, {"question": question, "claims": [{
-            "text": "Uptake increased in male mice.", "attribution": "this_document_authors",
-            "citations": [{"source_index": 0, "quote": "Uptake increased."}],
-        }]})
+        self.assertEqual(
+            payload,
+            {
+                "question": question,
+                "claims": [
+                    {
+                        "text": "Uptake increased in male mice.",
+                        "attribution": "this_document_authors",
+                        "citations": [
+                            {"source_index": 0, "quote": "Uptake increased."}
+                        ],
+                    }
+                ],
+            },
+        )
         self.assertNotIn("We studied male mice.", proof_prompt)
         self.assertNotIn("Established by source.", proof_prompt)
         self.assertEqual(trace[2]["stage"], "verification_proof")
@@ -1167,51 +2095,113 @@ class ApprovedProofTests(unittest.TestCase):
     def test_repair_must_pass_proof_and_only_final_evidence_is_exposed(self) -> None:
         verdict = approved()
         complete = deepcopy(verdict)
-        cast(list[dict[str, object]], complete["verdicts"])[0]["supporting_evidence_ids"] = [1, 2]
+        cast(list[dict[str, object]], complete["verdicts"])[0][
+            "supporting_evidence_ids"
+        ] = [1, 2]
         evidence: list[AnswerClaim] = []
         trace: list[dict[str, object]] = []
-        with patch("app.grounding.generate_json", side_effect=[DRAFT, verdict,
-            {"supported": False, "reason": "Missing study identity."}, DRAFT, complete,
-            {"supported": True, "reason": "Complete evidence."},
-        ]) as model:
-            answer = grounded_answer("What did the cited study report?", [SOURCE],
-                                     trace=trace, claim_evidence=evidence)
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                DRAFT,
+                verdict,
+                {"supported": False, "reason": "Missing study identity."},
+                DRAFT,
+                complete,
+                {"supported": True, "reason": "Complete evidence."},
+            ],
+        ) as model:
+            answer = grounded_answer(
+                "What did the cited study report?",
+                [SOURCE],
+                trace=trace,
+                claim_evidence=evidence,
+            )
         self.assertNotEqual(answer, INSUFFICIENT_EVIDENCE)
         self.assertEqual(model.call_count, 6)
-        self.assertEqual(evidence[0]["citations"], [
-            {"source_index": 0, "quote": "Asp et al. reported the study."},
-            {"source_index": 0, "quote": "Treatment delayed weight loss."},
-        ])
+        self.assertEqual(
+            evidence[0]["citations"],
+            [
+                {"source_index": 0, "quote": "Asp et al. reported the study."},
+                {"source_index": 0, "quote": "Treatment delayed weight loss."},
+            ],
+        )
         self.assertEqual(trace[-1]["stage"], "repair_verification_proof")
         self.assertIn("Missing study identity.", model.call_args_list[3].args[0])
 
     def test_invalid_proof_and_rejected_repair_fail_closed(self) -> None:
-        for proof in [{}, {"supported": "true", "reason": "Wrong type."},
-                      {"supported": True, "reason": "Extra key.", "extra": 1},
-                      {"supported": False, "reason": "Missing scope."}]:
-            with self.subTest(proof=proof), patch("app.grounding.generate_json", side_effect=[
-                DRAFT, APPROVED, proof, DRAFT, APPROVED, proof,
-            ]) as model:
+        for proof in [
+            {},
+            {"supported": "true", "reason": "Wrong type."},
+            {"supported": True, "reason": "Extra key.", "extra": 1},
+            {"supported": False, "reason": "Missing scope."},
+        ]:
+            with (
+                self.subTest(proof=proof),
+                patch(
+                    "app.grounding.generate_json",
+                    side_effect=[
+                        DRAFT,
+                        APPROVED,
+                        proof,
+                        DRAFT,
+                        APPROVED,
+                        proof,
+                    ],
+                ) as model,
+            ):
                 evidence: list[AnswerClaim] = []
-                self.assertEqual(grounded_answer("What did the cited study report?", [SOURCE],
-                                                claim_evidence=evidence), INSUFFICIENT_EVIDENCE)
+                self.assertEqual(
+                    grounded_answer(
+                        "What did the cited study report?",
+                        [SOURCE],
+                        claim_evidence=evidence,
+                    ),
+                    INSUFFICIENT_EVIDENCE,
+                )
                 self.assertEqual(evidence, [])
                 self.assertEqual(model.call_count, 6)
 
-    def test_proof_parse_failure_is_recorded_and_cannot_count_as_a_control_pass(self) -> None:
+    def test_proof_parse_failure_is_recorded_and_cannot_count_as_a_control_pass(
+        self,
+    ) -> None:
         from scripts.check_grounding import complete_verifier_verdict
 
         trace: list[dict[str, object]] = []
-        with patch("app.grounding.generate_json", side_effect=[APPROVED, ValueError("Invalid JSON")]):
-            self.assertFalse(verify_draft("What did the cited study report?",
-                                         GroundedDraft.model_validate(DRAFT), [SOURCE], trace=trace))
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[APPROVED, ValueError("Invalid JSON")],
+        ):
+            self.assertFalse(
+                verify_draft(
+                    "What did the cited study report?",
+                    GroundedDraft.model_validate(DRAFT),
+                    [SOURCE],
+                    trace=trace,
+                )
+            )
         self.assertEqual(trace[1], {"stage": "verification_proof", "output": None})
-        self.assertFalse(complete_verifier_verdict("What did the cited study report?", [APPROVED],
-                                                  GroundedDraft.model_validate(DRAFT).claims, [SOURCE], trace))
+        self.assertFalse(
+            complete_verifier_verdict(
+                "What did the cited study report?",
+                [APPROVED],
+                GroundedDraft.model_validate(DRAFT).claims,
+                [SOURCE],
+                trace,
+            )
+        )
 
     def test_proof_transport_failure_propagates_without_repair(self) -> None:
-        with patch("app.grounding.generate_json", side_effect=[DRAFT, APPROVED,
-            httpx.ConnectError("offline"),
-        ]) as model, self.assertRaises(httpx.ConnectError):
+        with (
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[
+                    DRAFT,
+                    APPROVED,
+                    httpx.ConnectError("offline"),
+                ],
+            ) as model,
+            self.assertRaises(httpx.ConnectError),
+        ):
             grounded_answer("What did the cited study report?", [SOURCE])
         self.assertEqual(model.call_count, 3)

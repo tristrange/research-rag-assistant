@@ -23,7 +23,9 @@ class QuestionEmbedding:
 
     def require_current_profile(self) -> None:
         if self.profile != embedding_profile():
-            raise IndexCompatibilityError("The embedding profile changed during the request. Start a new request.")
+            raise IndexCompatibilityError(
+                "The embedding profile changed during the request. Start a new request."
+            )
 
     @cached_property
     def vector(self) -> tuple[float, ...]:
@@ -92,7 +94,8 @@ def search_by_embedding(
         if sections is not None:
             statement = statement.where(Chunk.section.in_(sections))
         statement = statement.order_by(
-            Chunk.embedding.cosine_distance(list(query_vector)), Chunk.id,
+            Chunk.embedding.cosine_distance(list(query_vector)),
+            Chunk.id,
         ).limit(limit)
 
         return list(db.scalars(statement))

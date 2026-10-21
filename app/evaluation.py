@@ -54,10 +54,15 @@ Rerank = Callable[[str, list[Chunk], int], list[Chunk]]
 
 
 def relevant_rank(chunks: list[Chunk], case: EvaluationCase) -> int | None:
-    return next((
-        rank for rank, chunk in enumerate(chunks, 1)
-        if chunk.document == case["document"] and chunk.page in case["expected_pages"]
-    ), None)
+    return next(
+        (
+            rank
+            for rank, chunk in enumerate(chunks, 1)
+            if chunk.document == case["document"]
+            and chunk.page in case["expected_pages"]
+        ),
+        None,
+    )
 
 
 def reciprocal_rank(rank: int | None) -> float:
@@ -79,8 +84,12 @@ def measure(
     # Enforce the reported cutoff even for an injected retrieval implementation.
     chunks = chunks[:top_k]
     return {
-        "sources": [ChunkData(document=c.document, page=c.page,
-                              chunk_index=c.chunk_index, text=c.text) for c in chunks],
+        "sources": [
+            ChunkData(
+                document=c.document, page=c.page, chunk_index=c.chunk_index, text=c.text
+            )
+            for c in chunks
+        ],
         "first_relevant_rank": relevant_rank(chunks, case),
         "candidate_first_relevant_rank": relevant_rank(candidates, case),
         "retrieval_ms": (retrieved - start) * 1000,
@@ -126,20 +135,36 @@ def compare(
             # Alternate ordering to avoid always giving one strategy the warm cache.
             order = [False, True] if (index + repetition) % 2 == 0 else [True, False]
             for use_reranker in order:
-                run = measure(case, search, rerank if use_reranker else None,
-                              top_k, candidate_count)
+                run = measure(
+                    case,
+                    search,
+                    rerank if use_reranker else None,
+                    top_k,
+                    candidate_count,
+                )
                 (reranked if use_reranker else baseline).append(run)
         difference = summarize(reranked)["mrr_at_k"] - summarize(baseline)["mrr_at_k"]
-        questions.append({
-            "case": case, "baseline": baseline, "reranked": reranked,
-            "change": "improved" if difference > 0 else "worsened" if difference < 0 else "unchanged",
-        })
+        questions.append(
+            {
+                "case": case,
+                "baseline": baseline,
+                "reranked": reranked,
+                "change": "improved"
+                if difference > 0
+                else "worsened"
+                if difference < 0
+                else "unchanged",
+            }
+        )
 
     baseline_runs = [r for q in questions for r in q["baseline"]]
     reranked_runs = [r for q in questions for r in q["reranked"]]
     return {
-        "top_k": top_k, "candidate_count": candidate_count, "repetitions": repetitions,
-        "baseline": summarize(baseline_runs), "reranked": summarize(reranked_runs),
+        "top_k": top_k,
+        "candidate_count": candidate_count,
+        "repetitions": repetitions,
+        "baseline": summarize(baseline_runs),
+        "reranked": summarize(reranked_runs),
         "candidate_hit_rate": mean(
             float(r["candidate_first_relevant_rank"] is not None) for r in reranked_runs
         ),

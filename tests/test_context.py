@@ -23,7 +23,9 @@ def chunk(
 
 
 class ContextExpansionTests(unittest.TestCase):
-    def test_merges_only_adjacent_selected_summary_chunks_without_database_lookup(self) -> None:
+    def test_merges_only_adjacent_selected_summary_chunks_without_database_lookup(
+        self,
+    ) -> None:
         first = chunk(4, "First finding. Shared sentence.")
         first.section = "conclusion"
         second = chunk(5, "Shared sentence. Second finding.")
@@ -34,7 +36,9 @@ class ContextExpansionTests(unittest.TestCase):
             sources = merge_selected_chunks([second, separate, first])
         session.assert_not_called()
         self.assertEqual([source["chunk_index"] for source in sources], [4, 8])
-        self.assertEqual(sources[0]["text"], "First finding. Shared sentence. Second finding.")
+        self.assertEqual(
+            sources[0]["text"], "First finding. Shared sentence. Second finding."
+        )
         self.assertEqual(sources[1]["text"], "Other finding.")
 
     def _expand_with_rows(
@@ -79,7 +83,9 @@ class ContextExpansionTests(unittest.TestCase):
             self.assertEqual(expand_chunks([]), [])
         session.assert_not_called()
 
-    def test_expands_two_neighbors_each_way_and_removes_exact_boundary_overlap(self) -> None:
+    def test_expands_two_neighbors_each_way_and_removes_exact_boundary_overlap(
+        self,
+    ) -> None:
         seed = chunk(2, "Shared sentence. Beta result.")
         second_previous = chunk(0, "Opening. Alpha finding.")
         previous = chunk(1, "Alpha finding. Shared sentence.")
@@ -87,19 +93,25 @@ class ContextExpansionTests(unittest.TestCase):
         second_following = chunk(4, "Gamma finding. Delta.")
 
         sources, _ = self._expand_with_rows(
-            [seed], [second_following, following, second_previous, previous],
+            [seed],
+            [second_following, following, second_previous, previous],
         )
 
-        self.assertEqual(sources, [{
-            "document": "paper.pdf",
-            "section": "unknown",
-            "page": 4,
-            "chunk_index": 0,
-            "text": (
-                "Opening. Alpha finding. Shared sentence. "
-                "Beta result. Gamma finding. Delta."
-            ),
-        }])
+        self.assertEqual(
+            sources,
+            [
+                {
+                    "document": "paper.pdf",
+                    "section": "unknown",
+                    "page": 4,
+                    "chunk_index": 0,
+                    "text": (
+                        "Opening. Alpha finding. Shared sentence. "
+                        "Beta result. Gamma finding. Delta."
+                    ),
+                }
+            ],
+        )
 
     def test_lookup_and_merge_stay_within_the_seed_document_and_page(self) -> None:
         seed = chunk(2, "Seed.")
@@ -108,7 +120,8 @@ class ContextExpansionTests(unittest.TestCase):
         wrong_document = chunk(3, "Wrong document.", document="other.pdf")
 
         sources, db = self._expand_with_rows(
-            [seed], [wrong_page, wrong_document, valid],
+            [seed],
+            [wrong_page, wrong_document, valid],
         )
 
         self.assertEqual(len(sources), 1)
@@ -140,7 +153,8 @@ class ContextExpansionTests(unittest.TestCase):
         following = chunk(4, "four")
 
         sources, _ = self._expand_with_rows(
-            [higher_ranked, lower_ranked], [previous, following],
+            [higher_ranked, lower_ranked],
+            [previous, following],
         )
 
         self.assertEqual(len(sources), 1)
@@ -152,13 +166,27 @@ class ContextExpansionTests(unittest.TestCase):
         second = chunk(8, "Second seed.", document="b.pdf", page=2)
         neighbor = chunk(4, "A neighbor that cannot fit. ", document="a.pdf", page=1)
         seed_sources = [
-            ChunkData(document="a.pdf", page=1, chunk_index=5, text="First seed.", section="unknown"),
-            ChunkData(document="b.pdf", page=2, chunk_index=8, text="Second seed.", section="unknown"),
+            ChunkData(
+                document="a.pdf",
+                page=1,
+                chunk_index=5,
+                text="First seed.",
+                section="unknown",
+            ),
+            ChunkData(
+                document="b.pdf",
+                page=2,
+                chunk_index=8,
+                text="Second seed.",
+                section="unknown",
+            ),
         ]
         budget = len(render_context(seed_sources))
 
         sources, _ = self._expand_with_rows(
-            [first, second], [neighbor], max_chars=budget,
+            [first, second],
+            [neighbor],
+            max_chars=budget,
         )
 
         self.assertEqual(sources, seed_sources)
@@ -168,20 +196,30 @@ class ContextExpansionTests(unittest.TestCase):
         first = chunk(5, "First seed.", document="a.pdf", page=1)
         second = chunk(8, "Second seed.", document="b.pdf", page=2)
         first_source = ChunkData(
-            document="a.pdf", page=1, chunk_index=5, text="First seed.", section="unknown",
+            document="a.pdf",
+            page=1,
+            chunk_index=5,
+            text="First seed.",
+            section="unknown",
         )
         budget = len(render_context([first_source]))
 
         sources, _ = self._expand_with_rows(
-            [first, second], [], max_chars=budget,
+            [first, second],
+            [],
+            max_chars=budget,
         )
 
         self.assertEqual(sources, [first_source])
         self.assertEqual(len(render_context(sources)), budget)
 
-    def test_overlap_merge_does_not_remove_internal_or_one_character_matches(self) -> None:
+    def test_overlap_merge_does_not_remove_internal_or_one_character_matches(
+        self,
+    ) -> None:
         self.assertEqual(
-            _merge_adjacent_text("Shared phrase, then tail.", "Shared phrase, then next."),
+            _merge_adjacent_text(
+                "Shared phrase, then tail.", "Shared phrase, then next."
+            ),
             "Shared phrase, then tail. Shared phrase, then next.",
         )
         self.assertEqual(_merge_adjacent_text("Alpha.", ".Beta"), "Alpha. .Beta")

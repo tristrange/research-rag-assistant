@@ -10,13 +10,25 @@ def good_judge(prompt: str, schema: dict[str, object]) -> dict[str, object]:
     if schema.get("title") == "AbstentionDecision":
         data = json.loads(prompt.split("Abstention data (JSON):\n", 1)[1])
         fixture = next(item for item in FIXTURES if item.answer == data["answer"])
-        return {"abstained": fixture.expected["abstained"], "explanation": "Fixture behavior."}
+        return {
+            "abstained": fixture.expected["abstained"],
+            "explanation": "Fixture behavior.",
+        }
     data = json.loads(prompt.split("Evaluation data (JSON):\n", 1)[1])
     fixture = next(item for item in FIXTURES if item.id == data["case"]["id"])
-    scores: dict[str, object] = {"correctness": 2, "completeness": 2, "citation_support": 2,
-                                 "abstained": False, "explanation": "Fixture graded."}
-    scores.update({field: value if isinstance(value, bool) else value[0]
-                   for field, value in fixture.expected.items()})
+    scores: dict[str, object] = {
+        "correctness": 2,
+        "completeness": 2,
+        "citation_support": 2,
+        "abstained": False,
+        "explanation": "Fixture graded.",
+    }
+    scores.update(
+        {
+            field: value if isinstance(value, bool) else value[0]
+            for field, value in fixture.expected.items()
+        }
+    )
     return scores
 
 
@@ -40,22 +52,42 @@ class JudgeCalibrationTests(unittest.TestCase):
         def judge(prompt: str, schema: dict[str, object]) -> dict[str, object]:
             if schema.get("title") == "AbstentionDecision":
                 return {"abstained": False, "explanation": "Always answer."}
-            return {"correctness": 2, "completeness": 2, "citation_support": 2,
-                    "abstained": False, "explanation": "Credited reference instead of answer."}
+            return {
+                "correctness": 2,
+                "completeness": 2,
+                "citation_support": 2,
+                "abstained": False,
+                "explanation": "Credited reference instead of answer.",
+            }
 
         report = run_calibration(judge)
         self.assertFalse(report["passed"])
         failed = {result["id"] for result in report["results"] if not result["passed"]}
-        self.assertTrue({"missing_number", "contradictory_answer", "unsupported_answer",
-                         "answerable_refusal", "unanswerable_refusal"} <= failed)
+        self.assertTrue(
+            {
+                "missing_number",
+                "contradictory_answer",
+                "unsupported_answer",
+                "answerable_refusal",
+                "unanswerable_refusal",
+            }
+            <= failed
+        )
 
     def test_always_low_scores_do_not_pass(self) -> None:
-        report = run_calibration(lambda prompt, schema: {
-            "abstained": True, "explanation": "Always refuse."
-        } if schema.get("title") == "AbstentionDecision" else {
-            "correctness": 0, "completeness": 0, "citation_support": 0,
-            "abstained": True, "explanation": "Always reject.",
-        })
+        report = run_calibration(
+            lambda prompt, schema: (
+                {"abstained": True, "explanation": "Always refuse."}
+                if schema.get("title") == "AbstentionDecision"
+                else {
+                    "correctness": 0,
+                    "completeness": 0,
+                    "citation_support": 0,
+                    "abstained": True,
+                    "explanation": "Always reject.",
+                }
+            )
+        )
         self.assertFalse(report["passed"])
         self.assertFalse(report["results"][0]["passed"])
 

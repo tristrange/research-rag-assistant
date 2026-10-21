@@ -61,31 +61,38 @@ class SectionRecognitionTests(unittest.TestCase):
         )
 
     def test_explicit_page_section_is_optional_and_carries_forward(self) -> None:
-        chunks = chunk_pages([
-            page("Extracted body.", section="methods"),
-            page("Continued body.", number=2),
-        ])
+        chunks = chunk_pages(
+            [
+                page("Extracted body.", section="methods"),
+                page("Continued body.", number=2),
+            ]
+        )
 
         self.assertEqual([chunk["section"] for chunk in chunks], ["methods", "methods"])
 
     def test_unrecognized_heading_does_not_infer_a_section(self) -> None:
         unknown = chunk_pages([page("LIMITATIONS\nNo recognized section.")])
-        after_results = chunk_pages([
-            page("RESULTS\nObserved result.\nLIMITATIONS\nCaveat."),
-        ])
+        after_results = chunk_pages(
+            [
+                page("RESULTS\nObserved result.\nLIMITATIONS\nCaveat."),
+            ]
+        )
 
         self.assertEqual([chunk["section"] for chunk in unknown], ["unknown"])
         self.assertEqual(
-            [chunk["section"] for chunk in after_results], ["results"],
+            [chunk["section"] for chunk in after_results],
+            ["results"],
         )
 
     def test_references_ignore_article_like_headings_but_allow_appendix(self) -> None:
-        chunks = chunk_pages([
-            page("REFERENCES\n[1] A title.\nDISCUSSION\nJournal text."),
-            page("More citation text.", number=2),
-            page("APPENDIX\nAdditional table.", number=3),
-            page("RESULTS\nActual result.", document="next.pdf", number=1),
-        ])
+        chunks = chunk_pages(
+            [
+                page("REFERENCES\n[1] A title.\nDISCUSSION\nJournal text."),
+                page("More citation text.", number=2),
+                page("APPENDIX\nAdditional table.", number=3),
+                page("RESULTS\nActual result.", document="next.pdf", number=1),
+            ]
+        )
 
         self.assertEqual(
             [chunk["section"] for chunk in chunks],
@@ -125,19 +132,40 @@ class PublisherHeadingRegressionTests(unittest.TestCase):
         ]:
             with self.subTest(heading=heading):
                 self.assertEqual(heading_section(heading), section)
-        for heading in ["Results | discussion", "| Methods", "2 || Methods",
-                        "2 | Methods were applied", "2|Results from the study", "2Methods"]:
+        for heading in [
+            "Results | discussion",
+            "| Methods",
+            "2 || Methods",
+            "2 | Methods were applied",
+            "2|Results from the study",
+            "2Methods",
+        ]:
             with self.subTest(heading=heading):
                 self.assertIsNone(heading_section(heading))
 
     def test_pipe_transition_preserves_text_and_carries_across_pages(self) -> None:
         text = "ABSTRACT\nSummary.\n2\u202f|\u202fMaterials and Methods\nProcedure."
-        chunks = chunk_pages([page(text), page("Continued procedure.\n3 | Results\nFinding.", number=2)], chunk_size=1000, overlap=0)
-        self.assertEqual([c["section"] for c in chunks], ["abstract", "methods", "methods", "results"])
+        chunks = chunk_pages(
+            [page(text), page("Continued procedure.\n3 | Results\nFinding.", number=2)],
+            chunk_size=1000,
+            overlap=0,
+        )
+        self.assertEqual(
+            [c["section"] for c in chunks],
+            ["abstract", "methods", "methods", "results"],
+        )
         self.assertEqual("".join(c["text"] for c in chunks if c["page"] == 1), text)
 
     def test_pipe_headings_cannot_end_references_except_explicit_appendix(self) -> None:
-        chunks = chunk_pages([page("5 | References\nCitation.\n2 | Methods\nTitle text.\n6 | Appendix\nExtra.")], chunk_size=1000, overlap=0)
+        chunks = chunk_pages(
+            [
+                page(
+                    "5 | References\nCitation.\n2 | Methods\nTitle text.\n6 | Appendix\nExtra."
+                )
+            ],
+            chunk_size=1000,
+            overlap=0,
+        )
         self.assertEqual([c["section"] for c in chunks], ["references", "appendix"])
 
 

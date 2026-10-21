@@ -66,7 +66,8 @@ def section_ranges(
         line = line_match.group(0).rstrip("\r\n")
         recognized = heading_section(line)
         if section == "references" and recognized not in {
-            "appendix", "supplementary_material",
+            "appendix",
+            "supplementary_material",
         }:
             # A references list can contain standalone-looking article titles.
             # Only explicit post-reference material can end this section.

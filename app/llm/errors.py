@@ -10,10 +10,14 @@ class OllamaResponseError(RuntimeError):
 
     def __init__(self, operation: Operation) -> None:
         self.operation = operation
-        super().__init__(f"Ollama returned an invalid {operation} response. Check Ollama and retry.")
+        super().__init__(
+            f"Ollama returned an invalid {operation} response. Check Ollama and retry."
+        )
 
 
-def response_object(response: httpx.Response, operation: Operation) -> dict[str, object]:
+def response_object(
+    response: httpx.Response, operation: Operation
+) -> dict[str, object]:
     """Decode a successful response without exposing its body in errors."""
     try:
         data: object = response.json()

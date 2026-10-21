@@ -22,9 +22,15 @@ class ReviewSelection(StrictModel):
     @model_validator(mode="after")
     def valid_selection(self) -> "ReviewSelection":
         path = Path(self.report)
-        if path.is_absolute() or ".." in path.parts or path.parts[:1] != ("evaluation-results",):
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or path.parts[:1] != ("evaluation-results",)
+        ):
             raise ValueError("report must be under evaluation-results")
-        if len(self.case_ids) != len(set(self.case_ids)) or any(not value for value in self.case_ids):
+        if len(self.case_ids) != len(set(self.case_ids)) or any(
+            not value for value in self.case_ids
+        ):
             raise ValueError("selected case IDs must be unique and nonempty")
         return self
 
@@ -48,7 +54,11 @@ DECISIONS = {"pending", "pass", "needs_fix", "label_issue"}
 
 
 def case_keys(manifest: ReviewManifest) -> list[str]:
-    return [f"{selection.id}/{case_id}" for selection in manifest.selections for case_id in selection.case_ids]
+    return [
+        f"{selection.id}/{case_id}"
+        for selection in manifest.selections
+        for case_id in selection.case_ids
+    ]
 
 
 def review_set_hash(manifest: ReviewManifest) -> str:
@@ -59,13 +69,21 @@ def configuration_hash(report: ReportModel) -> str:
     settings = report.settings.model_dump()
     # Preserve the identity of frozen reports written before these settings.
     # Missing fields remain unknown; they must not be inferred from today's defaults.
-    for key in ("grounding_sampling", "grounding_draft_timeout_seconds", "grounding_verifier_timeout_seconds",
-                "reserve_vector_page"):
+    for key in (
+        "grounding_sampling",
+        "grounding_draft_timeout_seconds",
+        "grounding_verifier_timeout_seconds",
+        "reserve_vector_page",
+    ):
         if key not in report.settings.model_fields_set:
             settings.pop(key)
-    configuration = {"settings": settings,
-                     "generator_model": report.generator_model, "judge_model": report.judge_model,
-                     "embedding_model": report.embedding_model, "reranker_model": report.reranker_model}
+    configuration = {
+        "settings": settings,
+        "generator_model": report.generator_model,
+        "judge_model": report.judge_model,
+        "embedding_model": report.embedding_model,
+        "reranker_model": report.reranker_model,
+    }
     if report.runtime_before is not None:
         configuration["runtime_before"] = report.runtime_before.model_dump()
     return sha256(json.dumps(configuration, sort_keys=True).encode()).hexdigest()
@@ -82,27 +100,39 @@ def _location(document: str, page: int, pdf_document: str, pdf_uri: str) -> str:
     return label
 
 
-def _case_html(key: str, result: CompletedResultModel, number: int, pdf_document: str, pdf_uri: str) -> str:
+def _case_html(
+    key: str, result: CompletedResultModel, number: int, pdf_document: str, pdf_uri: str
+) -> str:
     label = "answerable" if result.case.answerable else "unanswerable"
-    sources = "".join(
-        f"<h4>Passage {index}: {_location(source.document, source.page, pdf_document, pdf_uri)}, "
-        f"chunk {source.chunk_index}, {escape(source.section)}</h4>{_text(source.text)}"
-        for index, source in enumerate(result.sources, 1)
-    ) or "<p>No passages returned.</p>"
-    evidence = "".join(
-        f"<h4>{_location(item.document, item.page, pdf_document, pdf_uri)}</h4>{_text(item.quote)}"
-        for item in result.case.evidence
-    ) or "<p>No evidence label; inspect the paper to confirm unanswerability.</p>"
+    sources = (
+        "".join(
+            f"<h4>Passage {index}: {_location(source.document, source.page, pdf_document, pdf_uri)}, "
+            f"chunk {source.chunk_index}, {escape(source.section)}</h4>{_text(source.text)}"
+            for index, source in enumerate(result.sources, 1)
+        )
+        or "<p>No passages returned.</p>"
+    )
+    evidence = (
+        "".join(
+            f"<h4>{_location(item.document, item.page, pdf_document, pdf_uri)}</h4>{_text(item.quote)}"
+            for item in result.case.evidence
+        )
+        or "<p>No evidence label; inspect the paper to confirm unanswerability.</p>"
+    )
     if result.claim_evidence is None:
-        accepted = "<p>Unknown: this report did not capture accepted claim evidence.</p>"
+        accepted = (
+            "<p>Unknown: this report did not capture accepted claim evidence.</p>"
+        )
     elif not result.claim_evidence:
         accepted = "<p>No claims were approved by the grounding verifier.</p>"
     else:
         accepted = "".join(
-            f"<h4>{escape(claim.attribution)}</h4>{_text(claim.text)}" + "".join(
+            f"<h4>{escape(claim.attribution)}</h4>{_text(claim.text)}"
+            + "".join(
                 f"<p>Passage {quote.source_index + 1}</p>{_text(quote.quote)}"
                 for quote in claim.citations
-            ) for claim in result.claim_evidence
+            )
+            for claim in result.claim_evidence
         )
     return (
         f'<article id="case-{number}"><h2>{escape(key)}</h2>'
@@ -136,12 +166,18 @@ def prepare_packet(manifest: ReviewManifest, root: Path, output: Path) -> None:
         if report.status != "complete" or report.settings.answer_mode != "verified":
             raise ValueError("human review requires completed verified-answer reports")
         if configuration_hash(report) != manifest.configuration_sha256:
-            raise ValueError(f"Answer configuration differs from the frozen protocol: {selection.id}")
+            raise ValueError(
+                f"Answer configuration differs from the frozen protocol: {selection.id}"
+            )
         documents = list(report.corpus.chunks_by_document)
         if len(documents) != 1:
             raise ValueError("review requires an isolated single-paper report")
         document = documents[0]
-        if Path(document).name != document or "\\" in document or Path(document).suffix.lower() != ".pdf":
+        if (
+            Path(document).name != document
+            or "\\" in document
+            or Path(document).suffix.lower() != ".pdf"
+        ):
             raise ValueError("paper identity must be a PDF filename")
         pdf = (root / "data" / document).resolve()
         if (root / "data").resolve() not in pdf.parents:
@@ -151,50 +187,73 @@ def prepare_packet(manifest: ReviewManifest, root: Path, output: Path) -> None:
         results = {result.case.id: result for result in report.results}
         if not set(selection.case_ids) <= results.keys():
             raise ValueError(f"Missing selected cases: {selection.id}")
-        provenance.append({
-            "id": selection.id, "report": selection.report, "sha256": selection.sha256,
-            "started_at": report.started_at, "generator_model": report.generator_model,
-            "embedding_model": report.embedding_model, "reranker_model": report.reranker_model,
-            "settings": report.settings.model_dump(), "corpus": report.corpus.model_dump(),
-            "paper_sha256": report.paper_sha256,
-        })
+        provenance.append(
+            {
+                "id": selection.id,
+                "report": selection.report,
+                "sha256": selection.sha256,
+                "started_at": report.started_at,
+                "generator_model": report.generator_model,
+                "embedding_model": report.embedding_model,
+                "reranker_model": report.reranker_model,
+                "settings": report.settings.model_dump(),
+                "corpus": report.corpus.model_dump(),
+                "paper_sha256": report.paper_sha256,
+            }
+        )
         for case_id in selection.case_ids:
             result = results[case_id]
             key = f"{selection.id}/{case_id}"
-            articles.append(_case_html(key, result, len(articles) + 1, document, pdf.as_uri()))
+            articles.append(
+                _case_html(key, result, len(articles) + 1, document, pdf.as_uri())
+            )
             rows.append([key, "pending", "", review_set_hash(manifest)])
-    navigation = "<ol>" + "".join(
-        f'<li><a href="#case-{number}">{escape(key)}</a></li>'
-        for number, key in enumerate(case_keys(manifest), 1)
-    ) + "</ol>"
+    navigation = (
+        "<ol>"
+        + "".join(
+            f'<li><a href="#case-{number}">{escape(key)}</a></li>'
+            for number, key in enumerate(case_keys(manifest), 1)
+        )
+        + "</ol>"
+    )
     html = (
         '<!doctype html><html lang="en"><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<title>v1 development review</title><style>'
-        'body{max-width:900px;margin:2rem auto;padding:0 1rem;font:17px/1.5 system-ui}'
-        'pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:#f5f7f6;padding:1rem}'
-        'article{border-top:2px solid #ccc;margin-top:3rem;padding-top:1rem}'
-        'summary{cursor:pointer;font-weight:bold}@media print{article{break-before:page}}'
-        '</style><h1>v1 development review</h1>'
-        '<p>Read each question and answer before opening its reference label. Check the original PDF '
-        'as well as the returned passages. Labels are assistant-authored and may be wrong. '
-        'Model-judge scores are deliberately omitted.</p>'
-        '<p>In review.csv, replace pending with pass, needs_fix, or label_issue. Record notes for '
-        'any problem: factual accuracy, completeness, population/duration qualifiers, attribution, '
-        'the passages actually cited, or refusal behavior. An answerable question may be refused '
-        'because retrieval missed evidence; mark that needs_fix. Missing evidence is not a negative result.</p>'
-        '<p>This packet reuses inspected development cases and historical answers. It is not a '
-        'fresh validation run or a release approval. Reports contain displayed page references '
-        'and retrieved passages, but not the original selected quote for each claim. A cited page '
-        'may match several passages; inspect their support rather than assuming every passage was cited.</p>'
-        + navigation + "".join(articles) + '</html>'
+        "<title>v1 development review</title><style>"
+        "body{max-width:900px;margin:2rem auto;padding:0 1rem;font:17px/1.5 system-ui}"
+        "pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:#f5f7f6;padding:1rem}"
+        "article{border-top:2px solid #ccc;margin-top:3rem;padding-top:1rem}"
+        "summary{cursor:pointer;font-weight:bold}@media print{article{break-before:page}}"
+        "</style><h1>v1 development review</h1>"
+        "<p>Read each question and answer before opening its reference label. Check the original PDF "
+        "as well as the returned passages. Labels are assistant-authored and may be wrong. "
+        "Model-judge scores are deliberately omitted.</p>"
+        "<p>In review.csv, replace pending with pass, needs_fix, or label_issue. Record notes for "
+        "any problem: factual accuracy, completeness, population/duration qualifiers, attribution, "
+        "the passages actually cited, or refusal behavior. An answerable question may be refused "
+        "because retrieval missed evidence; mark that needs_fix. Missing evidence is not a negative result.</p>"
+        "<p>This packet reuses inspected development cases and historical answers. It is not a "
+        "fresh validation run or a release approval. Reports contain displayed page references "
+        "and retrieved passages, but not the original selected quote for each claim. A cited page "
+        "may match several passages; inspect their support rather than assuming every passage was cited.</p>"
+        + navigation
+        + "".join(articles)
+        + "</html>"
     )
     output.mkdir(parents=True, exist_ok=False)
     (output / "packet.html").write_text(html, encoding="utf-8")
-    (output / "provenance.json").write_text(json.dumps({
-        "review_set_sha256": review_set_hash(manifest),
-        "configuration_sha256": manifest.configuration_sha256, "reports": provenance,
-    }, indent=2) + "\n", encoding="utf-8")
+    (output / "provenance.json").write_text(
+        json.dumps(
+            {
+                "review_set_sha256": review_set_hash(manifest),
+                "configuration_sha256": manifest.configuration_sha256,
+                "reports": provenance,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     with (output / "review.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(REVIEW_COLUMNS)
@@ -231,12 +290,20 @@ def summarize_review(manifest: ReviewManifest, path: Path) -> dict[str, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", type=Path, default=Path("benchmarks/v1-development-review.json"))
+    parser.add_argument(
+        "--manifest", type=Path, default=Path("benchmarks/v1-development-review.json")
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--output", type=Path, help="new packet directory under evaluation-results")
-    mode.add_argument("--summarize", type=Path, help="completed review CSV (no model calls)")
+    mode.add_argument(
+        "--output", type=Path, help="new packet directory under evaluation-results"
+    )
+    mode.add_argument(
+        "--summarize", type=Path, help="completed review CSV (no model calls)"
+    )
     args = parser.parse_args()
-    manifest = ReviewManifest.model_validate_json(args.manifest.read_text(encoding="utf-8"))
+    manifest = ReviewManifest.model_validate_json(
+        args.manifest.read_text(encoding="utf-8")
+    )
     if args.output is not None:
         prepare_packet(manifest, Path.cwd(), args.output)
         print(f"Prepared {len(case_keys(manifest))} cases in {args.output}")
