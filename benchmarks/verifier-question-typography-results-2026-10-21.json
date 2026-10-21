@@ -6,6 +6,8 @@
   "base_commit": "d88baa6e5fcb0a3902fc7f213fc367ad8c824ebb",
   "contract_version": "claim-grounding-v41",
   "grounding_fingerprint": "1022b865c6cb487aa84e16474565e9bf23f2eedc898f7f71ce290377f1d77892",
+  "grounding_fingerprint_after_review_fix": "08bd094b08d183c4d2f4fe2930031575c3614b4714bf5e73e029737cacc63291",
+  "grounding_fingerprint_note": "The replay ran before the question-copy rule was added to grounding_fingerprint(). That later fingerprint-only fix rejects resumes across the comparison change; prompts, schemas, settings and generation behavior are unchanged.",
   "grounding_code_fingerprint": "4b021baa1d4615c0753a4aa46df634729de069f48240f4625fd7ede583f57e0b",
   "scope": "Compare the verifier's question_excerpt with the original question after whitespace normalization and a fixed typographic-dash translation only.",
   "settings": {

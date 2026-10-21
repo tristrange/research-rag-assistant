@@ -113,6 +113,16 @@ in-progress diagnostic record while checkpointing the first verifier call. It
 produced no verifier response or answer. The invalid report is preserved and no
 model output was reused; the trial above is a new generation run.
 
+**Review follow-up.** The question-copy rule is now an explicit key in
+`grounding_fingerprint()`, so a report saved under the earlier comparison cannot
+be resumed after the change. The replay above ran at `d88baa6` before that
+fingerprint-only key was added and records the earlier fingerprint
+`1022b865c6cb487aa84e16474565e9bf23f2eedc898f7f71ce290377f1d77892`; the final
+fingerprint is
+`08bd094b08d183c4d2f4fe2930031575c3614b4714bf5e73e029737cacc63291`.
+Prompts, schemas, settings and generation behavior did not change after the
+replay.
+
 Fresh reserved questions with independent human source review were not available,
 so newly reserved validation is **not completed**. This development replay does
 not mark reliability fixed or approve a release.

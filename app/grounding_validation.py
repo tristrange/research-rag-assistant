@@ -22,6 +22,13 @@ _QUESTION_COPY_DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63\
 _QUESTION_COPY_TRANSLATION = str.maketrans(
     _QUESTION_COPY_DASHES, "-" * len(_QUESTION_COPY_DASHES)
 )
+_QUESTION_COPY_RULE = (
+    "requested_answer.question_excerpt must equal the entire original question after "
+    "whitespace normalization and translation of these typographic dashes to ASCII "
+    "hyphen-minus: "
+    + ", ".join(f"U+{ord(character):04X}" for character in _QUESTION_COPY_DASHES)
+    + "; all other characters remain exact"
+)
 
 
 def _normalize_question_copy(text: str) -> str:

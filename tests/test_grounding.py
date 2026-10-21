@@ -415,6 +415,11 @@ class GroundingTests(unittest.TestCase):
         ] = [1]
         return result
 
+    def test_question_copy_rule_changes_grounding_fingerprint(self) -> None:
+        original = grounding_fingerprint()
+        with patch("app.grounding._QUESTION_COPY_RULE", "changed rule"):
+            self.assertNotEqual(grounding_fingerprint(), original)
+
     def test_inference_settings_change_grounding_fingerprint(self) -> None:
         original = grounding_fingerprint()
         for setting, value in [

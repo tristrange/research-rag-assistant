@@ -138,11 +138,18 @@ used only for question binding and cannot select evidence.
 
 Regression coverage is
 `test_question_copy_normalizes_typographic_dashes_only` in
-[`tests/test_grounding.py`](../tests/test_grounding.py). The prompt, schema and
-settings fingerprint is unchanged. Replay provenance still hashes the grounding
-modules, so evaluations bind this validation change through the application code
-fingerprint. See the [bounded drafting follow-up](draft-fidelity-check.md) for
-the observed failure and development evidence. The 21 October development replay
-did not reproduce the U+2011 copy live; the [public aggregate](../benchmarks/verifier-question-typography-results-2026-10-21.json)
+[`tests/test_grounding.py`](../tests/test_grounding.py). The prompt and schema
+bytes and inference settings are unchanged, but `grounding_fingerprint()` now
+includes the question-copy rule. The contract fingerprint therefore changes from
+`1022b865c6cb487aa84e16474565e9bf23f2eedc898f7f71ce290377f1d77892`
+to `08bd094b08d183c4d2f4fe2930031575c3614b4714bf5e73e029737cacc63291`.
+`validate_resume_consistency()` rejects a report saved under the old comparison
+instead of mixing old refusals with new accepts. Replay provenance also hashes
+the grounding modules. The 21 October development replay ran at `d88baa6` before
+this fingerprint-only review follow-up, so its report records the earlier
+fingerprint; the comparison and generation path did not change after that run.
+See the [bounded drafting follow-up](draft-fidelity-check.md) for the observed
+failure and development evidence. The 21 October development replay did not
+reproduce the U+2011 copy live; the [public aggregate](../benchmarks/verifier-question-typography-results-2026-10-21.json)
 records that limitation. The deterministic regression remains the direct evidence
 for the comparison change.
