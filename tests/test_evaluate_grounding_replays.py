@@ -15,6 +15,7 @@ from app.answer_evaluation import (
     Judge,
     summarize,
 )
+from app.grounding import grounding_code_fingerprint
 from app.judge_calibration import CalibrationReport
 from app.llm.telemetry import observe_call
 from scripts.compare_reranking import CorpusSnapshot
@@ -206,9 +207,7 @@ class EvaluateReplayTests(unittest.TestCase):
             status="complete",
             server_version={"version": "test"},
             models=[dict(name="gpt-oss:20b", digest="a" * 64)],
-            grounding_code_sha256=sha256(
-                Path("app/grounding.py").read_bytes()
-            ).hexdigest(),
+            grounding_code_sha256=grounding_code_fingerprint(),
             steps=[
                 dict(
                     report=str(self.path),
@@ -227,9 +226,7 @@ class EvaluateReplayTests(unittest.TestCase):
                 ollama_version="test",
                 judge_model="qwen3:8b",
                 judge_digest="c" * 64,
-                grounding_code_sha256=sha256(
-                    Path("app/grounding.py").read_bytes()
-                ).hexdigest(),
+                grounding_code_sha256=grounding_code_fingerprint(),
                 candidates=[
                     dict(
                         model=settings["verifier_model"],

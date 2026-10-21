@@ -11,6 +11,7 @@ from pathlib import Path
 
 import httpx
 
+from app.grounding import grounding_code_fingerprint
 from scripts.evaluate_answers import (
     EVALUATOR_PROMPT_SHA256,
     ReportModel,
@@ -64,7 +65,7 @@ def record_arm(
     if EVALUATOR_PROMPT_SHA256 != protocol.evaluator_prompt_sha256:
         raise ValueError("evaluator prompt differs from the frozen comparison protocol")
     project = Path(__file__).resolve().parents[1]
-    code_hash = sha256((project / "app/grounding.py").read_bytes()).hexdigest()
+    code_hash = grounding_code_fingerprint()
     if code_hash != protocol.grounding_code_sha256:
         raise ValueError("grounding implementation differs from the frozen protocol")
     candidate: CandidateConfig | None = None

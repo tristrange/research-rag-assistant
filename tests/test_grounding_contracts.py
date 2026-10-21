@@ -4,8 +4,8 @@ Each fixture pins the observable result of ``grounded_answer`` for a synthetic,
 license-safe question and one ordered script of model calls. The script is
 replayed at ``app.grounding.generate_json``, the single model boundary, so the
 recorded SHA-256 digests cover the exact prompt and schema every stage sends,
-including the generated proof prompt. These are the contract assertions the
-grounding module extraction must preserve; see ``docs/architecture.md``.
+including the generated proof prompt. These assertions guard that contract; see
+``docs/architecture.md``.
 """
 
 import hashlib

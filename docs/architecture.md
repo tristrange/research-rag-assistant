@@ -148,12 +148,16 @@ the matching retrieved context; inspect that context and the original PDF.
 
 ## Grounding module contract
 
-[`app.grounding`](../app/grounding.py) is one module today, but it carries five
-separate responsibilities: Pydantic contracts, prompt construction, semantic and
-structural validation, evidence selection, and orchestration. The extraction
-follow-up splits those into `grounding_models`, `grounding_prompts`,
-`grounding_validation` and `grounding_evidence`, leaving `app.grounding` as the
-facade and orchestrator. The contract below is what that split must preserve.
+[`app.grounding`](../app/grounding.py) is the facade and orchestrator. Pydantic
+contracts live in [`grounding_models`](../app/grounding_models.py), prompt text
+and response-shape construction in
+[`grounding_prompts`](../app/grounding_prompts.py), structural and semantic
+checks in [`grounding_validation`](../app/grounding_validation.py), and evidence
+selection, approved-claim assembly and rendering in
+[`grounding_evidence`](../app/grounding_evidence.py). `app.grounding` re-exports
+every pre-extraction module-level name, so callers and evaluation scripts keep
+the same imports. Dependencies point one way: models, then evidence, then
+prompts and validation, then the facade; there are no import cycles.
 
 **Public entry points and exports.** These names stay importable from
 `app.grounding`, so evaluation scripts and the query path do not change:
@@ -199,7 +203,10 @@ grounded_answer
 prompt bytes built from equivalent inputs, the serialized response and claim
 evidence shape, the refusal text and the exception classes above are the
 contract. The stage fingerprint from `grounding_fingerprint()` binds evaluation
-resumes to these definitions.
+resumes to these definitions. Replay provenance uses
+`grounding_code_fingerprint()`, a SHA-256 over every `app/grounding*.py` module,
+so changing any extracted component invalidates a frozen protocol instead of
+passing on the facade alone.
 
 [`tests/test_grounding_contracts.py`](../tests/test_grounding_contracts.py)
 replays synthetic, license-safe cases from
