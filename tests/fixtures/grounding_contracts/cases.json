@@ -1,0 +1,453 @@
+{
+  "contract_version": "claim-grounding-v41",
+  "note": "Synthetic, license-safe cases. Each case pins the public grounded_answer result for a fixed sequence of model responses. Responses are keyed by pipeline stage so a stage reordering is a test failure, not a silent reinterpretation.",
+  "cases": [
+    {
+      "name": "supported_positive",
+      "question": "Did the treatment reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "The treatment reduced weight gain.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 1 }]
+                }
+              ]
+            }
+          }
+        ],
+        "verification": [
+          {
+            "json": {
+              "requirements": [
+                {
+                  "requirement": "Effect of the treatment on weight gain",
+                  "supported": true,
+                  "reason": "The result sentence states the reduction.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "answers_question": true,
+              "reason": "The cited result answers the whole question.",
+              "verdicts": [
+                {
+                  "claim_index": 1,
+                  "supported": true,
+                  "correct_attribution": true,
+                  "relevant": true,
+                  "reason": "The excerpt states the same result.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "requested_answer": {
+                "status": "supported",
+                "question_excerpt": "Did the treatment reduce weight gain?",
+                "supporting_evidence_ids": [1],
+                "reason": "The result sentence establishes the answer."
+              }
+            }
+          }
+        ],
+        "proof": [{ "json": { "supported": true, "reason": "Displayed excerpt establishes the claim." } }]
+      },
+      "expected": {
+        "refused": false,
+        "answer": "The treatment reduced weight gain. (synthetic-study.pdf, page 4)",
+        "claim_evidence": [
+          {
+            "text": "The treatment reduced weight gain.",
+            "attribution": "this_document_authors",
+            "citations": [
+              {
+                "source_index": 0,
+                "quote": "The treatment reduced weight gain in the treated cohort."
+              }
+            ]
+          }
+        ],
+        "trace_stages": ["draft", "verification", "verification_proof"]
+      }
+    },
+    {
+      "name": "supported_negative",
+      "question": "Did the treatment increase weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 5,
+          "chunk_index": 1,
+          "section": "results",
+          "text": "The treatment did not increase weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "The treatment did not increase weight gain.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 1 }]
+                }
+              ]
+            }
+          }
+        ],
+        "verification": [
+          {
+            "json": {
+              "requirements": [
+                {
+                  "requirement": "Effect of the treatment on weight gain",
+                  "supported": true,
+                  "reason": "A supported no result answers the yes/no question.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "answers_question": true,
+              "reason": "The supported negative result answers the question.",
+              "verdicts": [
+                {
+                  "claim_index": 1,
+                  "supported": true,
+                  "correct_attribution": true,
+                  "relevant": true,
+                  "reason": "The excerpt states the same negative result.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "requested_answer": {
+                "status": "supported",
+                "question_excerpt": "Did the treatment increase weight gain?",
+                "supporting_evidence_ids": [1],
+                "reason": "The negative result is explicitly reported."
+              }
+            }
+          }
+        ],
+        "proof": [{ "json": { "supported": true, "reason": "Displayed excerpt establishes the claim." } }]
+      },
+      "expected": {
+        "refused": false,
+        "answer": "The treatment did not increase weight gain. (synthetic-study.pdf, page 5)",
+        "claim_evidence": [
+          {
+            "text": "The treatment did not increase weight gain.",
+            "attribution": "this_document_authors",
+            "citations": [
+              {
+                "source_index": 0,
+                "quote": "The treatment did not increase weight gain in the treated cohort."
+              }
+            ]
+          }
+        ],
+        "trace_stages": ["draft", "verification", "verification_proof"]
+      }
+    },
+    {
+      "name": "missing_evidence_refusal",
+      "question": "Did the treatment reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [{ "json": { "answerable": false, "claims": [] } }]
+      },
+      "expected": {
+        "refused": true,
+        "claim_evidence": [],
+        "trace_stages": ["draft"]
+      }
+    },
+    {
+      "name": "malformed_verifier_json",
+      "question": "Did the treatment reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "The treatment reduced weight gain.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 1 }]
+                }
+              ]
+            }
+          },
+          { "json": { "answerable": false, "claims": [] } }
+        ],
+        "verification": [{ "json": { "verdicts": "not-a-list" } }]
+      },
+      "expected": {
+        "refused": true,
+        "claim_evidence": [],
+        "trace_stages": ["draft", "verification", "rejected", "repair_draft"]
+      }
+    },
+    {
+      "name": "unknown_source_id",
+      "question": "Did the treatment reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "The treatment reduced weight gain.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 9 }]
+                }
+              ]
+            }
+          },
+          { "json": { "answerable": false, "claims": [] } }
+        ]
+      },
+      "expected": {
+        "refused": true,
+        "claim_evidence": [],
+        "trace_stages": ["draft", "rejected", "repair_draft"]
+      }
+    },
+    {
+      "name": "reference_entry_cannot_be_authored_by_this_document",
+      "question": "Did Smith and colleagues reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-review.pdf",
+          "page": 12,
+          "chunk_index": 4,
+          "section": "references",
+          "text": "Smith et al. reported reduced weight gain after treatment."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "Smith and colleagues reduced weight gain.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 1 }]
+                }
+              ]
+            }
+          },
+          { "json": { "answerable": false, "claims": [] } }
+        ]
+      },
+      "expected": {
+        "refused": true,
+        "claim_evidence": [],
+        "trace_stages": ["draft", "rejected", "repair_draft"]
+      }
+    },
+    {
+      "name": "claimed_duration_absent_from_approved_evidence",
+      "question": "Did the treatment reduce weight gain at twelve weeks?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "The treatment reduced weight gain at twelve weeks.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 1 }]
+                }
+              ]
+            }
+          },
+          { "json": { "answerable": false, "claims": [] } }
+        ],
+        "verification": [
+          {
+            "json": {
+              "requirements": [
+                {
+                  "requirement": "Effect of the treatment on weight gain",
+                  "supported": true,
+                  "reason": "The result sentence states the reduction.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "answers_question": true,
+              "reason": "The cited result answers the question.",
+              "verdicts": [
+                {
+                  "claim_index": 1,
+                  "supported": true,
+                  "correct_attribution": true,
+                  "relevant": true,
+                  "reason": "The excerpt states the reduction.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "requested_answer": {
+                "status": "supported",
+                "question_excerpt": "Did the treatment reduce weight gain at twelve weeks?",
+                "supporting_evidence_ids": [1],
+                "reason": "The result sentence establishes the answer."
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "refused": true,
+        "claim_evidence": [],
+        "trace_stages": ["draft", "verification", "rejected", "repair_draft"]
+      }
+    },
+    {
+      "name": "verifier_evidence_outside_cited_sources",
+      "question": "Did the treatment reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        },
+        {
+          "document": "synthetic-study.pdf",
+          "page": 9,
+          "chunk_index": 7,
+          "section": "discussion",
+          "text": "The mechanism was not investigated further."
+        }
+      ],
+      "responses": {
+        "draft": [
+          {
+            "json": {
+              "answerable": true,
+              "claims": [
+                {
+                  "text": "The treatment reduced weight gain.",
+                  "attribution": "this_document_authors",
+                  "citations": [{ "source_id": 1 }]
+                }
+              ]
+            }
+          },
+          { "json": { "answerable": false, "claims": [] } }
+        ],
+        "verification": [
+          {
+            "json": {
+              "requirements": [
+                {
+                  "requirement": "Effect of the treatment on weight gain",
+                  "supported": true,
+                  "reason": "The result sentence states the reduction.",
+                  "supporting_evidence_ids": [1]
+                }
+              ],
+              "answers_question": true,
+              "reason": "The cited result answers the question.",
+              "verdicts": [
+                {
+                  "claim_index": 1,
+                  "supported": true,
+                  "correct_attribution": true,
+                  "relevant": true,
+                  "reason": "The excerpt states the same result.",
+                  "supporting_evidence_ids": [1, 2]
+                }
+              ],
+              "requested_answer": {
+                "status": "supported",
+                "question_excerpt": "Did the treatment reduce weight gain?",
+                "supporting_evidence_ids": [1],
+                "reason": "The result sentence establishes the answer."
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "refused": true,
+        "claim_evidence": [],
+        "trace_stages": ["draft", "verification", "rejected", "repair_draft"]
+      }
+    },
+    {
+      "name": "output_limit_propagates",
+      "question": "Did the treatment reduce weight gain?",
+      "sources": [
+        {
+          "document": "synthetic-study.pdf",
+          "page": 4,
+          "chunk_index": 0,
+          "section": "results",
+          "text": "The treatment reduced weight gain in the treated cohort."
+        }
+      ],
+      "responses": {
+        "draft": [{ "error": "OllamaOutputLimitError" }]
+      },
+      "expected": {
+        "error": "OllamaOutputLimitError",
+        "claim_evidence": [],
+        "trace_stages": []
+      }
+    }
+  ]
+}
