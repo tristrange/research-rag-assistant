@@ -3,7 +3,6 @@ import re
 from app.ingestion.sections import UNKNOWN_SECTION, section_ranges
 from app.types import ChunkData, PageData
 
-
 # A sentence boundary is punctuation followed by whitespace or the end of the
 # page. Requiring whitespace avoids treating the decimal point in values such
 # as ``3.9%`` as a sentence boundary.

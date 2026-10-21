@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
 
-from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
-from app.db.models import Chunk
 from app.db.index_contract import IndexCompatibilityError
+from app.db.models import Chunk
+from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.grounding import INSUFFICIENT_EVIDENCE
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
 from app.main import QueryRequest, _query_gate, app, query

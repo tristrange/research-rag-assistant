@@ -1,9 +1,9 @@
 """Evaluate generated answers against references and returned evidence."""
 
-from collections.abc import Callable
-from statistics import mean
 import json
 import re
+from collections.abc import Callable
+from statistics import mean
 from time import perf_counter
 from typing import Annotated, NotRequired, TypedDict
 
@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from app.grounding import INSUFFICIENT_EVIDENCE
 from app.llm.telemetry import capture_calls
 from app.types import AnswerClaim, AnswerResult, ChunkData
-
 
 # Whole-response matches only. Never match a prefix or discard explanatory text.
 EXACT_REFUSALS = frozenset({

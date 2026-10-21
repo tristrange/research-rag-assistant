@@ -6,7 +6,6 @@ from app.config import SETTINGS
 from app.llm.errors import OllamaResponseError, response_object
 from app.llm.telemetry import observe_call, record_metadata
 
-
 OLLAMA_EMBED_URL = SETTINGS.ollama_embed_url
 EMBEDDING_MODEL = SETTINGS.embedding_model
 # The persisted pgvector column in app.db.models has this fixed dimension.

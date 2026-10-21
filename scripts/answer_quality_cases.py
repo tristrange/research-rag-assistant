@@ -6,7 +6,6 @@ they are an exploratory evaluation set, not an independent benchmark.
 
 from app.answer_evaluation import AnswerEvaluationCase
 
-
 PAPER_SHA256 = "072e84623519c3de66e77c6137e4ff92dd315409a639406e5d767bc4d5b262ca"
 
 ANSWER_CASES: list[AnswerEvaluationCase] = [

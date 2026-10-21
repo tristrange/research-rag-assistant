@@ -1,20 +1,21 @@
+import inspect
+import io
+import json
+import sys
+import unittest
 from collections.abc import Callable
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
-import io
-import inspect
-import json
 from pathlib import Path
-import sys
 from tempfile import TemporaryDirectory
 from types import FrameType
 from typing import Any, cast
-import unittest
 from unittest.mock import Mock, patch
 
 import httpx
+
 from app.answer_evaluation import (
     AnswerEvaluationCase,
     CaseEvaluation,
@@ -48,7 +49,6 @@ from scripts.evaluate_answers import (
     validate_labels,
     validate_resume_consistency,
 )
-
 
 CORPUS = CorpusSnapshot(sha256="corpus-sha", chunks_by_document={"sample.pdf": 1})
 

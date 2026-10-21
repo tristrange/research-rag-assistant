@@ -3,16 +3,16 @@
 import hashlib
 import json
 import os
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import threading
 import unittest
-import httpx
 from collections.abc import Callable
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Literal
 from unittest.mock import patch
 from uuid import uuid4
 
+import httpx
 from sqlalchemy import Engine, create_engine, make_url, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -30,7 +30,6 @@ from app.llm.errors import OllamaResponseError
 from app.retrieval import search
 from app.types import PageData
 from scripts import init_db
-
 
 TEST_URL = os.environ.get("RAG_TEST_POSTGRES_URL")
 
@@ -310,9 +309,14 @@ class PostgresContracts(unittest.TestCase):
                 self.assertTrue(first_locked.wait(5), "first replacement did not acquire lock")
 
                 if second_operation == "replace":
-                    operation = lambda: indexing.index_pdf(str(second_path))
+
+                    def operation() -> object:
+                        return indexing.index_pdf(str(second_path))
+
                 else:
-                    operation = lambda: remove_document("shared.pdf")
+
+                    def operation() -> object:
+                        return remove_document("shared.pdf")
                 second = threading.Thread(
                     name="second-mutation", target=lambda: capture(operation),
                 )

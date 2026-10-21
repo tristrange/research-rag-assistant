@@ -4,7 +4,6 @@ from sentence_transformers import CrossEncoder
 
 from app.db.models import Chunk
 
-
 MODEL_NAME = "BAAI/bge-reranker-base"
 
 @cache

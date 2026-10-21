@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from copy import deepcopy
 import hashlib
 import json
 import re
+from collections.abc import Callable
+from copy import deepcopy
 from typing import Annotated, Literal, TypedDict, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from app.config import SETTINGS
 from app.grounding_durations import duration_fingerprint, validate_duration_evidence
-from app.ingestion.chunking import _ABBREVIATION_PERIOD, _SENTENCE_END, _is_abbreviation_period
+from app.ingestion.chunking import (
+    _ABBREVIATION_PERIOD,
+    _SENTENCE_END,
+    _is_abbreviation_period,
+)
 from app.llm.ollama import generate_json
 from app.types import AnswerClaim, ChunkData
-
 
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."

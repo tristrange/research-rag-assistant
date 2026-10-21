@@ -1,9 +1,9 @@
 """Compare bounded expanded contexts without generating or judging answers."""
 
 import argparse
+import json
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -13,15 +13,25 @@ from app.db.models import Chunk
 from app.embeddings import EMBEDDING_MODEL
 from app.ingestion.pdf import extract_pages
 from app.retrieval import CANDIDATE_COUNT, DEFAULT_TOP_K, EXPANDED_TOP_K
-from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, expand_chunks, render_context
+from app.retrieval.context import (
+    MAX_CONTEXT_CHARS,
+    NEIGHBOR_RADIUS,
+    expand_chunks,
+    render_context,
+)
 from app.retrieval.rerank import MODEL_NAME, rerank_chunks
 from app.retrieval.search import search_chunks
 from app.types import ChunkData
 from scripts.answer_quality_cases import ANSWER_CASES, PAPER_SHA256
 from scripts.compare_reranking import snapshot
 from scripts.evaluate_answers import (
-    cases_hash, indexed_sources, load_benchmark, reserve_output, save_report,
-    validate_index, validate_labels,
+    cases_hash,
+    indexed_sources,
+    load_benchmark,
+    reserve_output,
+    save_report,
+    validate_index,
+    validate_labels,
 )
 
 

@@ -1,10 +1,9 @@
 """Check explicit numerical durations against approved quotes, not retrieved context."""
 
+import re
 from fractions import Fraction
 from hashlib import sha256
 from pathlib import Path
-import re
-
 
 _SMALL_NUMBERS = dict(zip(
     ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",

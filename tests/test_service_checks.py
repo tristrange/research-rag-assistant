@@ -9,8 +9,14 @@ from sqlalchemy.pool import NullPool
 from app.db.database import Base
 from app.main import app
 from app.service_checks import (
-    CHECK_TIMEOUT_SECONDS, OLLAMA_TAGS_URL, ServiceCheck, ServiceStatus,
-    check_database, check_ollama, model_tag, service_status,
+    CHECK_TIMEOUT_SECONDS,
+    OLLAMA_TAGS_URL,
+    ServiceCheck,
+    ServiceStatus,
+    check_database,
+    check_ollama,
+    model_tag,
+    service_status,
 )
 
 

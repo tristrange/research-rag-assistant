@@ -14,7 +14,6 @@ from app.db.database import SessionLocal
 from app.db.models import Chunk
 from app.types import ChunkData
 
-
 MAX_CONTEXT_CHARS = 6000
 NEIGHBOR_RADIUS = 2
 

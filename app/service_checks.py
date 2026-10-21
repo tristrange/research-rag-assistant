@@ -12,7 +12,6 @@ from app.config import SETTINGS
 from app.db.models import Chunk, DocumentIndex
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 
-
 CHECK_TIMEOUT_SECONDS = 3
 DATABASE_URL = SETTINGS.database_url
 GROUNDING_MODEL = SETTINGS.grounding_model

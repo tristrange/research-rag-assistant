@@ -6,18 +6,36 @@ from unittest.mock import patch
 
 import httpx
 
-from app.grounding import (
-    DRAFT_SCHEMA, DRAFT_THINK, GROUNDING_CONTEXT_TOKENS, GROUNDING_MODEL,
-    GROUNDING_OUTPUT_TOKENS, MAX_QUOTE_CHARS, VERIFIER_THINK, VERIFIER_SCHEMA, GroundedDraft, VerificationResult,
-    INSUFFICIENT_EVIDENCE, _bounded_draft_schema, _evidence_spans,
-    _normalize_whitespace, _validate_question_identifiers, build_draft_prompt, build_verifier_prompt,
-    build_verifier_evidence, _bounded_verifier_schema, validate_verification_structure,
-    generate_draft_json, generate_verification_json, grounded_answer, grounding_fingerprint, verify_draft,
-)
 from app.config import GroundingSampling
+from app.grounding import (
+    DRAFT_SCHEMA,
+    DRAFT_THINK,
+    GROUNDING_CONTEXT_TOKENS,
+    GROUNDING_MODEL,
+    GROUNDING_OUTPUT_TOKENS,
+    INSUFFICIENT_EVIDENCE,
+    MAX_QUOTE_CHARS,
+    VERIFIER_SCHEMA,
+    VERIFIER_THINK,
+    GroundedDraft,
+    VerificationResult,
+    _bounded_draft_schema,
+    _bounded_verifier_schema,
+    _evidence_spans,
+    _normalize_whitespace,
+    _validate_question_identifiers,
+    build_draft_prompt,
+    build_verifier_evidence,
+    build_verifier_prompt,
+    generate_draft_json,
+    generate_verification_json,
+    grounded_answer,
+    grounding_fingerprint,
+    validate_verification_structure,
+    verify_draft,
+)
 from app.llm.ollama import OllamaOutputLimitError
 from app.types import AnswerClaim, ChunkData
-
 
 SOURCE = ChunkData(document="paper.pdf", page=10, chunk_index=2,
                    section="references", text="Asp et al. reported the study. Treatment delayed weight loss.")

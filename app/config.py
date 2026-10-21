@@ -1,13 +1,12 @@
 """Resolve one immutable configuration snapshot when the process starts."""
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
 import math
 import os
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
-
 
 type Thinking = bool | Literal["low", "medium", "high"]
 

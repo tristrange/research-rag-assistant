@@ -2,7 +2,6 @@
 
 import re
 
-
 UNKNOWN_SECTION = "unknown"
 
 # These are deliberately complete, standalone heading names. PDF body lines

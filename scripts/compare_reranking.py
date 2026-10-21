@@ -1,13 +1,13 @@
 """Run with: uv run python -m scripts.compare_reranking --help."""
 
 import argparse
+import json
+import platform
 from collections import Counter
 from datetime import datetime, timezone
 from hashlib import sha256
 from importlib.metadata import version
-import json
 from pathlib import Path
-import platform
 from typing import TypedDict
 
 from sqlalchemy import select

@@ -1,16 +1,21 @@
 import csv
+import json
+import unittest
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, summarize
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import ReportModel, _new_report
 from scripts.prepare_human_review import (
-    REVIEW_COLUMNS, ReviewManifest, ReviewSelection, configuration_hash, prepare_packet, summarize_review,
+    REVIEW_COLUMNS,
+    ReviewManifest,
+    ReviewSelection,
+    configuration_hash,
+    prepare_packet,
+    summarize_review,
 )
 
 

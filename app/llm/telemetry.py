@@ -1,14 +1,13 @@
+import math
+import re
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-import math
-import re
 from time import perf_counter
 from typing import Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
-
 
 Operation = Literal["chat", "embedding"]
 CallStatus = Literal["complete", "failed"]

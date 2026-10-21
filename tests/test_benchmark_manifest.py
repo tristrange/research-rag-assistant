@@ -1,14 +1,14 @@
-from contextlib import redirect_stdout, redirect_stderr
+import io
+import json
+import sys
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
-import io
-import json
 from pathlib import Path
-import sys
 from tempfile import TemporaryDirectory
 from typing import cast
-import unittest
 from unittest.mock import patch
 
 import pymupdf
@@ -18,7 +18,11 @@ from app.answer_evaluation import AnswerEvaluationCase
 from app.judge_calibration import CALIBRATION_VERSION
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import (
-    BenchmarkManifest, ReportModel, _new_report, load_benchmark, main,
+    BenchmarkManifest,
+    ReportModel,
+    _new_report,
+    load_benchmark,
+    main,
     validate_resume_consistency,
 )
 

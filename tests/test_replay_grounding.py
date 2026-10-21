@@ -1,16 +1,15 @@
-from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
-import unittest
 from unittest.mock import Mock, patch
 
 from app.llm.telemetry import RuntimeSnapshot
 from app.types import AnswerClaim, ChunkData
 from scripts.replay_grounding import main
-
 
 CASE = {
     "id": "known-case",

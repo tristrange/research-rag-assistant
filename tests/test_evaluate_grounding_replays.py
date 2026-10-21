@@ -1,20 +1,32 @@
+import json
+import subprocess
+import unittest
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
-import subprocess
 from tempfile import TemporaryDirectory
 from typing import cast
-import unittest
 from unittest.mock import Mock, patch
 
-from app.answer_evaluation import AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer, Judge, summarize
-from app.llm.telemetry import observe_call
+from app.answer_evaluation import (
+    AnswerEvaluationCase,
+    CaseEvaluation,
+    GeneratedCaseAnswer,
+    Judge,
+    summarize,
+)
 from app.judge_calibration import CalibrationReport
+from app.llm.telemetry import observe_call
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import EVALUATOR_PROMPT_SHA256, ReportModel, _new_report
-from scripts.evaluate_grounding_replays import ComparisonProtocol, evaluate, judge_runtime as inspect_judge_runtime, load_inputs
-from scripts.prepare_human_review import ReviewManifest, ReviewSelection, configuration_hash, review_set_hash
+from scripts.evaluate_grounding_replays import ComparisonProtocol, evaluate, load_inputs
+from scripts.evaluate_grounding_replays import judge_runtime as inspect_judge_runtime
+from scripts.prepare_human_review import (
+    ReviewManifest,
+    ReviewSelection,
+    configuration_hash,
+    review_set_hash,
+)
 from scripts.record_grounding_replays import record_arm
 
 

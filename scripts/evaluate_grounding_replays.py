@@ -1,9 +1,9 @@
 """Score completed fixed-source replays without generating new answers."""
 
 import argparse
+import json
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
 from typing import Literal, cast
 
@@ -11,19 +11,36 @@ import httpx
 from pydantic import Field, model_validator
 
 from app.answer_evaluation import (
-    AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer,
-    evidence_found, judge_case_answer, summarize,
+    AnswerEvaluationCase,
+    CaseEvaluation,
+    GeneratedCaseAnswer,
+    evidence_found,
+    judge_case_answer,
+    summarize,
 )
-from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.config import GroundingSampling
+from app.judge_calibration import CALIBRATION_VERSION, run_calibration
 from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, Thinking, generate_json
 from app.llm.telemetry import ModelCall, RuntimeSnapshot, capture_calls
 from app.types import AnswerClaim, ChunkData
 from scripts.evaluate_answers import (
-    AcceptedClaimModel, CaseModel, CorpusModel, EVALUATOR_PROMPT_SHA256, ReportModel, SettingsModel,
-    SourceModel, StrictModel, reserve_output, save_report, validate_claim_sources,
+    EVALUATOR_PROMPT_SHA256,
+    AcceptedClaimModel,
+    CaseModel,
+    CorpusModel,
+    ReportModel,
+    SettingsModel,
+    SourceModel,
+    StrictModel,
+    reserve_output,
+    save_report,
+    validate_claim_sources,
 )
-from scripts.prepare_human_review import ReviewManifest, configuration_hash, review_set_hash
+from scripts.prepare_human_review import (
+    ReviewManifest,
+    configuration_hash,
+    review_set_hash,
+)
 
 
 class ReplayCase(StrictModel):

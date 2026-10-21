@@ -1,22 +1,31 @@
 """Live adversarial sanity checks for the claim verifier (not a benchmark)."""
 
 import argparse
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from time import perf_counter
 
 from pydantic import ValidationError
 
 from app.grounding import (
-    ApprovedProof, GroundedClaim, GroundedDraft, GROUNDING_MODEL, VERIFIER_THINK, VerificationResult,
-    build_verifier_evidence, generate_verification_json, grounding_fingerprint,
-    validate_verification_structure, verify_draft,
-    GROUNDING_SAMPLING, GROUNDING_VERIFIER_TIMEOUT_SECONDS, GROUNDING_OUTPUT_TOKENS,
+    GROUNDING_MODEL,
+    GROUNDING_OUTPUT_TOKENS,
+    GROUNDING_SAMPLING,
+    GROUNDING_VERIFIER_TIMEOUT_SECONDS,
+    VERIFIER_THINK,
+    ApprovedProof,
+    GroundedClaim,
+    GroundedDraft,
+    VerificationResult,
+    build_verifier_evidence,
+    generate_verification_json,
+    grounding_fingerprint,
+    validate_verification_structure,
+    verify_draft,
 )
 from app.types import ChunkData
-
 
 REFERENCE = ChunkData(document="synthetic.pdf", page=10, chunk_index=0,
                       section="references", text=(

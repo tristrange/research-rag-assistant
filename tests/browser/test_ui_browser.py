@@ -16,7 +16,6 @@ from app.main import app
 from app.service_checks import ServiceCheck, ServiceStatus
 from app.types import AnswerResult
 
-
 ANSWER: AnswerResult = {
     "answer": "**Results** showed *improvement* (paper.pdf, page 2).\n<img src=x>",
     "sources": [{

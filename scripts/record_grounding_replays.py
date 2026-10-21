@@ -2,20 +2,33 @@
 
 import argparse
 import json
-from datetime import datetime, timezone
-from hashlib import sha256
 import os
-from pathlib import Path
 import subprocess
 import sys
+from datetime import datetime, timezone
+from hashlib import sha256
+from pathlib import Path
 
 import httpx
 
-from scripts.evaluate_answers import EVALUATOR_PROMPT_SHA256, ReportModel, SettingsModel, save_report, settings_for
-from scripts.evaluate_grounding_replays import (
-    CandidateConfig, ComparisonProtocol, load_inputs, validate_candidate_settings,
+from scripts.evaluate_answers import (
+    EVALUATOR_PROMPT_SHA256,
+    ReportModel,
+    SettingsModel,
+    save_report,
+    settings_for,
 )
-from scripts.prepare_human_review import ReviewManifest, configuration_hash, review_set_hash
+from scripts.evaluate_grounding_replays import (
+    CandidateConfig,
+    ComparisonProtocol,
+    load_inputs,
+    validate_candidate_settings,
+)
+from scripts.prepare_human_review import (
+    ReviewManifest,
+    configuration_hash,
+    review_set_hash,
+)
 
 
 def now() -> str:

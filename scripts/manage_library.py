@@ -4,7 +4,12 @@ import argparse
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.library import document_provenance, library_inventory, remove_document, validate_document_name
+from app.library import (
+    document_provenance,
+    library_inventory,
+    remove_document,
+    validate_document_name,
+)
 
 
 def main() -> None:

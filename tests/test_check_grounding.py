@@ -1,13 +1,19 @@
-from typing import Any
 import unittest
+from typing import Any
 
 from app.grounding import GroundedClaim, _validate_draft, build_verifier_evidence
 from scripts.check_grounding import (
-    DETERMINISTIC_CONTROLS, FIXTURES, MEASUREMENT_FIXTURES, MULTI_CLAIM_FIXTURES,
-    RESULT, all_control_fixtures, complete_verifier_verdict, control_passed,
-    draft_for_fixture, select_control_fixtures,
+    DETERMINISTIC_CONTROLS,
+    FIXTURES,
+    MEASUREMENT_FIXTURES,
+    MULTI_CLAIM_FIXTURES,
+    RESULT,
+    all_control_fixtures,
+    complete_verifier_verdict,
+    control_passed,
+    draft_for_fixture,
+    select_control_fixtures,
 )
-
 
 QUESTION = "How much mass did the mice lose?"
 CLAIM = GroundedClaim.model_validate({

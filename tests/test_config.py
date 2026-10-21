@@ -1,12 +1,17 @@
 import json
 import os
-from pathlib import Path
-from unittest.mock import patch
-
-from app.config import GroundingSampling, load_settings, reasoning_setting, resolve_grounding_sampling
 import subprocess
 import sys
 import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from app.config import (
+    GroundingSampling,
+    load_settings,
+    reasoning_setting,
+    resolve_grounding_sampling,
+)
 
 
 class ConfigTests(unittest.TestCase):

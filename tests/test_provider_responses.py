@@ -6,11 +6,16 @@ from unittest.mock import patch
 
 import httpx
 
-from app.embeddings import EMBEDDING_MODEL, MAX_EMBEDDING_BATCH_SIZE, OLLAMA_EMBED_URL, embed_text, embed_texts
+from app.embeddings import (
+    EMBEDDING_MODEL,
+    MAX_EMBEDDING_BATCH_SIZE,
+    OLLAMA_EMBED_URL,
+    embed_text,
+    embed_texts,
+)
 from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError, chat, generate_json
 from app.llm.telemetry import capture_calls
-
 
 _UNSET = object()
 

@@ -4,7 +4,12 @@ from functools import cached_property
 from sqlalchemy import select
 
 from app.db.database import SessionLocal
-from app.db.index_contract import IndexCompatibilityError, embedding_profile, lock_index, require_compatible_index
+from app.db.index_contract import (
+    IndexCompatibilityError,
+    embedding_profile,
+    lock_index,
+    require_compatible_index,
+)
 from app.db.models import Chunk
 from app.embeddings import embed_text
 

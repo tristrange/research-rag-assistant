@@ -1,12 +1,11 @@
 """Extract, embed and atomically replace one PDF in the paper index."""
 
-from collections.abc import Callable
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 
-import pymupdf
 import httpx
-
+import pymupdf
 from sqlalchemy import delete
 
 from app.db.database import SessionLocal
@@ -15,7 +14,6 @@ from app.db.models import Chunk, DocumentIndex
 from app.embeddings import MAX_EMBEDDING_BATCH_SIZE, embed_texts
 from app.ingestion.chunking import chunk_pages
 from app.ingestion.pdf import extract_pages
-
 
 PDF_PATH = "data/sample.pdf"
 

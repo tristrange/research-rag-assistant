@@ -18,7 +18,6 @@ from app.llm.telemetry import (
     runtime_snapshot,
 )
 
-
 _UNSET = object()
 
 

@@ -3,7 +3,8 @@
 import argparse
 from pathlib import Path
 
-from app.ingestion.indexing import PDF_PATH, index_pdf as index_pdf
+from app.ingestion.indexing import PDF_PATH
+from app.ingestion.indexing import index_pdf as index_pdf
 from app.llm.errors import OllamaResponseError
 
 

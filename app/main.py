@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.index_contract import IndexCompatibilityError
-
 from app.embeddings import EMBEDDING_MODEL, OLLAMA_EMBED_URL
 from app.llm.errors import OllamaResponseError
 from app.llm.ollama import OLLAMA_URL, OllamaOutputLimitError
@@ -22,7 +21,6 @@ from app.rag import answer_each_document, answer_question
 from app.retrieval.search import list_documents
 from app.service_checks import ServiceStatus, service_status
 from app.types import AnswerOutcome
-
 
 app = FastAPI(docs_url=None, redoc_url=None)
 _query_gate = Lock()

@@ -1,11 +1,10 @@
+import json
+import unittest
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
-import unittest
-from unittest.mock import patch
 
 from pydantic import ValidationError
 
@@ -22,9 +21,8 @@ from app.llm.telemetry import ModelCall, RuntimeSnapshot, observe_call
 from app.types import AnswerClaim, AnswerResult, ChunkData
 from scripts.compare_reranking import CorpusSnapshot
 from scripts.evaluate_answers import (
-    AcceptedClaimModel,
-    CompletedResultModel,
     EVALUATOR_PROMPT_SHA256,
+    CompletedResultModel,
     GeneratedAnswerModel,
     ReportModel,
     _new_report,
@@ -43,7 +41,6 @@ from scripts.prepare_human_review import (
     configuration_hash,
     review_set_hash,
 )
-
 
 CASE = AnswerEvaluationCase(
     id="case-1",

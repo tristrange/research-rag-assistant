@@ -9,7 +9,13 @@ from typing import cast
 from app.grounding import GROUNDING_MODEL, grounded_answer
 from app.llm.telemetry import capture_calls, runtime_snapshot
 from app.types import AnswerClaim, ChunkData
-from scripts.evaluate_answers import load_report, reserve_output, save_report, settings_for, validate_runtime
+from scripts.evaluate_answers import (
+    load_report,
+    reserve_output,
+    save_report,
+    settings_for,
+    validate_runtime,
+)
 
 
 def main() -> None:

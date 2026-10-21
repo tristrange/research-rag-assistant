@@ -3,7 +3,9 @@ from typing import TypedDict, cast
 
 import httpx
 
-from app.config import SETTINGS, Thinking as Thinking, default_timeout as default_timeout
+from app.config import SETTINGS
+from app.config import Thinking as Thinking
+from app.config import default_timeout as default_timeout
 from app.llm.errors import OllamaResponseError, response_object
 from app.llm.telemetry import observe_call, record_metadata
 

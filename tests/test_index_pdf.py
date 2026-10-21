@@ -1,16 +1,15 @@
-from contextlib import redirect_stderr, redirect_stdout
-import io
 import hashlib
+import io
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 import httpx
 import pymupdf
 from sqlalchemy import Connection, create_engine, event, select
 from sqlalchemy.engine import ExecutionContext
-
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
@@ -21,7 +20,6 @@ from app.ingestion.pdf import extract_pages
 from app.llm.errors import OllamaResponseError
 from app.types import PageData
 from scripts import index_pdf as index_cli
-
 
 REAL_PDF_CHECKSUM = indexing.pdf_checksum
 

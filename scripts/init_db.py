@@ -1,7 +1,7 @@
 from sqlalchemy import Connection, text
 
-from app.db.database import Base, engine
 from app.db import models  # noqa: F401
+from app.db.database import Base, engine
 
 
 def migrate_chunk_section(connection: Connection) -> None:

@@ -1,9 +1,9 @@
-from contextlib import redirect_stdout
 import io
 import os
+import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from sqlalchemy import Connection, create_engine, event, select
@@ -13,7 +13,12 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
 from app.db.models import Chunk, DocumentIndex
-from app.library import IndexedDocument, document_provenance, library_inventory, remove_document
+from app.library import (
+    IndexedDocument,
+    document_provenance,
+    library_inventory,
+    remove_document,
+)
 from scripts.manage_library import main
 
 

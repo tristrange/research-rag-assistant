@@ -2,7 +2,6 @@ from typing import Literal
 
 import httpx
 
-
 Operation = Literal["chat", "embedding"]
 
 

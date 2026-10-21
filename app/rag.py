@@ -5,10 +5,13 @@ from app.llm.ollama import generate
 from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, VERIFIED_CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import expand_chunks, merge_selected_chunks, render_context
-from app.retrieval.rerank import rerank_chunks, rerank_with_page_reserve, with_vector_reserve
+from app.retrieval.rerank import (
+    rerank_chunks,
+    rerank_with_page_reserve,
+    with_vector_reserve,
+)
 from app.retrieval.search import QuestionEmbedding, list_documents, search_chunks
 from app.types import AnswerClaim, AnswerResult, ChunkData
-
 
 OVERVIEW_SECTION_PRIORITY = (
     ("conclusion",),

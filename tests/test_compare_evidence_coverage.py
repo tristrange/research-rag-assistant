@@ -1,15 +1,15 @@
-from contextlib import ExitStack, redirect_stderr, redirect_stdout
-from hashlib import sha256
 import io
 import json
+import unittest
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
+from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from app.db.models import Chunk
-from scripts.compare_evidence_coverage import main, sources_for
 from app.types import ChunkData, PageData
+from scripts.compare_evidence_coverage import main, sources_for
 
 
 class CoverageRunnerTests(unittest.TestCase):

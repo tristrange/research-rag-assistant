@@ -8,8 +8,12 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 from app.grounding import (
-    GroundedDraft, INSUFFICIENT_EVIDENCE, _bounded_draft_schema, _validate_draft,
-    build_verifier_evidence, grounded_answer,
+    INSUFFICIENT_EVIDENCE,
+    GroundedDraft,
+    _bounded_draft_schema,
+    _validate_draft,
+    build_verifier_evidence,
+    grounded_answer,
 )
 from app.types import AnswerClaim, ChunkData
 

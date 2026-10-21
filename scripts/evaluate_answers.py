@@ -1,15 +1,15 @@
 """Run end-to-end answer evaluation: uv run python -m scripts.evaluate_answers."""
 
 import argparse
+import json
+import os
+import platform
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from functools import partial
 from hashlib import sha256
 from importlib.metadata import version
-import json
-import os
 from pathlib import Path
-import platform
 from tempfile import NamedTemporaryFile
 from typing import Literal, cast
 
@@ -17,28 +17,47 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from sqlalchemy import select
 
 from app.answer_evaluation import (
-    AnswerEvaluationCase, CaseEvaluation, GeneratedCaseAnswer, JudgeScores, EXACT_REFUSALS,
-    evidence_found, generate_case_answer, judge_case_answer, judge_prompt, abstention_prompt, summarize,
+    EXACT_REFUSALS,
+    AnswerEvaluationCase,
+    CaseEvaluation,
+    GeneratedCaseAnswer,
+    JudgeScores,
+    abstention_prompt,
+    evidence_found,
+    generate_case_answer,
+    judge_case_answer,
+    judge_prompt,
+    summarize,
 )
 from app.db.database import SessionLocal
 from app.db.models import Chunk
 from app.embeddings import EMBEDDING_MODEL
-from app.ingestion.pdf import extract_pages
 from app.grounding import (
-    DRAFT_THINK, VERIFIER_THINK, GROUNDING_MODEL, GROUNDING_CONTEXT_TOKENS, GROUNDING_OUTPUT_TOKENS,
-    GROUNDING_SAMPLING, GROUNDING_DRAFT_TIMEOUT_SECONDS, GROUNDING_VERIFIER_TIMEOUT_SECONDS,
+    DRAFT_THINK,
+    GROUNDING_CONTEXT_TOKENS,
+    GROUNDING_DRAFT_TIMEOUT_SECONDS,
+    GROUNDING_MODEL,
+    GROUNDING_OUTPUT_TOKENS,
+    GROUNDING_SAMPLING,
+    GROUNDING_VERIFIER_TIMEOUT_SECONDS,
+    VERIFIER_THINK,
     grounding_fingerprint,
 )
+from app.ingestion.pdf import extract_pages
 from app.judge_calibration import CALIBRATION_VERSION, run_calibration
-from app.llm.ollama import JUDGE_THINK, JUDGE_MODEL, MODEL, Thinking, generate_json
-from app.llm.telemetry import ModelCall, RuntimeSnapshot, capture_calls, runtime_snapshot
+from app.llm.ollama import JUDGE_MODEL, JUDGE_THINK, MODEL, Thinking, generate_json
+from app.llm.telemetry import (
+    ModelCall,
+    RuntimeSnapshot,
+    capture_calls,
+    runtime_snapshot,
+)
+from app.prompts import answer_prompt
 from app.retrieval import CANDIDATE_COUNT, VERIFIED_CANDIDATE_COUNT, default_top_k
 from app.retrieval.context import MAX_CONTEXT_CHARS, NEIGHBOR_RADIUS, render_context
-from app.prompts import answer_prompt
 from app.types import AnswerResult, ChunkData, PageData
 from scripts.answer_quality_cases import ANSWER_CASES, PAPER_SHA256
 from scripts.compare_reranking import CorpusSnapshot, snapshot
-
 
 SCHEMA_VERSION = 3
 EVALUATOR_VERSION = "9"

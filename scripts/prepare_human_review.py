@@ -2,9 +2,9 @@
 
 import argparse
 import csv
+import json
 from hashlib import sha256
 from html import escape
-import json
 from pathlib import Path
 from typing import Literal
 

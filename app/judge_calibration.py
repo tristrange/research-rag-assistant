@@ -6,7 +6,6 @@ from typing import TypedDict
 from app.answer_evaluation import AnswerEvaluationCase, Judge, score_answer
 from app.types import AnswerResult, ChunkData
 
-
 CALIBRATION_VERSION = "2"
 
 
