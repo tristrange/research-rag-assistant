@@ -1,0 +1,44 @@
+{
+  "cases": {
+    "claimed_duration_absent_from_approved_evidence": [
+      "58b61cb2992d7af6dc1ab3a9a8c926568e095c647c6c2fa59fad274eb55e069d",
+      "9c941ca905fa90df80eabe92316e5268c14f37940117009401ba0b6a116dbc82",
+      "633ec46c57d075fb1ba2f786b7b334c91f682e585f7fecf33291aa42efc4983a"
+    ],
+    "malformed_verifier_json": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66",
+      "77a5615d9aae9a6e9fa02ec82f76b52c6ad699247add58343877a97d6c53b5ed",
+      "7e03c9ac6e14261f1dd6dbb183d054f62af52ce682c5b853819709979280f9dd"
+    ],
+    "missing_evidence_refusal": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66"
+    ],
+    "output_limit_propagates": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66"
+    ],
+    "reference_entry_cannot_be_authored_by_this_document": [
+      "687a0c9b4d6f1ec0642328d58db03ffbb91f0c1c6f599c829ca2f83a4a77b4f9",
+      "a95ba1e41510f0b5bd3207cd64937ed05cdc0687e219b26c76f999643803b9f0"
+    ],
+    "supported_negative": [
+      "98e70d9372560ef8c06fb46630c4d4d5fb69e0a21353997ead3628291f75a7fe",
+      "b0bb31ec32a185d38b7e3d87272b90513e19bbfdf8bb8c0445866da347d8e902",
+      "29ae759c1d49f2973eb66892a5796f25f671b6fb9c638cc6da517a615dc7d10a"
+    ],
+    "supported_positive": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66",
+      "77a5615d9aae9a6e9fa02ec82f76b52c6ad699247add58343877a97d6c53b5ed",
+      "60732457548546b1a835e0a1f3356206bb60643adb340aff15ca0b669ebf5ab8"
+    ],
+    "unknown_source_id": [
+      "65ea1870b35962b606db11df36dc9c877201f87fab94036c8ce0543729bdfd66",
+      "fee28d1c34f5f03b990984e9f6412d606f1518b594b0338f13acf64018325ab7"
+    ],
+    "verifier_evidence_outside_cited_sources": [
+      "dc91e3aa3da8e0f977b230765edbdeb99a9318139ba43fe6c592fc0621eb9e9d",
+      "77a5615d9aae9a6e9fa02ec82f76b52c6ad699247add58343877a97d6c53b5ed",
+      "bf680641b5574df75421dafa13579e5d7ee53f8a366e4da22e9345b59dd29103"
+    ]
+  },
+  "note": "SHA-256 of each model call's prompt and schema, in call order. A digest change means the model-facing bytes changed; update deliberately and say why in the PR."
+}

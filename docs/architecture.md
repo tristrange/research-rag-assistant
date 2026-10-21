@@ -146,6 +146,75 @@ their attribution and verifier-selected excerpts; citation indexes refer to
 `sources`. Refusals expose no accepted claim evidence. Browser page links open
 the matching retrieved context; inspect that context and the original PDF.
 
+## Grounding module contract
+
+[`app.grounding`](../app/grounding.py) is one module today, but it carries five
+separate responsibilities: Pydantic contracts, prompt construction, semantic and
+structural validation, evidence selection, and orchestration. The extraction
+follow-up splits those into `grounding_models`, `grounding_prompts`,
+`grounding_validation` and `grounding_evidence`, leaving `app.grounding` as the
+facade and orchestrator. The contract below is what that split must preserve.
+
+**Public entry points and exports.** These names stay importable from
+`app.grounding`, so evaluation scripts and the query path do not change:
+
+| Caller | Imports | Role |
+| --- | --- | --- |
+| [`app.rag`](../app/rag.py) | `INSUFFICIENT_EVIDENCE`, `grounded_answer` | request path, each-paper aggregation |
+| [`app.answer_evaluation`](../app/answer_evaluation.py) | `INSUFFICIENT_EVIDENCE` | refusal classification |
+| [`scripts.check_grounding`](../scripts/check_grounding.py) | constants, models, `build_verifier_evidence`, `generate_verification_json`, `validate_verification_structure`, `verify_draft`, `grounding_fingerprint` | live adversarial checks |
+| [`scripts.evaluate_answers`](../scripts/evaluate_answers.py) | stage constants, `grounding_fingerprint` | evaluation run records |
+| [`scripts.replay_grounding`](../scripts/replay_grounding.py) | `GROUNDING_MODEL`, `grounded_answer` | replay trials |
+| [`scripts.check_prompt_injection`](../scripts/check_prompt_injection.py) | `grounded_answer` | prompt-injection probes |
+
+`grounded_answer(question, sources, *, trace=None, claim_evidence=None) -> str`
+is the only answering entry point. It returns the rendered answer or
+`INSUFFICIENT_EVIDENCE`; it never returns partial claims. It clears and fills
+`claim_evidence` in place with approved claims only, and appends stage records to
+`trace` when given. Transport failures, timeouts and output exhaustion propagate
+as service errors; malformed or rejected model content becomes a refusal after
+at most one repair attempt.
+
+```text
+grounded_answer
+├── _bounded_draft_schema
+├── generate_draft_json ──────────────► app.llm.generate_json (draft profile)
+├── GroundedDraft.model_validate
+├── _verify_draft_with_feedback
+│   ├── _validate_draft
+│   ├── build_verifier_evidence
+│   ├── build_verifier_prompt ────────► _bounded_verifier_schema
+│   ├── generate_verification_json ───► app.llm.generate_json (verifier profile)
+│   ├── VerificationResult.model_validate
+│   ├── _validate_verification ───────► validate_verification_structure
+│   │   ├── _validate_question_identifiers
+│   │   └── grounding_durations.validate_duration_evidence
+│   ├── _record_accepted_evidence
+│   └── generate_approved_proof_json ─► ApprovedProof
+├── _record_accepted_evidence
+└── _render_claims
+```
+
+**Frozen behaviour.** `GROUNDING_CONTRACT_VERSION` (`claim-grounding-v41`), the
+prompt bytes built from equivalent inputs, the serialized response and claim
+evidence shape, the refusal text and the exception classes above are the
+contract. The stage fingerprint from `grounding_fingerprint()` binds evaluation
+resumes to these definitions.
+
+[`tests/test_grounding_contracts.py`](../tests/test_grounding_contracts.py)
+replays synthetic, license-safe cases from
+`tests/fixtures/grounding_contracts/cases.json` against this contract: supported
+positive and negative answers, missing-evidence refusal, malformed verifier JSON,
+unknown source IDs, a reference entry claimed as this document's own work, a
+claimed duration absent from approved evidence, verifier evidence outside the
+cited sources, and output-limit propagation. Each real model call's prompt and
+schema are pinned by SHA-256 digest at the single `generate_json` boundary in
+`tests/fixtures/grounding_contracts/call_digests.json`, including the generated
+proof prompt, so editing a prompt, its schema, or the stage wiring fails the
+suite. Refusal answers are asserted as literal text rather than through the
+exported constant, so rewording a refusal fails it too. Existing unit tests keep
+the per-stage detail and multi-paper citation remapping.
+
 ## Maintenance and boundaries
 
 [`scripts.manage_library`](../scripts/manage_library.py) lists filenames and
