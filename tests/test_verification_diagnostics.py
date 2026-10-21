@@ -130,6 +130,29 @@ class VerificationDiagnosticsTests(unittest.TestCase):
             ["draft", "verification", "repair_draft"],
         )
 
+    def test_non_object_json_is_a_schema_mismatch_not_malformed_json(self) -> None:
+        diagnostics: list[VerificationTrace] = []
+        with patch(
+            "app.grounding.generate_json",
+            side_effect=[
+                ValueError("Ollama response JSON is not an object"),
+                UNANSWERABLE,
+            ],
+        ):
+            answer = grounded_answer(QUESTION, [SOURCE], diagnostics=diagnostics)
+
+        self.assertEqual(answer, INSUFFICIENT_EVIDENCE)
+        self.assertEqual(
+            [
+                (item.stage, item.parse_status, item.reason_category)
+                for item in diagnostics
+            ],
+            [
+                ("draft", "invalid_schema", "schema_mismatch"),
+                ("repair_draft", "ok", "repair_unanswerable"),
+            ],
+        )
+
     def test_proof_rejection_is_not_reclassified_as_malformed_json(self) -> None:
         diagnostics: list[VerificationTrace] = []
         with patch(

@@ -202,8 +202,8 @@ def observe_verification_stage(
             record.reason_category = "transport_error"
             raise
         except ValueError:
-            record.parse_status = "invalid_json"
-            record.reason_category = "malformed_json"
+            record.parse_status = "invalid_schema"
+            record.reason_category = "schema_mismatch"
             raise
         finally:
             elapsed_ms = (perf_counter() - started) * 1000
