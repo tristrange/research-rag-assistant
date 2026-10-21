@@ -7,15 +7,30 @@ current commands rather than copying its full instructions here.
 
 ## Checks
 
-- Install dependencies with `uv sync`.
-- Run linting and formatting checks with `uv run ruff check .` and
-  `uv run ruff format --check .`; apply fixes with `uv run ruff check --fix .`
-  and `uv run ruff format .`.
-- Run relevant regression tests with `uv run python -m unittest discover -s tests -v`.
-- Run strict type checking with `uv run mypy` after Python changes.
+- Install dependencies with `uv sync --locked`. After changing dependencies,
+  run `uv lock`, then `uv sync --locked`; use `uv run --locked` for commands.
+- Run linting and formatting checks with `uv run --locked ruff check .` and
+  `uv run --locked ruff format --check .`; apply fixes with
+  `uv run --locked ruff check --fix .` and `uv run --locked ruff format .`.
+- Run relevant regression tests with
+  `uv run --locked python -m unittest discover -s tests -v`.
+- Run strict type checking with `uv run --locked mypy` after Python changes.
 - Unit tests use local stubs and SQLite. Targeted live verifier checks need
   Ollama; end-to-end evaluations also need PostgreSQL. Run the relevant live
   checks when a change affects those paths.
+
+## Repository workflow
+
+- Start each change from an up-to-date `main` on a short-lived branch and open one
+  pull request per concern. Do not merge with failing checks.
+- The repository owner configures branch rules in GitHub settings to require a
+  pull request and the `Python, UI and types`, `PostgreSQL contracts` and
+  `CodeQL` checks. These settings are not enforced by files in this repository;
+  verify the names against the actual check runs after workflow changes.
+- Dependabot updates `uv` dependencies and GitHub Actions weekly. Keep `uv.lock`
+  synchronized, review major updates separately, and treat changes to models,
+  prompts, evaluation settings or corpus provenance as semantic changes that
+  need their own evidence.
 
 ## Evidence and evaluation
 
