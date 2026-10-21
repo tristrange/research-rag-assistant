@@ -49,6 +49,11 @@ uv run python -m scripts.benchmark_pipeline \
   --runs 5 --warmup 1
 ```
 
+The CLI refuses to start when tracked files are modified or staged, because the
+recorded commit would not describe the code that produced the report. Commit or
+stash those changes first. Untracked files are allowed so local manifests and
+ignored report directories do not block a run.
+
 The output path is reserved before any search or model call and is never
 overwritten. Once the initial report exists, a sample failure or a later
 runtime/index change updates it with a failed status rather than replacing an
@@ -63,8 +68,9 @@ marked `phase: "measured"`.
 
 The answer path records monotonic wall-clock time for these stages:
 
-- `embedding`: query embedding construction (or validation of a supplied embedding)
-- `vector_search`: candidate retrieval, including overview fallbacks
+- `embedding`: lazy query embedding inference
+- `vector_search`: database preflight and candidate ranking, including overview
+  fallback attempts; embedding inference is excluded
 - `rerank`: reranking and any vector-reserve selection
 - `context`: source/chunk construction or context expansion
 - `generation`: the answer or grounding call, including verification
@@ -81,7 +87,10 @@ silently reduced to its successes. Error messages are deliberately not stored.
 
 Summaries report count, mean, median, nearest-rank p90, minimum, maximum and
 population standard deviation. They are written per case and for all measured
-complete samples. A stage that did not run is omitted rather than treated as zero.
+complete samples. Raw samples may contain more than one entry for a stage, for
+example multiple overview searches; summaries add those entries within one sample
+before comparing samples. A stage that did not run is omitted rather than treated
+as zero.
 
 ## Provenance and redaction
 
@@ -90,7 +99,8 @@ The report uses schema version `pipeline-performance-v1` and records:
 - commit SHA, UTC start/finish timestamps
 - operating system, machine architecture, Python and Pydantic versions
 - SHA-256 of the exact manifest bytes and a hash of the effective settings
-- answer mode, retrieval settings, reranker model and warm-up declaration
+- answer mode, retrieval settings, reranker model, resolved Hugging Face cache
+  revision when available, and warm-up declaration
 - Ollama runtime and model digests before and after the run
 - corpus/index fingerprint before and after the run
 - process peak resident memory where the platform exposes it
@@ -104,8 +114,10 @@ questions and generated reports can still reveal development activity.
 
 Timing is specific to the machine, model server state, corpus, cache state and
 software commit. A warm-up inside one process does not guarantee that Ollama or the
-operating system has the same cache state on another run. `reranker_cache` records
-only whether the run declared a warm-up; it is not a cache measurement.
+operating system has the same cache state on another run. `reranker_revision` is the
+resolved cache commit when the Hugging Face ref is available, not a digest of every
+loaded artefact. `reranker_cache` records only whether the run declared a warm-up;
+it is not a cache measurement.
 
 Peak RSS is a whole-process maximum, not a per-stage allocation measurement. The
 `generation` stage for verified answers includes grounding and verification work,

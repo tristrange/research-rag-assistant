@@ -221,7 +221,7 @@ class RagTests(unittest.TestCase):
         trace = PerformanceTrace()
         diagnostics: list[VerificationTrace] = []
         with (
-            patch("app.rag.search_chunks", return_value=[source]),
+            patch("app.rag.search_chunks", return_value=[source]) as search,
             patch("app.rag.rerank_with_page_reserve", return_value=[source]),
             patch("app.rag.grounded_answer", return_value="Checked answer") as grounded,
         ):
@@ -234,7 +234,14 @@ class RagTests(unittest.TestCase):
 
         self.assertEqual(
             [timing.stage for timing in trace.snapshot()],
-            ["embedding", "vector_search", "rerank", "context", "generation"],
+            ["rerank", "context", "generation"],
+        )
+        search.assert_called_once_with(
+            "Question",
+            limit=20,
+            document=None,
+            query_embedding=ANY,
+            performance=trace,
         )
         self.assertIsNone(trace.failed_stage)
         grounded.assert_called_once_with(

@@ -1,5 +1,6 @@
 from typing import Literal
 
+from app.db.models import Chunk
 from app.grounding import INSUFFICIENT_EVIDENCE, grounded_answer
 from app.llm.ollama import generate
 from app.llm.telemetry import VerificationTrace
@@ -21,6 +22,48 @@ OVERVIEW_SECTION_PRIORITY = (
     ("discussion",),
     ("results",),
 )
+
+
+def _search(
+    question: str,
+    *,
+    limit: int,
+    document: str | None,
+    sections: tuple[str, ...] | None = None,
+    query_embedding: QuestionEmbedding,
+    performance: PerformanceTrace | None,
+) -> list[Chunk]:
+    if sections is None:
+        if performance is None:
+            return search_chunks(
+                question,
+                limit=limit,
+                document=document,
+                query_embedding=query_embedding,
+            )
+        return search_chunks(
+            question,
+            limit=limit,
+            document=document,
+            query_embedding=query_embedding,
+            performance=performance,
+        )
+    if performance is None:
+        return search_chunks(
+            question,
+            limit=limit,
+            document=document,
+            sections=sections,
+            query_embedding=query_embedding,
+        )
+    return search_chunks(
+        question,
+        limit=limit,
+        document=document,
+        sections=sections,
+        query_embedding=query_embedding,
+        performance=performance,
+    )
 
 
 def answer_question(
@@ -60,41 +103,42 @@ def answer_question(
     )
     candidate_count = VERIFIED_CANDIDATE_COUNT if balanced_verified else CANDIDATE_COUNT
     candidate_limit = max(candidate_count, limit) if use_reranking else limit
-    with measure_stage(performance, "embedding"):
-        embedding = (
-            QuestionEmbedding(question) if query_embedding is None else query_embedding
-        )
-        if embedding.question != question:
-            raise ValueError("The embedding must belong to the requested question")
-    with measure_stage(performance, "vector_search"):
-        if overview:
-            if document is None:
-                raise ValueError("a paper overview requires a document")
-            candidates = []
-            for sections in OVERVIEW_SECTION_PRIORITY:
-                candidates = search_chunks(
-                    question,
-                    limit=candidate_limit,
-                    document=document,
-                    sections=sections,
-                    query_embedding=embedding,
-                )
-                if candidates:
-                    break
-            if not candidates:
-                candidates = search_chunks(
-                    question,
-                    limit=candidate_limit,
-                    document=document,
-                    query_embedding=embedding,
-                )
-        else:
-            candidates = search_chunks(
+    embedding = (
+        QuestionEmbedding(question) if query_embedding is None else query_embedding
+    )
+    if embedding.question != question:
+        raise ValueError("The embedding must belong to the requested question")
+    if overview:
+        if document is None:
+            raise ValueError("a paper overview requires a document")
+        candidates = []
+        for sections in OVERVIEW_SECTION_PRIORITY:
+            candidates = _search(
+                question,
+                limit=candidate_limit,
+                document=document,
+                sections=sections,
+                query_embedding=embedding,
+                performance=performance,
+            )
+            if candidates:
+                break
+        if not candidates:
+            candidates = _search(
                 question,
                 limit=candidate_limit,
                 document=document,
                 query_embedding=embedding,
+                performance=performance,
             )
+    else:
+        candidates = _search(
+            question,
+            limit=candidate_limit,
+            document=document,
+            query_embedding=embedding,
+            performance=performance,
+        )
     if not candidates:
         return {
             "answer": INSUFFICIENT_EVIDENCE,

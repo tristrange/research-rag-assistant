@@ -23,6 +23,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Literal
 
+from huggingface_hub.constants import HF_HUB_CACHE
 from pydantic import Field, field_validator, model_validator
 
 from app.embeddings import EMBEDDING_MODEL
@@ -140,6 +141,7 @@ class ReportModel(StrictModel):
     settings: dict[str, object]
     settings_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     reranker_model: str = Field(min_length=1)
+    reranker_revision: str | None = None
     reranker_cache: Literal["warmed_by_warmup", "not_warmed"]
     runs: int = Field(ge=1)
     warmup: int = Field(ge=0)
@@ -167,6 +169,37 @@ def git_commit() -> str | None:
     except OSError, subprocess.SubprocessError:
         return None
     value = completed.stdout.strip().lower()
+    if len(value) != 40 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        return None
+    return value
+
+
+def git_worktree_dirty() -> bool:
+    try:
+        completed = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except OSError, subprocess.SubprocessError:
+        return False
+    return bool(completed.stdout.strip())
+
+
+def reranker_revision(
+    model_name: str = MODEL_NAME, cache_dir: Path | None = None
+) -> str | None:
+    """Read the resolved Hugging Face commit without loading the reranker."""
+    root = Path(HF_HUB_CACHE) if cache_dir is None else cache_dir
+    ref = root / f"models--{model_name.replace('/', '--')}" / "refs" / "main"
+    try:
+        value = ref.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
     if len(value) != 40 or any(
         character not in "0123456789abcdef" for character in value
     ):
@@ -271,8 +304,13 @@ def summarize_samples(
         completed = [sample for sample in measured if sample.status == "complete"]
         stage_values: dict[str, list[float]] = {}
         for sample in completed:
+            per_sample: dict[str, float] = {}
             for stage in sample.stages:
-                stage_values.setdefault(stage.stage, []).append(stage.elapsed_ms)
+                per_sample[stage.stage] = (
+                    per_sample.get(stage.stage, 0.0) + stage.elapsed_ms
+                )
+            for stage_name, elapsed_ms in per_sample.items():
+                stage_values.setdefault(stage_name, []).append(elapsed_ms)
         summaries[case_id] = CaseSummary(
             completed=len(completed),
             failed=sum(sample.status == "failed" for sample in measured),
@@ -332,6 +370,7 @@ def run_benchmark(
         settings=settings,
         settings_sha256=_settings_hash(settings),
         reranker_model=MODEL_NAME,
+        reranker_revision=reranker_revision(),
         reranker_cache="warmed_by_warmup" if warmup else "not_warmed",
         runs=runs,
         warmup=warmup,
@@ -370,6 +409,7 @@ def run_benchmark(
     finally:
         report.finished_at = datetime.now(timezone.utc).isoformat()
         report.peak_rss_bytes = peak_rss_bytes()
+        report.reranker_revision = reranker_revision()
         save_report(output, report.model_dump(mode="json"))
     return report
 
@@ -385,6 +425,10 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.runs < 1 or args.warmup < 0:
         parser.error("--runs must be at least 1 and --warmup must not be negative")
+    if git_worktree_dirty():
+        parser.error(
+            "benchmark requires a clean Git worktree; commit or stash tracked changes"
+        )
     manifest, manifest_sha256 = load_manifest(args.cases)
     report = run_benchmark(
         manifest,

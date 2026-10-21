@@ -14,8 +14,11 @@ from scripts.benchmark_pipeline import (
     BenchmarkManifest,
     SampleModel,
     git_commit,
+    git_worktree_dirty,
     load_manifest,
+    main,
     peak_rss_bytes,
+    reranker_revision,
     run_benchmark,
     summarize_samples,
 )
@@ -258,6 +261,31 @@ class BenchmarkRunTests(unittest.TestCase):
         snapshot.assert_not_called()
         query.assert_not_called()
 
+    def test_stage_summaries_group_repeated_entries_per_sample(self) -> None:
+        sample = SampleModel.model_validate(
+            {
+                "case_id": "case",
+                "phase": "measured",
+                "status": "complete",
+                "total_ms": 10.0,
+                "stages": [
+                    {"stage": "vector_search", "elapsed_ms": 3.0},
+                    {"stage": "vector_search", "elapsed_ms": 4.0},
+                ],
+                "calls": [],
+                "verification": [],
+                "prompt_eval_tokens": None,
+                "eval_tokens": None,
+                "error_type": None,
+                "failed_stage": None,
+            }
+        )
+
+        summaries, _ = summarize_samples([sample], ["case"])
+
+        self.assertEqual(summaries["case"].stages["vector_search"].count, 1)
+        self.assertEqual(summaries["case"].stages["vector_search"].median_ms, 7.0)
+
     def test_summaries_omit_stages_that_did_not_run(self) -> None:
         base = {
             "case_id": "case",
@@ -307,3 +335,29 @@ class EnvironmentTests(unittest.TestCase):
             side_effect=OSError("missing git"),
         ):
             self.assertIsNone(git_commit())
+
+    def test_git_worktree_dirty_detects_tracked_changes(self) -> None:
+        completed = MagicMock(stdout=" M app/rag.py\n")
+        with patch("scripts.benchmark_pipeline.subprocess.run", return_value=completed):
+            self.assertTrue(git_worktree_dirty())
+
+    def test_main_rejects_a_dirty_worktree_before_loading_the_manifest(self) -> None:
+        with (
+            patch("scripts.benchmark_pipeline.git_worktree_dirty", return_value=True),
+            patch("scripts.benchmark_pipeline.load_manifest") as load,
+            self.assertRaises(SystemExit),
+        ):
+            main(["--cases", "cases.json", "--output", "out.json"])
+        load.assert_not_called()
+
+    def test_reranker_revision_reads_the_cached_hugging_face_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            ref = cache / "models--BAAI--bge-reranker-base" / "refs" / "main"
+            ref.parent.mkdir(parents=True)
+            ref.write_text("a" * 40 + "\n", encoding="utf-8")
+
+            self.assertEqual(
+                reranker_revision("BAAI/bge-reranker-base", cache_dir=cache),
+                "a" * 40,
+            )
