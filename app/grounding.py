@@ -60,6 +60,8 @@ from app.grounding_prompts import (
 from app.grounding_validation import (
     _INLINE_CITATION,
     _QUESTION_COPY_RULE,
+    _STRENGTH_NEGATION,
+    _STRENGTH_PATTERNS,
     _is_reference_source,
     _validate_draft,
     _validate_question_identifiers,
@@ -483,6 +485,15 @@ def grounding_fingerprint() -> str:
         "verifier_schema": VERIFIER_SCHEMA,
         "proof_instructions": _PROOF_INSTRUCTIONS,
         "proof_schema": PROOF_SCHEMA,
+        "effect_strength_patterns": {
+            label: [pattern.pattern, pattern.flags]
+            for label, pattern in _STRENGTH_PATTERNS
+        },
+        "effect_strength_negation": [
+            _STRENGTH_NEGATION.pattern,
+            _STRENGTH_NEGATION.flags,
+        ],
+        "effect_strength_guard": "Claims asserting no effect/no change/unchanged/unaffected/did not affect-alter-change or full-complete rescue/restoration require matching explicit absence-of-effect or complete-restoration wording in approved excerpts. Immediate negation excluded; necessary lexical condition, never semantic approval.",
         "proof_input": "Question and claim targets with only final approved display excerpts; no full sources or previous verifier output",
         "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
         "verifier_source_selection": "Draft selects source IDs; application supplies exact source excerpts and eligible evidence IDs",

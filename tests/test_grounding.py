@@ -2309,6 +2309,48 @@ class ApprovedProofTests(unittest.TestCase):
         self.assertEqual(trace[-1]["stage"], "repair_verification_proof")
         self.assertIn("Missing study identity.", model.call_args_list[3].args[0])
 
+    def test_effect_overstatement_cannot_reach_proof_even_if_verifier_approves(
+        self,
+    ) -> None:
+        question = "How did treatment affect expression?"
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="Treatment did not rescue expression.",
+        )
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "Treatment had no effect on expression.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                }
+            ],
+        }
+        verdict = approved(question)
+        for part in [
+            verdict["requested_answer"],
+            *cast(list[object], verdict["requirements"]),
+            *cast(list[object], verdict["verdicts"]),
+        ]:
+            cast(dict[str, object], part)["supporting_evidence_ids"] = [1]
+        evidence: list[AnswerClaim] = []
+        with (
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[draft, verdict, draft, verdict],
+            ),
+            patch("app.grounding.generate_approved_proof_json") as proof,
+        ):
+            self.assertEqual(
+                grounded_answer(question, [source], claim_evidence=evidence),
+                INSUFFICIENT_EVIDENCE,
+            )
+        proof.assert_not_called()
+        self.assertEqual(evidence, [])
+
     def test_invalid_proof_and_rejected_repair_fail_closed(self) -> None:
         for proof in [
             {},

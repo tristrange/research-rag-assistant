@@ -138,6 +138,42 @@ def _validate_question_identifiers(question: str, evidence_quotes: list[str]) ->
         )
 
 
+_STRENGTH_NEGATION = re.compile(r"\b(?:not|never|no|[a-z]+n['’]t)\s+$", re.IGNORECASE)
+_STRENGTH_PATTERNS = (
+    (
+        "absence of effect",
+        re.compile(
+            r"\b(?:no (?:effects?|changes?)|un[-‐‑]?\s*changed|un[-‐‑]?\s*affected|did not (?:affect|alter|change))\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "complete restoration",
+        re.compile(
+            r"\b(?:(?:fully|completely) (?:rescued?|restored?)|(?:full|complete) (?:rescue|restoration))\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+
+def _validate_effect_strength(claim: str, quotes: list[str]) -> None:
+    """Require explicit strength wording; semantic support is still checked separately."""
+
+    def asserted(pattern: re.Pattern[str], text: str) -> bool:
+        text = _normalize_whitespace(text)
+        return any(
+            not _STRENGTH_NEGATION.search(text[: match.start()])
+            for match in pattern.finditer(text)
+        )
+
+    for label, pattern in _STRENGTH_PATTERNS:
+        if asserted(pattern, claim) and not any(asserted(pattern, q) for q in quotes):
+            raise ValueError(
+                f"approved evidence lacks explicit {label} wording; preserve the source's result strength"
+            )
+
+
 def _validate_verification(
     question: str,
     result: VerificationResult,
@@ -193,6 +229,13 @@ def _validate_verification(
         failures.append(str(error))
     for verdict in result.verdicts:
         try:
+            _validate_effect_strength(
+                claims[verdict.claim_index - 1].text,
+                [
+                    evidence_by_id[evidence_id]["quote"]
+                    for evidence_id in verdict.supporting_evidence_ids
+                ],
+            )
             validate_duration_evidence(
                 claims[verdict.claim_index - 1].text,
                 [
