@@ -44,7 +44,7 @@ therefore describes candidate `6b33f221`, not the current baseline.
 
 | Gate | Latest result |
 | --- | --- |
-| Python regressions | 481 passed; 17 PostgreSQL contract tests skipped locally |
+| Python regressions | 481 test methods: 464 passed, 17 PostgreSQL contract tests skipped locally |
 | JavaScript logic | 29 passed |
 | Real-browser smoke | 7 passed |
 | Static checks | Ruff and strict mypy pass; CodeQL passes |
