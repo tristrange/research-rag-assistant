@@ -16,7 +16,7 @@ from app.config import SETTINGS
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v45"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v46"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think

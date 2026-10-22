@@ -281,8 +281,10 @@ class GroundingTests(unittest.TestCase):
                     "text": "The cited treatment delayed weight loss.",
                     "attribution": "external_publication",
                     "citations": [
-                        {"source_index": 1, "quote": "Treatment delayed weight loss."},
-                        {"source_index": 1, "quote": "Ten mice received treatment."},
+                        {
+                            "source_index": 1,
+                            "quote": "Ten mice received treatment. Treatment delayed weight loss.",
+                        },
                     ],
                 }
             ],
@@ -2291,9 +2293,18 @@ class ApprovedProofTests(unittest.TestCase):
         self.assertEqual(
             evidence[0]["citations"],
             [
-                {"source_index": 0, "quote": "Asp et al. reported the study."},
-                {"source_index": 0, "quote": "Treatment delayed weight loss."},
+                {
+                    "source_index": 0,
+                    "quote": "Asp et al. reported the study. Treatment delayed weight loss.",
+                },
             ],
+        )
+        final_proof = json.loads(
+            model.call_args_list[5].args[0].split("Untrusted input JSON:\n", 1)[1]
+        )
+        self.assertEqual(
+            [q["quote"] for q in final_proof["claims"][0]["citations"]],
+            [q["quote"] for q in evidence[0]["citations"]],
         )
         self.assertEqual(trace[-1]["stage"], "repair_verification_proof")
         self.assertIn("Missing study identity.", model.call_args_list[3].args[0])

@@ -12,7 +12,7 @@ from app.grounding_models import (
     VerifierEvidence,
 )
 from app.ingestion.chunking import _SENTENCE_END, _is_abbreviation_period
-from app.types import AnswerClaim, ChunkData
+from app.types import AnswerClaim, ChunkData, EvidenceQuote
 
 
 def build_verifier_evidence(
@@ -81,6 +81,38 @@ def _evidence_spans(text: str) -> list[str]:
     return spans
 
 
+def _join_adjacent_citations(
+    citations: list[EvidenceQuote], sources: list[ChunkData]
+) -> list[EvidenceQuote]:
+    """Join only selected, unambiguous, touching spans; never fill a context gap."""
+    joined: list[EvidenceQuote] = []
+    for citation in citations:
+        if joined and joined[-1]["source_index"] == citation["source_index"]:
+            text = _normalize_whitespace(sources[citation["source_index"]]["text"])
+            quotes = [joined[-1]["quote"], citation["quote"]]
+            positions = [text.find(quote) for quote in quotes]
+            if all(
+                start >= 0 and text.find(quote, start + 1) == -1
+                for quote, start in zip(quotes, positions)
+            ):
+                (left, start), (right, end_start) = sorted(
+                    zip(quotes, positions), key=lambda item: item[1]
+                )
+                end = end_start + len(right)
+                if (
+                    start + len(left) <= end_start
+                    and not text[start + len(left) : end_start].strip()
+                    and end - start <= MAX_QUOTE_CHARS
+                ):
+                    joined[-1] = {
+                        "source_index": citation["source_index"],
+                        "quote": text[start:end],
+                    }
+                    continue
+        joined.append(citation)
+    return joined
+
+
 def _record_accepted_evidence(
     draft: GroundedDraft,
     sources: list[ChunkData],
@@ -101,13 +133,16 @@ def _record_accepted_evidence(
             {
                 "text": claim.text,
                 "attribution": claim.attribution,
-                "citations": [
-                    {
-                        "source_index": catalogue[evidence_id]["source_id"] - 1,
-                        "quote": catalogue[evidence_id]["quote"],
-                    }
-                    for evidence_id in verdicts[index].supporting_evidence_ids
-                ],
+                "citations": _join_adjacent_citations(
+                    [
+                        {
+                            "source_index": catalogue[evidence_id]["source_id"] - 1,
+                            "quote": catalogue[evidence_id]["quote"],
+                        }
+                        for evidence_id in verdicts[index].supporting_evidence_ids
+                    ],
+                    sources,
+                ),
             }
         )
 

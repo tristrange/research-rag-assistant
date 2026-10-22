@@ -495,6 +495,7 @@ def grounding_fingerprint() -> str:
         },
         "citation_render": "{document}, page {page}",
         "evidence_text": "Application-owned whitespace-normalized source spans selected by verifier evidence IDs; drafts cannot supply quotes",
+        "display_quote_join_rule": "Join consecutive selected citations only within one source, at unique non-overlapping positions separated solely by whitespace, in source order and within MAX_QUOTE_CHARS; never add unselected text. Proof and display use the same assembled excerpts.",
         "inline_citation_pattern": _INLINE_CITATION.pattern,
     }
     encoded = json.dumps(
