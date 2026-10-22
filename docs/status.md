@@ -6,7 +6,7 @@
 
 **Dependency update:** `certifi` 2026.10.19 (security only; `uv.lock`); GitHub alert #1 fixed
 
-**Decision:** local v1 remains open. Engineering checks are usable, but the
+**Decision:** local v1 remains open; PR #92 is blocked from merge. Engineering checks are usable, but the
 semantic quality gate has not passed. Do not tag v1 or describe answers as
 generally reliable.
 
@@ -28,28 +28,29 @@ the release blockers.
 
 | Item | Current record |
 | --- | --- |
-| Application code | `ecc6ba3` (2026-10-22); v44 proof-context candidate in this change |
+| Application code | `ecc6ba3` (2026-10-22); v45 proof-window candidate in this draft; not approved |
 | Dependency security | `certifi` 2026.10.19 (patched); alert #1 fixed 2026-10-22; no open Dependabot alerts observed |
 | Latest end-to-end quality evaluation | Candidate `6b33f221`, 2026-10-12, grounding contract v40 |
-| Latest narrow verifier replay | Base `ecc6ba3`, 2026-10-22, contract v44: fixed-draft proof accepted the retained VDAC1 repair claim; omitted-qualifier, different-population and cross-chunk controls rejected |
+| Latest narrow verifier check | v45: the source-faithful VDAC1 comparison was rejected; the control gate blocked the eight-case saved-source grounding replay |
 | Last recorded live startup check | `0b654537`, 2026-10-01 |
-| Current grounding contract | `claim-grounding-v44`; see [architecture](architecture.md#grounding-module-contract) |
+| Merged grounding contract | `claim-grounding-v41` |
+| Draft candidate contract | `claim-grounding-v45`; positive control failed; see [architecture](architecture.md#grounding-module-contract) |
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
 
 The `ecc6ba3` baseline includes the v41 question-copy fix, performance
-instrumentation and the patched `certifi` lockfile. The v44 change adds
-document/page/chunk provenance to the isolated proof input and clarifies how it
-reads a claim's approved citation set; it does not change retrieval, drafting,
-verification or evidence binding. No end-to-end quality evaluation has been run
-against `ecc6ba3` or v44. The latest quality result therefore describes candidate
-`6b33f221`, not the current baseline.
+instrumentation and the patched `certifi` lockfile. The v45 candidate labels
+source-window metadata and requires quoted wording to connect scope and outcome;
+it does not change retrieval, drafting, verification or evidence binding. Its
+source-faithful positive control failed. No end-to-end quality evaluation has
+been run against `ecc6ba3` or v45. The latest quality result therefore describes
+candidate `6b33f221`, not the current baseline.
 
 ## Engineering gates
 
 | Gate | Latest result |
 | --- | --- |
-| Python regressions | 482 test methods: 465 passed, 17 PostgreSQL contract tests skipped locally |
+| Python regressions | Draft v45: 483 test methods; 466 passed, 17 PostgreSQL contracts skipped locally |
 | JavaScript logic | 29 passed |
 | Real-browser smoke | 7 passed |
 | Static checks | Ruff and strict mypy pass; CodeQL runs on this change |
@@ -72,7 +73,7 @@ as a synonym for AI review.
 | --- | --- | --- |
 | [Third reserved fresh-question check](local-v1-fresh-check-r3.md) | Eight AI-authored questions: 2 of 6 answerable cases supported, both controls refused, three safe refusals, one output-budget error; no material unsupported displayed claim or attribution error observed | **Failed** the unchanged stopping rule; see the [reservation protocol](../benchmarks/local-v1-fresh-check-2026-10-12-r3.json) |
 | [Question-copy typography replay](../benchmarks/verifier-question-typography-results-2026-10-21.json) | Two saved-source development cases: one supported answer, one answerable refusal; the target U+2011 failure was not reproduced | Development only; fresh reserved validation **not completed** |
-| [Adjacent-context proof development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) | Fixed-draft VDAC1 proof checks: retained repair claim accepted; omitted-qualifier, different-population and cross-chunk controls rejected | Development only; one proof call per variant, no human review, fresh reserved validation **not completed** |
+| [Proof-window v45 check](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) | Source-faithful positive rejected; three negative controls rejected; four calls, 139.71 seconds; gated eight-case replay not started | **Failed** development acceptance; candidate remains draft, not merge-ready |
 | [AI-assisted development review](v1-readiness.md#development-review-protocol-frozen-before-new-generation) | 16 historical inspected cases: 12 passed, including 8 of 12 answerable cases and all 4 controls | Accepted as portfolio evidence; not current-code accuracy or independent validation; see the [review record](../benchmarks/v1-development-review.json) |
 | Optional human worksheet | Not completed | Outstanding |
 
@@ -87,21 +88,23 @@ dash variants normalize to ASCII hyphen-minus, while numbers, words, spelling,
 conditions, study attribution and evidence checks remain exact. See
 [named identifiers and question-copy limits](question-identifiers.md#question-copy-typography).
 
-The 22 October v44 proof-context change is limited to how the isolated proof
-reads a claim's approved citations and the provenance it receives. It does not
+The 22 October v45 proof-window candidate is limited to how the isolated proof
+reads a claim's approved citations and labels source-window metadata. The v44
+positive check had accepted a no-effect overstatement; it is not a supported-answer
+quality result. It does not
 auto-approve evidence, add a repair, or combine qualifiers across different
-source chunks, experiments, conditions, documents, or claims. It requires the
+experiments, conditions, documents, or claims. It requires the
 claim text itself to state every requested qualifier. The fixed-draft checks are
 regression evidence, not a reliability claim; see the
-[development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).
+[v45 development check](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json).
 
 ## Known blockers
 
 | Blocker | Evidence | Next action |
 | --- | --- | --- |
 | Answer completeness | r3 met 2 of 6 answerable cases against a 5-of-6 target; three safe refusals despite sufficient retrieval | Diagnose one refusal mechanism at a time without weakening evidence guards |
-| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support. The v44 proof-context clarification passed fixed-draft acceptance and three control checks, but one call per variant is not reliability proof | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
-| Fresh validation | The v41 question-copy fix and v44 proof-context change have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
+| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support. The v45 source-faithful positive control failed; merged source windows do not provide per-excerpt origins | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
+| Fresh validation | The v41 question-copy fix and v45 proof-window candidate have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
 | Human quality review | Optional worksheet is pending | Complete it or retain the limitation explicitly |
 | Performance | No matching local hardware/model/corpus baseline | Run the documented procedure after the semantic candidate is stable; do not cite latency until then |
 | Repository controls | Branch protection still needs owner configuration for PR-only merging and required checks | Apply the GitHub settings described in the [development guide](development.md#branch-and-pull-request-workflow) |
@@ -122,22 +125,20 @@ setup and operational constraints.
 
 ## Next experiment
 
-One diagnosed r3 failure now has a v44 development candidate: the VDAC1
-adjacent-context proof rejection. The fixed-draft acceptance check and three
-false-accept controls passed, but this is not a fresh or independent validation.
-The remaining release work is:
+PR #92 remains a draft. The v45 source-faithful positive control failed, so its
+frozen gate blocks the eight-case saved-source grounding replay. No fresh
+validation or performance baseline is completed by this work.
 
-1. Freeze the candidate, then reserve new questions that have not been inspected
-   during development. Run the declared trial once and preserve failures.
-   Replaying r3 is regression evidence, not release validation.
-2. Add repeated and adversarial controls for the v44 proof-context rule; stop if
-   a qualifier from a different source chunk, experiment, condition, document or
-   claim is accepted.
-3. If independent human source review is unavailable, record the result as
-   **not completed** rather than passed.
-4. Only after the semantic gate is settled, collect a matching performance
-   baseline and complete the release review. Do not infer latency or accuracy
-   from CI or from the earlier development reports.
+1. Preserve actual per-excerpt origins or quoted connecting context before trying
+   another proof candidate. Do not rely on a merged window's starting chunk number.
+2. Keep the omitted-population, no-effect overstatement and hidden experiment-
+   boundary controls. Require the faithful positive to pass as well.
+3. Restore a usable local database before a retrieval-to-answer evaluation. A
+   saved-source replay cannot substitute for an end-to-end check.
+4. Freeze any later candidate before generation; preserve failures without
+   selective retries. Fresh reserved validation and any human review remain
+   separately outstanding.
+5. Collect the performance baseline only after the semantic candidate is stable.
 
 ## Decision log
 
@@ -152,6 +153,7 @@ The remaining release work is:
 | 2026-10-22 | Updated `certifi` to patched 2026.10.19 and refreshed the application baseline to `a8d6799`; no application code or model change | `uv.lock`, this page |
 | 2026-10-22 | Refreshed the application baseline to `ecc6ba3`; confirmed `certifi` alert #1 fixed and no open Dependabot alerts observed | This page, GitHub alert #1 |
 | 2026-10-22 | Added the v44 adjacent-context proof clarification; fixed-draft acceptance and omitted-qualifier, different-population and cross-chunk controls passed; fresh reserved validation not completed | [Development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) |
+| 2026-10-22 | v45 failed the source-faithful positive control; the eight-case replay was not started and PR #92 remains draft. The v44 retained positive also overstated no rescue as no effect | [Frozen protocol](../benchmarks/verifier-proof-window-v45-protocol-2026-10-22.json), [results](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) |
 
 Historical reports and dated findings remain unchanged. Update this page only
 when a validated status transition occurs.

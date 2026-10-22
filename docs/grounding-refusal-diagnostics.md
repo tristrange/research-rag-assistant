@@ -185,3 +185,34 @@ regression evidence, not fresh reserved validation or independent review. Raw
 artifacts remain in the ignored `evaluation-results/` directory; the public
 aggregate and artifact hashes are in
 [`benchmarks/verifier-adjacent-context-development-2026-10-22.json`](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).
+
+### Follow-up: merged source windows (v45)
+
+Review found that context expansion can merge several stored chunks into one
+returned source. Its `chunk_index` identifies only the start of that window;
+it cannot establish the original chunk of each quote. The v45 candidate labels
+this field `source_window_start_chunk` in the isolated proof and removes the
+same-chunk inference. The quoted wording must establish the connection between
+scope and outcome; shared metadata, adjacency and omitted intervening text are
+not evidence of continuity. The public citation shape and retrieval stay unchanged.
+
+Source review also found that the retained v44 repair claim's PPID wording
+strengthened no rescue into no effect on expression. Its earlier proof approval
+is an observation, not evidence that every detail was supported. The v45 positive
+control uses no-rescue wording, and the original stronger claim is retained as a
+rejection control. A synthetic merged window hides a separate control-population
+experiment between selected quotes to test the review finding directly.
+
+The source-faithful positive control was rejected, so v45 does not resolve the
+known refusal. Its gate blocks the eight-case grounding replay. Keep PR #92 in
+draft; do not merge this candidate or count the blocked replay as validation.
+The next implementation should preserve actual per-excerpt origins or enough
+quoted connecting context, rather than infer continuity from a window's starting
+chunk number. The local database was also unavailable during setup; saved-source
+checks do not establish that current retrieval works end to end.
+
+The frozen [v45 protocol](../benchmarks/verifier-proof-window-v45-protocol-2026-10-22.json)
+and [results](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) record
+four calls in 139.71 seconds: the positive was rejected and all three rejection
+controls were refused. These refusals often cited missing population scope, so
+they do not establish that each targeted failure mode was specifically detected.
