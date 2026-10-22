@@ -4,6 +4,11 @@ The release goal is a personal research assistant: start it locally, maintain a
 small PDF library, ask routine questions, and inspect evidence for each answer.
 Hosting, accounts, OCR, and advanced cross-paper synthesis are later extensions.
 
+**Current status:** [Project status](status.md) is the authoritative snapshot of
+the current commit, engineering gates, review evidence, blockers and next action.
+This page preserves the detailed readiness criteria and the historical review
+record; it does not replace the current status page.
+
 ## Milestones
 
 - [x] AI-assisted review of selected historical development answers and documented limitations.
@@ -235,3 +240,10 @@ validation. Any allowed false refusals must be documented as limitations.
 
 Complete the remaining usability and release milestones, record known limits,
 then tag v1. This review tooling and a green worksheet alone do not approve release.
+
+## Decision log
+
+The dated readiness decisions are maintained in the
+[project status decision log](status.md#decision-log). Add new readiness decisions
+there, with links to the evidence. Keep this page's detailed protocol and
+historical reports unchanged.

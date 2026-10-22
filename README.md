@@ -4,9 +4,13 @@ Ask questions about academic PDFs and inspect the passages behind each answer.
 This local-first research assistant combines semantic retrieval, reranking and
 claim-level evidence checks in a FastAPI application with a browser interface.
 
-**Status:** local v1 engineering and AI-assisted development review are complete.
-The fresh-question check did not meet the v1 quality target; this remains an
-experimental research tool. See the [latest recorded results](docs/local-v1-fresh-check-r3.md).
+**Status:** Local v1 engineering checks pass, but the semantic quality gate is still open.
+The latest reserved fresh-question check (2026-10-12) met 2 of 6 answerable cases
+and both controls refused appropriately; three safe refusals and one verifier
+output-budget error remain.
+No independent human review has been completed, and the performance baseline is
+pending. This remains an experimental research tool. See
+[project status](docs/status.md) for current evidence, blockers and the next experiment.
 
 ![Browser interface showing a synthetic answer and its selected evidence](docs/assets/research-assistant.png)
 
@@ -172,6 +176,7 @@ have separate setup steps in the [development guide](docs/development.md).
 
 ## Documentation
 
+- [Project status](docs/status.md): current evidence, blockers and next experiment.
 - [Local usage](docs/local-usage.md): library management, API scopes and troubleshooting.
 - [Configuration](docs/configuration.md): model roles, inference settings and environment variables.
 - [Architecture](docs/architecture.md): ingestion, retrieval and evidence-checking design.

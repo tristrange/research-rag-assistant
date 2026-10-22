@@ -4,6 +4,10 @@ Start with the [project overview and quickstart](../README.md). The guides below
 describe current usage; dated studies preserve the configurations and limitations
 of earlier development experiments.
 
+**Current status:** [Project status](status.md) records the current commit,
+engineering gates, latest review evidence, blockers, decision log and next
+experiment.
+
 ## Use and understand the assistant
 
 - [Local usage](local-usage.md): indexing, library maintenance, API scopes, evidence,
@@ -24,6 +28,8 @@ of earlier development experiments.
 
 ## Evaluation and validation
 
+- [Project status](status.md): current commit, engineering gates, latest review
+  evidence, blockers, decision log and next experiment.
 - [Retrieval evaluation](retrieval-evaluation.md): comparison commands, page-level
   metrics and the dated baseline measurement.
 - [Answer-quality evaluation](answer-evaluation.md): benchmark commands, strategies,
@@ -33,8 +39,9 @@ of earlier development experiments.
   warm-up policy, provenance and the baseline-pending status.
 - [Benchmark corpus](benchmark-corpus.md): paper acquisition, attribution, licensing
   and isolated evaluation inputs. PDFs and raw reports remain local and ignored.
-- [Local v1 readiness](v1-readiness.md): accepted AI-assisted development review, optional human
-  review, reserved final validation questions and the release stopping rule.
+- [Local v1 readiness](v1-readiness.md): detailed readiness criteria, historical
+  review record, optional human review and the release stopping rule. Current
+  status is recorded in [project status](status.md).
 - [Local v1 fresh-question check](local-v1-fresh-check.md): frozen configuration,
   fresh question reservation, AI review mode and exact stopping criteria.
 
