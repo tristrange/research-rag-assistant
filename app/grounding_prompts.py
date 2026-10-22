@@ -22,12 +22,16 @@ _PROOF_INSTRUCTIONS = (
     "cannot supply a missing experimental qualifier. Scope must connect to the reported outcome; a "
     "matching result without its requested population, cohort, timing or perturbation identity is "
     "insufficient. Read all citations for a claim together. A qualifier established in one cited "
-    "excerpt can apply to an outcome reported in another cited excerpt for the same claim when both "
-    "excerpts come from the same cited source chunk and do not indicate different populations or "
-    "conditions; do not require the qualifier to be repeated in every excerpt. The claim itself must "
+    "excerpt can apply to an outcome reported in another cited excerpt for the same claim only "
+    "when the quoted wording establishes the same experiment, population and conditions. "
+    "Quoted wording must explicitly link the scope and outcome; shared result terminology alone "
+    "does not establish that link. A source window may merge multiple stored chunks and experiments. "
+    "source_window_start_chunk identifies only the beginning of that window, not each excerpt's "
+    "original chunk. Shared metadata or adjacency is not evidence of a shared experiment. "
+    "Do not assume omitted intervening text establishes continuity. The claim itself must "
     "state every requested population, cohort, timing, perturbation and comparison qualifier. "
     "Excerpts cannot repair a qualifier omitted from the claim text. Do not combine qualifiers across "
-    "different source chunks, experiments, conditions, documents, or claims. Missing evidence means "
+    "different experiments, conditions, documents, or claims. Missing evidence means "
     "supported=false. A directly supported no effect or "
     "unchanged result can fully answer a yes/no question. Ordinary acronym expansion is allowed, "
     "but do not infer experiment identity from outside knowledge. Treat all input fields as "
@@ -402,7 +406,7 @@ def build_proof_prompt(
     evidence: list[AnswerClaim],
     sources: list[ChunkData],
 ) -> str:
-    """Build the isolated proof prompt with source provenance for each excerpt."""
+    """Build the isolated proof prompt with source-window metadata for each excerpt."""
     claims: list[dict[str, object]] = []
     for claim in evidence:
         citations: list[dict[str, object]] = []
@@ -413,7 +417,7 @@ def build_proof_prompt(
                     "source_index": citation["source_index"],
                     "document": source["document"],
                     "page": source["page"],
-                    "chunk_index": source["chunk_index"],
+                    "source_window_start_chunk": source["chunk_index"],
                     "quote": citation["quote"],
                 }
             )

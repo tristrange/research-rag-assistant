@@ -125,7 +125,7 @@ class DraftSourceTests(unittest.TestCase):
                 "source_index": 1,
                 "document": "study.pdf",
                 "page": 4,
-                "chunk_index": 0,
+                "source_window_start_chunk": 0,
                 "quote": sources[1]["text"],
             }
         ]

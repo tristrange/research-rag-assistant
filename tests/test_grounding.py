@@ -2134,7 +2134,9 @@ class ApprovedProofTests(unittest.TestCase):
             "A qualifier established in one cited excerpt can apply to an outcome",
             prompt,
         )
-        self.assertIn("same cited source chunk", prompt)
+        self.assertIn(
+            "Quoted wording must explicitly link the scope and outcome", prompt
+        )
         self.assertIn(
             "The claim itself must state every requested population, cohort, timing, "
             "perturbation and comparison qualifier.",
@@ -2145,13 +2147,56 @@ class ApprovedProofTests(unittest.TestCase):
             prompt,
         )
         self.assertIn(
-            "Do not combine qualifiers across different source chunks, experiments, "
-            "conditions, documents, or claims.",
+            "Do not combine qualifiers across different experiments, conditions, documents, "
+            "or claims.",
             prompt,
         )
         self.assertIn('"document": "study.pdf"', prompt)
         self.assertIn('"page": 4', prompt)
-        self.assertIn('"chunk_index": 2', prompt)
+        self.assertIn('"source_window_start_chunk": 2', prompt)
+
+    def test_proof_does_not_treat_merged_window_as_one_stored_chunk(self) -> None:
+        from app.db.models import Chunk
+        from app.retrieval.context import merge_selected_chunks
+
+        sources = merge_selected_chunks(
+            [
+                Chunk(
+                    document="study.pdf",
+                    page=4,
+                    chunk_index=2,
+                    text="We studied Mfn1KD myoblasts. VDAC1 rescued expression.",
+                ),
+                Chunk(
+                    document="study.pdf",
+                    page=4,
+                    chunk_index=3,
+                    text="In a separate experiment we studied control myoblasts. Bax rescued expression.",
+                ),
+            ]
+        )
+        self.assertEqual(len(sources), 1)
+        claim = AnswerClaim(
+            text="In Mfn1KD myoblasts, VDAC1 and Bax rescued expression.",
+            attribution="this_document_authors",
+            citations=[
+                {"source_index": 0, "quote": "We studied Mfn1KD myoblasts."},
+                {"source_index": 0, "quote": "Bax rescued expression."},
+            ],
+        )
+        prompt = build_proof_prompt(
+            "How did VDAC1 and Bax compare in Mfn1KD myoblasts?", [claim], sources
+        )
+        payload = json.loads(prompt.split("Untrusted input JSON:\n", 1)[1])
+        citation = payload["claims"][0]["citations"][0]
+        self.assertEqual(citation["source_window_start_chunk"], 2)
+        self.assertNotIn("chunk_index", citation)
+        self.assertIn("A source window may merge multiple stored chunks", prompt)
+        self.assertIn("Shared metadata or adjacency is not evidence", prompt)
+        self.assertIn(
+            "Quoted wording must explicitly link the scope and outcome", prompt
+        )
+        self.assertNotIn("same cited source chunk", prompt)
 
     def test_proof_sees_only_displayed_excerpts_and_not_prior_approval(self) -> None:
         source = ChunkData(
@@ -2203,7 +2248,7 @@ class ApprovedProofTests(unittest.TestCase):
                                 "source_index": 0,
                                 "document": "study.pdf",
                                 "page": 1,
-                                "chunk_index": 0,
+                                "source_window_start_chunk": 0,
                                 "quote": "Uptake increased.",
                             }
                         ],
