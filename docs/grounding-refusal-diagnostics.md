@@ -169,16 +169,19 @@ not a new generation trial.
 
 The r3 mitochondrial case showed the isolated proof rejecting a repair claim
 because the population was established in one approved excerpt and the Bax/PPID
-outcome in another excerpt from the same claim. The v43 proof instructions now
-read all citations for one claim together, while prohibiting qualifier
-combinations across different experiments, conditions, documents or claims.
+outcome in another excerpt from the same claim. The v44 proof instructions add
+document/page/chunk provenance and read all citations for one claim together
+when they come from the same source chunk. The claim text itself must state every
+requested qualifier; qualifier combinations across different source chunks,
+experiments, conditions, documents or claims remain prohibited.
 
-One fixed-source replay rendered a supported answer after the repair path. A
-synthetic false-accept control, where the outcome was reported for control
-myoblasts instead of the requested Mfn1KD myoblasts, was still rejected. The
-replay's final claim did not repeat the population phrase; the question and
-approved excerpt supply it, but this does not establish general answer
-completeness. This is development regression evidence, not fresh reserved
-validation or independent review. Raw artifacts remain in the ignored
-`evaluation-results/` directory; the public aggregate and artifact hashes are in
+The retained r3 repair claim with the population qualifier was accepted. Three
+controls were rejected: the same evidence with the population removed from the
+claim text; an outcome reported for control myoblasts instead of the requested
+Mfn1KD myoblasts; and a Bax result from a different source chunk combined with
+the VDAC1 excerpt. These are fixed-draft proof checks, not a final end-to-end
+replay; pipeline-level answer completeness remains open. This is development
+regression evidence, not fresh reserved validation or independent review. Raw
+artifacts remain in the ignored `evaluation-results/` directory; the public
+aggregate and artifact hashes are in
 [`benchmarks/verifier-adjacent-context-development-2026-10-22.json`](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).

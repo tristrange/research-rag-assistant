@@ -119,7 +119,16 @@ class DraftSourceTests(unittest.TestCase):
             ],
         }
         evidence: list[AnswerClaim] = []
-        expected = [{"source_index": 1, "quote": sources[1]["text"]}]
+        expected_claim_evidence = [{"source_index": 1, "quote": sources[1]["text"]}]
+        expected_proof_citations = [
+            {
+                "source_index": 1,
+                "document": "study.pdf",
+                "page": 4,
+                "chunk_index": 0,
+                "quote": sources[1]["text"],
+            }
+        ]
         for capture in (None, evidence):
             with (
                 self.subTest(capture=capture),
@@ -139,9 +148,9 @@ class DraftSourceTests(unittest.TestCase):
             proof = json.loads(
                 model.call_args_list[2].args[0].split("Untrusted input JSON:\n", 1)[1]
             )
-            self.assertEqual(proof["claims"][0]["citations"], expected)
+            self.assertEqual(proof["claims"][0]["citations"], expected_proof_citations)
             if capture is not None:
-                self.assertEqual(capture[0]["citations"], expected)
+                self.assertEqual(capture[0]["citations"], expected_claim_evidence)
             self.assertNotIn("unused.pdf", answer)
 
     def test_draft_cannot_supply_evidence_text_or_select_an_empty_source(self) -> None:

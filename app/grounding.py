@@ -182,11 +182,11 @@ def generate_verification_json(
 
 
 def generate_approved_proof_json(
-    question: str, evidence: list[AnswerClaim]
+    question: str, evidence: list[AnswerClaim], sources: list[ChunkData]
 ) -> dict[str, object]:
     """Check only the excerpts that would be displayed, without previous verdicts."""
     return generate_verification_json(
-        build_proof_prompt(question, evidence), PROOF_SCHEMA
+        build_proof_prompt(question, evidence, sources), PROOF_SCHEMA
     )
 
 
@@ -261,7 +261,7 @@ def _verify_draft_with_feedback(
             attempt=attempt,
             contract_fingerprint=contract_fingerprint,
         ) as proof_diagnostic:
-            proof_data = generate_approved_proof_json(question, evidence)
+            proof_data = generate_approved_proof_json(question, evidence, sources)
             proof_entry["output"] = proof_data
             proof = ApprovedProof.model_validate(proof_data)
         # Semantic rejection stays outside the parsing context, so it is not reclassified.

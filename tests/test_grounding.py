@@ -2108,6 +2108,12 @@ class ApprovedProofTests(unittest.TestCase):
         proof.assert_called_once()
 
     def test_proof_prompt_allows_one_claim_context_across_citations(self) -> None:
+        source = ChunkData(
+            document="study.pdf",
+            page=4,
+            chunk_index=2,
+            text="VDAC1 and Bax rescued expression in Mfn1KD myoblasts.",
+        )
         claim = AnswerClaim(
             text="In Mfn1KD myoblasts, VDAC1 and Bax both rescued expression.",
             attribution="this_document_authors",
@@ -2122,17 +2128,30 @@ class ApprovedProofTests(unittest.TestCase):
                 },
             ],
         )
-        prompt = build_proof_prompt("How did VDAC1 and Bax compare?", [claim])
+        prompt = build_proof_prompt("How did VDAC1 and Bax compare?", [claim], [source])
         self.assertIn("Read all citations for a claim together.", prompt)
         self.assertIn(
             "A qualifier established in one cited excerpt can apply to an outcome",
             prompt,
         )
+        self.assertIn("same cited source chunk", prompt)
         self.assertIn(
-            "Do not combine qualifiers across different experiments, conditions, "
-            "documents, or claims.",
+            "The claim itself must state every requested population, cohort, timing, "
+            "perturbation and comparison qualifier.",
             prompt,
         )
+        self.assertIn(
+            "Excerpts cannot repair a qualifier omitted from the claim text.",
+            prompt,
+        )
+        self.assertIn(
+            "Do not combine qualifiers across different source chunks, experiments, "
+            "conditions, documents, or claims.",
+            prompt,
+        )
+        self.assertIn('"document": "study.pdf"', prompt)
+        self.assertIn('"page": 4', prompt)
+        self.assertIn('"chunk_index": 2', prompt)
 
     def test_proof_sees_only_displayed_excerpts_and_not_prior_approval(self) -> None:
         source = ChunkData(
@@ -2180,7 +2199,13 @@ class ApprovedProofTests(unittest.TestCase):
                         "text": "Uptake increased in male mice.",
                         "attribution": "this_document_authors",
                         "citations": [
-                            {"source_index": 0, "quote": "Uptake increased."}
+                            {
+                                "source_index": 0,
+                                "document": "study.pdf",
+                                "page": 1,
+                                "chunk_index": 0,
+                                "quote": "Uptake increased.",
+                            }
                         ],
                     }
                 ],

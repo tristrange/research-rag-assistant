@@ -199,14 +199,16 @@ grounded_answer
 └── _render_claims
 ```
 
-**Frozen behaviour.** `GROUNDING_CONTRACT_VERSION` (`claim-grounding-v43`), the
+**Frozen behaviour.** `GROUNDING_CONTRACT_VERSION` (`claim-grounding-v44`), the
 prompt bytes built from equivalent inputs, the serialized response and claim
 evidence shape, the refusal text and the exception classes above are the
-contract. The isolated proof reads all citations for one claim together: a
-qualifier established in one excerpt can apply to an outcome in another excerpt
-from the same claim and experiment, but qualifiers cannot be combined across
-different experiments, conditions, documents, or claims. The stage fingerprint
-from `grounding_fingerprint()` binds evaluation resumes to these definitions. Replay provenance uses
+contract. The isolated proof receives document/page/chunk provenance for each
+citation and reads all citations for one claim together: a qualifier established
+in one excerpt can apply to an outcome in another excerpt from the same cited
+source chunk, but the claim itself must state every requested qualifier and
+qualifiers cannot be combined across different chunks, experiments, conditions,
+documents, or claims. The stage fingerprint from `grounding_fingerprint()` binds
+evaluation resumes to these definitions. Replay provenance uses
 `grounding_code_fingerprint()`, a SHA-256 over every `app/grounding*.py` module,
 so changing any extracted component invalidates a frozen protocol instead of
 passing on the facade alone.

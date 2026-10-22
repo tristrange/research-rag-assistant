@@ -28,21 +28,22 @@ the release blockers.
 
 | Item | Current record |
 | --- | --- |
-| Application code | `ecc6ba3` (2026-10-22); v43 proof-context candidate in this change |
+| Application code | `ecc6ba3` (2026-10-22); v44 proof-context candidate in this change |
 | Dependency security | `certifi` 2026.10.19 (patched); alert #1 fixed 2026-10-22; no open Dependabot alerts observed |
 | Latest end-to-end quality evaluation | Candidate `6b33f221`, 2026-10-12, grounding contract v40 |
-| Latest narrow verifier replay | Base `ecc6ba3`, 2026-10-22, contract v43: one fixed-source VDAC1 replay accepted; one synthetic false-accept control rejected |
+| Latest narrow verifier replay | Base `ecc6ba3`, 2026-10-22, contract v44: fixed-draft proof accepted the retained VDAC1 repair claim; omitted-qualifier, different-population and cross-chunk controls rejected |
 | Last recorded live startup check | `0b654537`, 2026-10-01 |
-| Current grounding contract | `claim-grounding-v43`; see [architecture](architecture.md#grounding-module-contract) |
+| Current grounding contract | `claim-grounding-v44`; see [architecture](architecture.md#grounding-module-contract) |
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
 
 The `ecc6ba3` baseline includes the v41 question-copy fix, performance
-instrumentation and the patched `certifi` lockfile. The v43 change only clarifies
-how the isolated proof reads a claim's approved citation set; it does not change
-retrieval, drafting, verification or evidence binding. No end-to-end quality
-evaluation has been run against `ecc6ba3` or v43. The latest quality result
-therefore describes candidate `6b33f221`, not the current baseline.
+instrumentation and the patched `certifi` lockfile. The v44 change adds
+document/page/chunk provenance to the isolated proof input and clarifies how it
+reads a claim's approved citation set; it does not change retrieval, drafting,
+verification or evidence binding. No end-to-end quality evaluation has been run
+against `ecc6ba3` or v44. The latest quality result therefore describes candidate
+`6b33f221`, not the current baseline.
 
 ## Engineering gates
 
@@ -71,7 +72,7 @@ as a synonym for AI review.
 | --- | --- | --- |
 | [Third reserved fresh-question check](local-v1-fresh-check-r3.md) | Eight AI-authored questions: 2 of 6 answerable cases supported, both controls refused, three safe refusals, one output-budget error; no material unsupported displayed claim or attribution error observed | **Failed** the unchanged stopping rule; see the [reservation protocol](../benchmarks/local-v1-fresh-check-2026-10-12-r3.json) |
 | [Question-copy typography replay](../benchmarks/verifier-question-typography-results-2026-10-21.json) | Two saved-source development cases: one supported answer, one answerable refusal; the target U+2011 failure was not reproduced | Development only; fresh reserved validation **not completed** |
-| [Adjacent-context proof development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) | One fixed-source VDAC1 replay rendered a supported answer; one synthetic false-accept control rejected a result from a different population | Development only; one replay, no human review, fresh reserved validation **not completed** |
+| [Adjacent-context proof development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) | Fixed-draft VDAC1 proof checks: retained repair claim accepted; omitted-qualifier, different-population and cross-chunk controls rejected | Development only; one proof call per variant, no human review, fresh reserved validation **not completed** |
 | [AI-assisted development review](v1-readiness.md#development-review-protocol-frozen-before-new-generation) | 16 historical inspected cases: 12 passed, including 8 of 12 answerable cases and all 4 controls | Accepted as portfolio evidence; not current-code accuracy or independent validation; see the [review record](../benchmarks/v1-development-review.json) |
 | Optional human worksheet | Not completed | Outstanding |
 
@@ -86,11 +87,12 @@ dash variants normalize to ASCII hyphen-minus, while numbers, words, spelling,
 conditions, study attribution and evidence checks remain exact. See
 [named identifiers and question-copy limits](question-identifiers.md#question-copy-typography).
 
-The 22 October v43 proof-context change is limited to how the isolated proof
-reads a claim's approved citations. It does not auto-approve evidence, add a
-repair, or combine qualifiers across different experiments, conditions,
-documents, or claims. The fixed-source replay and control are regression
-evidence, not a reliability claim; see the
+The 22 October v44 proof-context change is limited to how the isolated proof
+reads a claim's approved citations and the provenance it receives. It does not
+auto-approve evidence, add a repair, or combine qualifiers across different
+source chunks, experiments, conditions, documents, or claims. It requires the
+claim text itself to state every requested qualifier. The fixed-draft checks are
+regression evidence, not a reliability claim; see the
 [development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).
 
 ## Known blockers
@@ -98,8 +100,8 @@ evidence, not a reliability claim; see the
 | Blocker | Evidence | Next action |
 | --- | --- | --- |
 | Answer completeness | r3 met 2 of 6 answerable cases against a 5-of-6 target; three safe refusals despite sufficient retrieval | Diagnose one refusal mechanism at a time without weakening evidence guards |
-| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support. The v43 proof-context clarification passed one fixed-source VDAC1 replay and one control, but one replay is not reliability proof | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
-| Fresh validation | The v41 question-copy fix and v43 proof-context change have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
+| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support. The v44 proof-context clarification passed fixed-draft acceptance and three control checks, but one call per variant is not reliability proof | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
+| Fresh validation | The v41 question-copy fix and v44 proof-context change have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
 | Human quality review | Optional worksheet is pending | Complete it or retain the limitation explicitly |
 | Performance | No matching local hardware/model/corpus baseline | Run the documented procedure after the semantic candidate is stable; do not cite latency until then |
 | Repository controls | Branch protection still needs owner configuration for PR-only merging and required checks | Apply the GitHub settings described in the [development guide](development.md#branch-and-pull-request-workflow) |
@@ -120,17 +122,17 @@ setup and operational constraints.
 
 ## Next experiment
 
-One diagnosed r3 failure now has a v43 development candidate: the VDAC1
-adjacent-context proof rejection. The fixed-source replay and false-accept
-control passed, but this is not a fresh or independent validation. The remaining
-release work is:
+One diagnosed r3 failure now has a v44 development candidate: the VDAC1
+adjacent-context proof rejection. The fixed-draft acceptance check and three
+false-accept controls passed, but this is not a fresh or independent validation.
+The remaining release work is:
 
 1. Freeze the candidate, then reserve new questions that have not been inspected
    during development. Run the declared trial once and preserve failures.
    Replaying r3 is regression evidence, not release validation.
-2. Add repeated and adversarial controls for the v43 proof-context rule; stop if
-   a qualifier from a different experiment, condition, document or claim is
-   accepted.
+2. Add repeated and adversarial controls for the v44 proof-context rule; stop if
+   a qualifier from a different source chunk, experiment, condition, document or
+   claim is accepted.
 3. If independent human source review is unavailable, record the result as
    **not completed** rather than passed.
 4. Only after the semantic gate is settled, collect a matching performance
@@ -149,7 +151,7 @@ release work is:
 | 2026-10-22 | Consolidated current status and evidence status; no semantic quality transition | This page and the `a8d6799` gates |
 | 2026-10-22 | Updated `certifi` to patched 2026.10.19 and refreshed the application baseline to `a8d6799`; no application code or model change | `uv.lock`, this page |
 | 2026-10-22 | Refreshed the application baseline to `ecc6ba3`; confirmed `certifi` alert #1 fixed and no open Dependabot alerts observed | This page, GitHub alert #1 |
-| 2026-10-22 | Added the v43 adjacent-context proof clarification; one fixed-source replay rendered a supported answer and one false-accept control rejected; fresh reserved validation not completed | [Development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) |
+| 2026-10-22 | Added the v44 adjacent-context proof clarification; fixed-draft acceptance and omitted-qualifier, different-population and cross-chunk controls passed; fresh reserved validation not completed | [Development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) |
 
 Historical reports and dated findings remain unchanged. Update this page only
 when a validated status transition occurs.
