@@ -108,7 +108,9 @@ def validate_verification_structure(
         )
 
 
-def _validate_question_identifiers(question: str, evidence_quotes: list[str]) -> None:
+def _validate_question_identifiers(
+    question: str, evidence_quotes: list[str], *, label: str = "approved evidence"
+) -> None:
     """Require explicit alphanumeric question identifiers in displayed evidence.
 
     This is a necessary lexical condition, not proof of experiment identity.
@@ -132,9 +134,12 @@ def _validate_question_identifiers(question: str, evidence_quotes: list[str]) ->
     ]
     if missing:
         raise ValueError(
-            f"approved evidence does not contain question identifier(s): {', '.join(missing)}. "
-            "Select exact scope excerpts as well as result excerpts; question text, claims, "
-            "metadata and unselected source context cannot supply the missing identifiers."
+            f"{label} does not contain question identifier(s): {', '.join(missing)}. "
+            + (
+                "Preserve named question qualifiers in the answer; evidence cannot repair omitted claim wording."
+                if label == "answer text"
+                else "Select exact scope excerpts as well as result excerpts; question text, claims, metadata and unselected source context cannot supply the missing identifiers."
+            )
         )
 
 
@@ -217,6 +222,12 @@ def _validate_verification(
         for entry in build_verifier_evidence(claims, sources)
     }
     failures: list[str] = []
+    try:
+        _validate_question_identifiers(
+            question, [claim.text for claim in claims], label="answer text"
+        )
+    except ValueError as error:
+        failures.append(str(error))
     try:
         _validate_question_identifiers(
             question,

@@ -1994,7 +1994,7 @@ class ApprovedProofTests(unittest.TestCase):
                 "answerable": True,
                 "claims": [
                     {
-                        "text": "Uptake increased.",
+                        "text": "Uptake increased in C26-bearing mice.",
                         "attribution": "this_document_authors",
                         "citations": [{"source_id": 1}],
                     }
@@ -2109,7 +2109,7 @@ class ApprovedProofTests(unittest.TestCase):
             )
         proof.assert_called_once()
 
-    def test_proof_prompt_allows_one_claim_context_across_citations(self) -> None:
+    def test_proof_keeps_strict_scope_rules_without_transfer_permission(self) -> None:
         source = ChunkData(
             document="study.pdf",
             page=4,
@@ -2131,27 +2131,10 @@ class ApprovedProofTests(unittest.TestCase):
             ],
         )
         prompt = build_proof_prompt("How did VDAC1 and Bax compare?", [claim], [source])
-        self.assertIn("Read all citations for a claim together.", prompt)
-        self.assertIn(
-            "A qualifier established in one cited excerpt can apply to an outcome",
-            prompt,
-        )
-        self.assertIn(
-            "Quoted wording must explicitly link the scope and outcome", prompt
-        )
-        self.assertIn(
-            "The claim itself must state every requested population, cohort, timing, "
-            "perturbation and comparison qualifier.",
-            prompt,
-        )
-        self.assertIn(
-            "Excerpts cannot repair a qualifier omitted from the claim text.",
-            prompt,
-        )
-        self.assertIn(
-            "Do not combine qualifiers across different experiments, conditions, documents, "
-            "or claims.",
-            prompt,
+        self.assertIn("Scope must connect to the reported outcome", prompt)
+        self.assertIn("Missing evidence means supported=false", prompt)
+        self.assertNotIn(
+            "A qualifier established in one cited excerpt can apply", prompt
         )
         self.assertIn('"document": "study.pdf"', prompt)
         self.assertIn('"page": 4', prompt)
@@ -2193,10 +2176,9 @@ class ApprovedProofTests(unittest.TestCase):
         citation = payload["claims"][0]["citations"][0]
         self.assertEqual(citation["source_window_start_chunk"], 2)
         self.assertNotIn("chunk_index", citation)
-        self.assertIn("A source window may merge multiple stored chunks", prompt)
-        self.assertIn("Shared metadata or adjacency is not evidence", prompt)
-        self.assertIn(
-            "Quoted wording must explicitly link the scope and outcome", prompt
+        self.assertIn("Scope must connect to the reported outcome", prompt)
+        self.assertNotIn(
+            "A qualifier established in one cited excerpt can apply", prompt
         )
         self.assertNotIn("same cited source chunk", prompt)
 
@@ -2350,6 +2332,39 @@ class ApprovedProofTests(unittest.TestCase):
             )
         proof.assert_not_called()
         self.assertEqual(evidence, [])
+
+    def test_missing_named_population_in_claim_cannot_reach_proof(self) -> None:
+        question = "How did VDAC1 affect expression in Mfn1KD myoblasts?"
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="VDAC1 rescued expression in Mfn1KD myoblasts.",
+        )
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "VDAC1 rescued expression.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
+        verdict = approved(question)
+        for part in [
+            verdict["requested_answer"],
+            *cast(list[object], verdict["requirements"]),
+            *cast(list[object], verdict["verdicts"]),
+        ]:
+            cast(dict[str, object], part)["supporting_evidence_ids"] = [1]
+        with patch("app.grounding.generate_approved_proof_json") as proof:
+            self.assertFalse(
+                verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+            )
+        proof.assert_not_called()
 
     def test_invalid_proof_and_rejected_repair_fail_closed(self) -> None:
         for proof in [
