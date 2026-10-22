@@ -505,8 +505,8 @@ def grounding_fingerprint() -> str:
             "non_study_context": "Context: ",
         },
         "citation_render": "{document}, page {page}",
-        "evidence_text": "Application-owned whitespace-normalized source spans selected by verifier evidence IDs; drafts cannot supply quotes",
-        "display_quote_join_rule": "Join consecutive selected citations only within one source, at unique non-overlapping positions separated solely by whitespace, in source order and within MAX_QUOTE_CHARS; never add unselected text. Proof and display use the same assembled excerpts.",
+        "evidence_text": "Bounded source context covers verifier-selected spans and all intervening text, with whitespace normalization only; proof and display use identical excerpts; drafts cannot supply quotes",
+        "display_quote_context_rule": "For each claim/source, display the entire normalized source span between the first and last selected quotes, including intervening text. Multiple quote occurrences or a span over MAX_QUOTE_CHARS refuse. Never combine sources. Proof receives exactly the same assembled excerpts as display; deterministic selection guards still run on selected evidence IDs.",
         "inline_citation_pattern": _INLINE_CITATION.pattern,
     }
     encoded = json.dumps(

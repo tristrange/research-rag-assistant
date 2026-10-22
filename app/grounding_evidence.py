@@ -81,36 +81,36 @@ def _evidence_spans(text: str) -> list[str]:
     return spans
 
 
-def _join_adjacent_citations(
+def _assemble_citation_context(
     citations: list[EvidenceQuote], sources: list[ChunkData]
 ) -> list[EvidenceQuote]:
-    """Join only selected, unambiguous, touching spans; never fill a context gap."""
-    joined: list[EvidenceQuote] = []
+    """Show all text between selected quotes so experiment boundaries stay visible."""
+    by_source: dict[int, list[str]] = {}
     for citation in citations:
-        if joined and joined[-1]["source_index"] == citation["source_index"]:
-            text = _normalize_whitespace(sources[citation["source_index"]]["text"])
-            quotes = [joined[-1]["quote"], citation["quote"]]
+        by_source.setdefault(citation["source_index"], []).append(citation["quote"])
+    assembled: list[EvidenceQuote] = []
+    for source_index, quotes in by_source.items():
+        text = _normalize_whitespace(sources[source_index]["text"])
+        if len(quotes) == 1:
+            context = quotes[0]
+        else:
             positions = [text.find(quote) for quote in quotes]
-            if all(
-                start >= 0 and text.find(quote, start + 1) == -1
+            if any(
+                start < 0 or text.find(quote, start + 1) != -1
                 for quote, start in zip(quotes, positions)
             ):
-                (left, start), (right, end_start) = sorted(
-                    zip(quotes, positions), key=lambda item: item[1]
+                raise ValueError(
+                    "selected quotes do not identify unambiguous source context"
                 )
-                end = end_start + len(right)
-                if (
-                    start + len(left) <= end_start
-                    and not text[start + len(left) : end_start].strip()
-                    and end - start <= MAX_QUOTE_CHARS
-                ):
-                    joined[-1] = {
-                        "source_index": citation["source_index"],
-                        "quote": text[start:end],
-                    }
-                    continue
-        joined.append(citation)
-    return joined
+            start = min(positions)
+            end = max(start + len(quote) for quote, start in zip(quotes, positions))
+            if end - start > MAX_QUOTE_CHARS:
+                raise ValueError(
+                    "selected quote context exceeds the quote limit; select a smaller evidence span"
+                )
+            context = text[start:end]
+        assembled.append({"source_index": source_index, "quote": context})
+    return assembled
 
 
 def _record_accepted_evidence(
@@ -119,7 +119,7 @@ def _record_accepted_evidence(
     feedback: list[dict[str, object]],
     claim_evidence: list[AnswerClaim] | None,
 ) -> None:
-    """Expose only the final approved verifier's source-bound evidence selections."""
+    """Assemble source-bound context around the final verifier's selections."""
     if claim_evidence is None:
         return
     verification = VerificationResult.model_validate(feedback[0]["output"])
@@ -133,7 +133,7 @@ def _record_accepted_evidence(
             {
                 "text": claim.text,
                 "attribution": claim.attribution,
-                "citations": _join_adjacent_citations(
+                "citations": _assemble_citation_context(
                     [
                         {
                             "source_index": catalogue[evidence_id]["source_id"] - 1,

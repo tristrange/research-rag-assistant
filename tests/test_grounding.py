@@ -2366,6 +2366,14 @@ class ApprovedProofTests(unittest.TestCase):
             )
         proof.assert_not_called()
 
+    def test_proof_reason_is_bounded_diagnostic_text(self) -> None:
+        from app.grounding_models import ApprovedProof
+
+        proof = ApprovedProof.model_validate({"supported": False, "reason": "x" * 350})
+        self.assertFalse(proof.supported)
+        with self.assertRaises(ValueError):
+            ApprovedProof.model_validate({"supported": False, "reason": "x" * 1001})
+
     def test_invalid_proof_and_rejected_repair_fail_closed(self) -> None:
         for proof in [
             {},
