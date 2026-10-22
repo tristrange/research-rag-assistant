@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-10-22
 
-**Application baseline:** `7c43f9b` (documentation-only changes after this
-baseline do not alter application behavior)
+**Application baseline:** `a8d6799` (2026-10-22)
+
+**Dependency update:** `certifi` 2026.10.19 (security only; `uv.lock`)
 
 **Decision:** local v1 remains open. Engineering checks are usable, but the
 semantic quality gate has not passed. Do not tag v1 or describe answers as
@@ -27,7 +28,8 @@ the release blockers.
 
 | Item | Current record |
 | --- | --- |
-| Application code | `7c43f9b` (2026-10-22) |
+| Application code | `a8d6799` (2026-10-22) |
+| Dependency security | `certifi` 2026.10.19 (patched); lockfile-only update |
 | Latest end-to-end quality evaluation | Candidate `6b33f221`, 2026-10-12, grounding contract v40 |
 | Latest narrow verifier replay | Base `d88baa6`, 2026-10-21, contract v41; the final fingerprint-only follow-up `71c589b` did not change the generation path |
 | Last recorded live startup check | `0b654537`, 2026-10-01 |
@@ -35,10 +37,11 @@ the release blockers.
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
 
-The `7c43f9b` baseline includes the v41 question-copy fix and performance
+The `a8d6799` baseline includes the v41 question-copy fix and performance
 instrumentation merged after the last reserved quality check. No end-to-end
-quality evaluation has been run against `7c43f9b`. The latest quality result
-therefore describes candidate `6b33f221`, not the current baseline.
+quality evaluation has been run against `a8d6799` or the dependency update. The
+latest quality result therefore describes candidate `6b33f221`, not the current
+baseline.
 
 ## Engineering gates
 
@@ -91,7 +94,7 @@ conditions, study attribution and evidence checks remain exact. See
 | Human quality review | Optional worksheet is pending | Complete it or retain the limitation explicitly |
 | Performance | No matching local hardware/model/corpus baseline | Run the documented procedure after the semantic candidate is stable; do not cite latency until then |
 | Repository controls | Branch protection still needs owner configuration for PR-only merging and required checks | Apply the GitHub settings described in the [development guide](development.md#branch-and-pull-request-workflow) |
-| Dependency security | Critical `certifi` alert #1 is open as of this update; automated security fixes are enabled | Verify the automated fix or update the lockfile before release |
+| Dependency security | Critical `certifi` alert #1 was open at the `a8d6799` baseline; `uv.lock` now resolves 2026.10.19 | Confirm the GitHub alert closes after this dependency update merges |
 
 ## Security and deployment limits
 
@@ -132,7 +135,8 @@ setup and operational constraints.
 | 2026-10-12 | Local v1 remains open after the third reserved check failed (2 of 6 answerable) | [Third check](local-v1-fresh-check-r3.md), [reservation protocol](../benchmarks/local-v1-fresh-check-2026-10-12-r3.json), [aggregate result](../benchmarks/local-v1-fresh-check-results-2026-10-12-r3.json) |
 | 2026-10-21 | Merged the v41 question-copy typography fix and verification diagnostics; deterministic regression passed, live target not reproduced, fresh reserved validation not completed | [Evidence](../benchmarks/verifier-question-typography-results-2026-10-21.json) |
 | 2026-10-21 | Merged stage-level performance instrumentation; baseline explicitly pending | [Performance procedure](performance-baselines.md) |
-| 2026-10-22 | Consolidated current status and evidence status; no semantic quality transition | This page and the current `main` gates |
+| 2026-10-22 | Consolidated current status and evidence status; no semantic quality transition | This page and the `a8d6799` gates |
+| 2026-10-22 | Updated `certifi` to patched 2026.10.19 and refreshed the application baseline to `a8d6799`; no application code or model change | `uv.lock`, this page |
 
 Historical reports and dated findings remain unchanged. Update this page only
 when a validated status transition occurs.
