@@ -32,6 +32,16 @@ current commands rather than copying its full instructions here.
   prompts, evaluation settings or corpus provenance as semantic changes that
   need their own evidence.
 
+## Status and evidence
+
+- `docs/status.md` is the current status authority. Update it only on a validated
+  transition: a completed reserved check, a merged behavior change with evidence,
+  a measured baseline, or a resolved blocker. Keep historical reports and dated
+  findings unchanged; link to them rather than rewriting them.
+- Do not claim release readiness or general answer accuracy from green CI,
+  development replays, or a passing synthetic regression. See the status decision
+  log for the current position.
+
 ## Evidence and evaluation
 
 - Keep findings from the paper being queried distinct from findings in its
