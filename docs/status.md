@@ -2,9 +2,9 @@
 
 **Last updated:** 2026-10-22
 
-**Application baseline:** `a8d6799` (2026-10-22)
+**Application baseline:** `ecc6ba3` (2026-10-22)
 
-**Dependency update:** `certifi` 2026.10.19 (security only; `uv.lock`)
+**Dependency update:** `certifi` 2026.10.19 (security only; `uv.lock`); GitHub alert #1 fixed
 
 **Decision:** local v1 remains open. Engineering checks are usable, but the
 semantic quality gate has not passed. Do not tag v1 or describe answers as
@@ -28,32 +28,33 @@ the release blockers.
 
 | Item | Current record |
 | --- | --- |
-| Application code | `a8d6799` (2026-10-22) |
-| Dependency security | `certifi` 2026.10.19 (patched); lockfile-only update |
+| Application code | `ecc6ba3` (2026-10-22); v43 proof-context candidate in this change |
+| Dependency security | `certifi` 2026.10.19 (patched); alert #1 fixed 2026-10-22; no open Dependabot alerts observed |
 | Latest end-to-end quality evaluation | Candidate `6b33f221`, 2026-10-12, grounding contract v40 |
-| Latest narrow verifier replay | Base `d88baa6`, 2026-10-21, contract v41; the final fingerprint-only follow-up `71c589b` did not change the generation path |
+| Latest narrow verifier replay | Base `ecc6ba3`, 2026-10-22, contract v43: one fixed-source VDAC1 replay accepted; one synthetic false-accept control rejected |
 | Last recorded live startup check | `0b654537`, 2026-10-01 |
-| Current grounding contract | `claim-grounding-v41`; see [architecture](architecture.md#grounding-module-contract) |
+| Current grounding contract | `claim-grounding-v43`; see [architecture](architecture.md#grounding-module-contract) |
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
 
-The `a8d6799` baseline includes the v41 question-copy fix and performance
-instrumentation merged after the last reserved quality check. No end-to-end
-quality evaluation has been run against `a8d6799` or the dependency update. The
-latest quality result therefore describes candidate `6b33f221`, not the current
-baseline.
+The `ecc6ba3` baseline includes the v41 question-copy fix, performance
+instrumentation and the patched `certifi` lockfile. The v43 change only clarifies
+how the isolated proof reads a claim's approved citation set; it does not change
+retrieval, drafting, verification or evidence binding. No end-to-end quality
+evaluation has been run against `ecc6ba3` or v43. The latest quality result
+therefore describes candidate `6b33f221`, not the current baseline.
 
 ## Engineering gates
 
 | Gate | Latest result |
 | --- | --- |
-| Python regressions | 481 test methods: 464 passed, 17 PostgreSQL contract tests skipped locally |
+| Python regressions | 482 test methods: 465 passed, 17 PostgreSQL contract tests skipped locally |
 | JavaScript logic | 29 passed |
 | Real-browser smoke | 7 passed |
-| Static checks | Ruff and strict mypy pass; CodeQL passes |
+| Static checks | Ruff and strict mypy pass; CodeQL runs on this change |
 | PostgreSQL contracts | Pass in the Ubuntu CI job against disposable pgvector |
 | Lockfile | `uv lock --check` passes |
-| CI workflows | `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` pass |
+| CI workflows | Previous `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` passed at `ecc6ba3`; this change reruns them |
 | Performance baseline | Pending; instrumentation exists, no measured baseline is recorded |
 | Live startup | Last recorded 2026-10-01; not repeated against current `main` |
 
@@ -70,6 +71,7 @@ as a synonym for AI review.
 | --- | --- | --- |
 | [Third reserved fresh-question check](local-v1-fresh-check-r3.md) | Eight AI-authored questions: 2 of 6 answerable cases supported, both controls refused, three safe refusals, one output-budget error; no material unsupported displayed claim or attribution error observed | **Failed** the unchanged stopping rule; see the [reservation protocol](../benchmarks/local-v1-fresh-check-2026-10-12-r3.json) |
 | [Question-copy typography replay](../benchmarks/verifier-question-typography-results-2026-10-21.json) | Two saved-source development cases: one supported answer, one answerable refusal; the target U+2011 failure was not reproduced | Development only; fresh reserved validation **not completed** |
+| [Adjacent-context proof development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) | One fixed-source VDAC1 replay rendered a supported answer; one synthetic false-accept control rejected a result from a different population | Development only; one replay, no human review, fresh reserved validation **not completed** |
 | [AI-assisted development review](v1-readiness.md#development-review-protocol-frozen-before-new-generation) | 16 historical inspected cases: 12 passed, including 8 of 12 answerable cases and all 4 controls | Accepted as portfolio evidence; not current-code accuracy or independent validation; see the [review record](../benchmarks/v1-development-review.json) |
 | Optional human worksheet | Not completed | Outstanding |
 
@@ -84,17 +86,23 @@ dash variants normalize to ASCII hyphen-minus, while numbers, words, spelling,
 conditions, study attribution and evidence checks remain exact. See
 [named identifiers and question-copy limits](question-identifiers.md#question-copy-typography).
 
+The 22 October v43 proof-context change is limited to how the isolated proof
+reads a claim's approved citations. It does not auto-approve evidence, add a
+repair, or combine qualifiers across different experiments, conditions,
+documents, or claims. The fixed-source replay and control are regression
+evidence, not a reliability claim; see the
+[development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).
+
 ## Known blockers
 
 | Blocker | Evidence | Next action |
 | --- | --- | --- |
 | Answer completeness | r3 met 2 of 6 answerable cases against a 5-of-6 target; three safe refusals despite sufficient retrieval | Diagnose one refusal mechanism at a time without weakening evidence guards |
-| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support | Preserve failures, add adversarial tests and run a bounded development replay |
-| Fresh validation | The v41 question-copy fix has deterministic regression proof but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
+| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support. The v43 proof-context clarification passed one fixed-source VDAC1 replay and one control, but one replay is not reliability proof | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
+| Fresh validation | The v41 question-copy fix and v43 proof-context change have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
 | Human quality review | Optional worksheet is pending | Complete it or retain the limitation explicitly |
 | Performance | No matching local hardware/model/corpus baseline | Run the documented procedure after the semantic candidate is stable; do not cite latency until then |
 | Repository controls | Branch protection still needs owner configuration for PR-only merging and required checks | Apply the GitHub settings described in the [development guide](development.md#branch-and-pull-request-workflow) |
-| Dependency security | Critical `certifi` alert #1 was open at the `a8d6799` baseline; `uv.lock` now resolves 2026.10.19 | Confirm the GitHub alert closes after this dependency update merges |
 
 ## Security and deployment limits
 
@@ -112,17 +120,20 @@ setup and operational constraints.
 
 ## Next experiment
 
-1. Choose one diagnosed r3 failure: a safe answerable refusal or the verifier
-   output-budget error. State the hypothesis, the smallest decision change, the
-   false-accept risk and a stop rule before changing behavior.
-2. Add adversarial synthetic tests and preserve the existing evidence guards.
-   Run the full Python, JavaScript, browser, mypy, PostgreSQL and CodeQL gates.
-3. Freeze the candidate, then reserve new questions that have not been inspected
+One diagnosed r3 failure now has a v43 development candidate: the VDAC1
+adjacent-context proof rejection. The fixed-source replay and false-accept
+control passed, but this is not a fresh or independent validation. The remaining
+release work is:
+
+1. Freeze the candidate, then reserve new questions that have not been inspected
    during development. Run the declared trial once and preserve failures.
    Replaying r3 is regression evidence, not release validation.
-4. If independent human source review is unavailable, record the result as
+2. Add repeated and adversarial controls for the v43 proof-context rule; stop if
+   a qualifier from a different experiment, condition, document or claim is
+   accepted.
+3. If independent human source review is unavailable, record the result as
    **not completed** rather than passed.
-5. Only after the semantic gate is settled, collect a matching performance
+4. Only after the semantic gate is settled, collect a matching performance
    baseline and complete the release review. Do not infer latency or accuracy
    from CI or from the earlier development reports.
 
@@ -137,6 +148,8 @@ setup and operational constraints.
 | 2026-10-21 | Merged stage-level performance instrumentation; baseline explicitly pending | [Performance procedure](performance-baselines.md) |
 | 2026-10-22 | Consolidated current status and evidence status; no semantic quality transition | This page and the `a8d6799` gates |
 | 2026-10-22 | Updated `certifi` to patched 2026.10.19 and refreshed the application baseline to `a8d6799`; no application code or model change | `uv.lock`, this page |
+| 2026-10-22 | Refreshed the application baseline to `ecc6ba3`; confirmed `certifi` alert #1 fixed and no open Dependabot alerts observed | This page, GitHub alert #1 |
+| 2026-10-22 | Added the v43 adjacent-context proof clarification; one fixed-source replay rendered a supported answer and one false-accept control rejected; fresh reserved validation not completed | [Development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) |
 
 Historical reports and dated findings remain unchanged. Update this page only
 when a validated status transition occurs.

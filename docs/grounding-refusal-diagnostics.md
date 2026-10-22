@@ -164,3 +164,21 @@ Neither run recorded an uncaught error, transport timeout or output-limit failur
 The verifier comparison's fenced response is the failure that motivated v41's
 single-fence handling; the fence check is an analysis of that retained response,
 not a new generation trial.
+
+## 22 October adjacent-context proof check
+
+The r3 mitochondrial case showed the isolated proof rejecting a repair claim
+because the population was established in one approved excerpt and the Bax/PPID
+outcome in another excerpt from the same claim. The v43 proof instructions now
+read all citations for one claim together, while prohibiting qualifier
+combinations across different experiments, conditions, documents or claims.
+
+One fixed-source replay rendered a supported answer after the repair path. A
+synthetic false-accept control, where the outcome was reported for control
+myoblasts instead of the requested Mfn1KD myoblasts, was still rejected. The
+replay's final claim did not repeat the population phrase; the question and
+approved excerpt supply it, but this does not establish general answer
+completeness. This is development regression evidence, not fresh reserved
+validation or independent review. Raw artifacts remain in the ignored
+`evaluation-results/` directory; the public aggregate and artifact hashes are in
+[`benchmarks/verifier-adjacent-context-development-2026-10-22.json`](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).

@@ -25,6 +25,7 @@ from app.grounding import (
     _normalize_whitespace,
     _validate_question_identifiers,
     build_draft_prompt,
+    build_proof_prompt,
     build_verifier_evidence,
     build_verifier_prompt,
     generate_draft_json,
@@ -2105,6 +2106,33 @@ class ApprovedProofTests(unittest.TestCase):
                 verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
             )
         proof.assert_called_once()
+
+    def test_proof_prompt_allows_one_claim_context_across_citations(self) -> None:
+        claim = AnswerClaim(
+            text="In Mfn1KD myoblasts, VDAC1 and Bax both rescued expression.",
+            attribution="this_document_authors",
+            citations=[
+                {
+                    "source_index": 0,
+                    "quote": "VDAC1 rescued expression in Mfn1KD myoblasts.",
+                },
+                {
+                    "source_index": 0,
+                    "quote": "Bax downregulation produced a rescue effect.",
+                },
+            ],
+        )
+        prompt = build_proof_prompt("How did VDAC1 and Bax compare?", [claim])
+        self.assertIn("Read all citations for a claim together.", prompt)
+        self.assertIn(
+            "A qualifier established in one cited excerpt can apply to an outcome",
+            prompt,
+        )
+        self.assertIn(
+            "Do not combine qualifiers across different experiments, conditions, "
+            "documents, or claims.",
+            prompt,
+        )
 
     def test_proof_sees_only_displayed_excerpts_and_not_prior_approval(self) -> None:
         source = ChunkData(

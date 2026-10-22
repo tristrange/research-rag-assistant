@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "kind": "verifier-adjacent-context-development-check",
+  "status": "development-only",
+  "date": "2026-10-22",
+  "base_commit": "ecc6ba3ad2ed867597c971df6551c0865004f6e5",
+  "contract": "claim-grounding-v43",
+  "hypothesis": "The isolated proof evaluated each approved excerpt separately and rejected a claim whose population was established by one excerpt and whose outcome was reported by an adjacent excerpt from the same claim. Reading the citation set for one claim together should accept this supported claim without accepting qualifiers combined across different experiments, conditions, documents, or claims.",
+  "change": "The proof instructions now read all citations for a claim together. A qualifier from one cited excerpt may apply to an outcome in another excerpt for the same claim when they describe the same experiment and do not indicate different populations or conditions. The existing prohibition on combining qualifiers across experiments, conditions, documents, or claims remains.",
+  "source": {
+    "run": "evaluation-results/local-v1-fresh-check-r3-20261011T230800679291Z/run.json",
+    "run_sha256": "532c8c020784bd64715b477d60296ba43ec3edd7c4c8a4bd47c5cefbd71af146",
+    "case_id": "r3-mito-vdac1-bax-ppid",
+    "previous_outcome": "repair proof rejected the approved claim after the repair verifier selected both excerpts for the same claim"
+  },
+  "model": {
+    "name": "gpt-oss:20b",
+    "draft_think": "low",
+    "verifier_think": "medium",
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "output_tokens": 4096,
+    "timeout_seconds": 300
+  },
+  "replay": {
+    "method": "one fixed-source development replay; no retrieval or judge",
+    "answer_rendered": true,
+    "stages": [
+      "draft",
+      "verification",
+      "rejected",
+      "repair_draft",
+      "repair_verification",
+      "repair_verification_proof"
+    ],
+    "proof_supported": true,
+    "elapsed_seconds": 199.1,
+    "grounding_fingerprint": "a3fa6fab6193a31a2ab52d045e17329fde34eb11dbf254ade86f76dc4d3b2e26",
+    "artifact": "evaluation-results/verifier-adjacent-context-vdac1-20261022-v43.json",
+    "artifact_sha256": "f00baed911682ed62290961ec8c30d432bf4729b64cc6124216b2a6067cda13b"
+  },
+  "false_accept_control": {
+    "method": "one synthetic proof call; the outcome is reported for control myoblasts while the claim requests Mfn1KD myoblasts",
+    "proof_supported": false,
+    "elapsed_seconds": 25.75,
+    "grounding_fingerprint": "a3fa6fab6193a31a2ab52d045e17329fde34eb11dbf254ade86f76dc4d3b2e26",
+    "artifact": "evaluation-results/verifier-adjacent-context-control-20261022-v43.json",
+    "artifact_sha256": "6b690d2143d14300abb85b4f0c720953751824a38704cb4636cc7ad5e497e071"
+  },
+  "limitations": [
+    "This is one development replay of a previously inspected case, not a fresh reserved validation or a benchmark.",
+    "The answer and control each used one stochastic generation; repeated trials are required before claiming a reliability improvement.",
+    "The final rendered claim did not repeat the Mfn1KD population phrase; the question and approved excerpt supply it, but this check does not establish general answer completeness.",
+    "No independent human review of the question, evidence, or answer has been completed.",
+    "Raw excerpts and reports remain in the Git-ignored evaluation-results directory."
+  ],
+  "stop_rule": "Stop if the fixed-source replay still rejects the supported claim, or if any false-accept control accepts a qualifier from a different experiment, condition, document, or claim."
+}

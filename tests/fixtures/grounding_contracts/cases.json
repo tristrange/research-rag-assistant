@@ -1,5 +1,5 @@
 {
-  "contract_version": "claim-grounding-v41",
+  "contract_version": "claim-grounding-v43",
   "note": "Synthetic, license-safe cases. Each case pins the public grounded_answer result for one ordered script of model calls, replayed at app.grounding.generate_json. A reordered pipeline consumes the wrong scripted response and fails.",
   "cases": [
     {
