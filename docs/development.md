@@ -74,6 +74,35 @@ controls. Always use a fresh output path; preserve failures. The injection probe
 tests one attack pattern, not all possible attacks. Passing model controls does
 not establish answer reliability or replace human review.
 
+## Branch and pull-request workflow
+
+Start from an up-to-date `main`, use one short-lived branch per concern, and open
+a pull request. Do not merge with failing checks. When branch protection is
+enabled, require the check names reported for the pull request:
+
+- `Python, UI and types`: Ruff, Python, Node and browser tests, and mypy.
+- `PostgreSQL contracts`: disposable pgvector integration tests.
+- `CodeQL`: GitHub code scanning.
+
+The repository owner applies branch protection or a ruleset in GitHub settings.
+Configure `main` to require a pull request, require the checks above, and block
+force pushes. These settings are not stored in this repository. Confirm rule names
+from the actual pull-request checks because GitHub matches them literally. Any
+bypass policy is a deliberate owner choice; do not use it to skip failed checks.
+
+## Dependency updates
+
+Dependabot checks `uv` dependencies and GitHub Actions weekly. Patch and minor
+updates are grouped; major updates remain separate. A dependency pull request is
+ready for review only after `uv.lock` matches the manifest and the full gate set
+passes. Verify the lock file with `uv lock --check`; if it is stale, regenerate it
+with `uv lock`, then install and run with `uv sync --locked` and
+`uv run --locked ...`. Security updates follow the same review and
+locked-environment checks. Review updates to extraction, embedding, reranking,
+database or model-facing packages for behavior and provenance effects. A change
+to model defaults, prompts, evaluation settings or corpus fingerprints is not
+routine maintenance and needs its own evidence.
+
 ## CI and quality boundaries
 
 The `Regression checks` workflow installs locked dependencies on a fresh macOS
