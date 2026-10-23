@@ -1,0 +1,56 @@
+{
+  "kind": "bounded-v49-complete-source-context-development-check",
+  "candidate_commit": "c285cfaefbb28198e33a5cd6fa77c40c01dcb22b",
+  "inputs_sha256": "c6853c60f260acb76272328d7e4f7098480b7a5e00790fcaf3dcc4c5bf2af13b",
+  "runner_sha256": "6e8ce1ecc496b6da31cee154998ccba64fe03fbc56259e9816015cd8695e9c92",
+  "source_v45_inputs_sha256": "4ab3a866d728f10dfd1490383e8fea8ca54cc54b494517d1acf9a0c17d364467",
+  "replicates": 1,
+  "maximum_chat_calls": 55,
+  "maximum_seconds_for_new_calls": 2700,
+  "per_stage_timeout_seconds": 300,
+  "control_expectations": [
+    {
+      "name": "source_faithful_comparison",
+      "expected_supported": true
+    },
+    {
+      "name": "omitted_population",
+      "expected_supported": false
+    },
+    {
+      "name": "retained_v44_no_effect_overstatement",
+      "expected_supported": false
+    },
+    {
+      "name": "merged_window_hidden_experiment_boundary",
+      "expected_supported": false
+    },
+    {
+      "name": "unsupported_full_rescue",
+      "expected_supported": false
+    },
+    {
+      "name": "different_population_in_adjacent_result",
+      "expected_supported": false
+    },
+    {
+      "name": "cross_document_scope_transfer",
+      "expected_supported": false
+    }
+  ],
+  "case_ids": [
+    "r3-sample-cohort2-inoculum",
+    "r3-sample-c26-grip-response",
+    "r3-housing-ucp1-expression",
+    "r3-housing-adiponectin-control",
+    "r3-mito-vdac1-bax-ppid",
+    "r3-mito-endosome-proximity",
+    "r3-activin-dio-adipose-depots",
+    "r3-activin-bone-density-control"
+  ],
+  "change": "Original main strict proof instructions retained. Application proves and displays the complete source span between uniquely located selected quotes, including every intervening word, capped at4000; ambiguous or oversized multi-quote context refuses. Sources never merge. Selected-ID scope/duration/strength guards run before context assembly; named IDs also required in claim text. Proof reason limit1000 diagnostic chars; approval boolean/type/extra-field/schema checks retained.",
+  "stop_rule": "One frozen candidate, one call per fixed-draft control, one normal retrieval-to-answer trial per known case only if every control matches. Preserve all failures, no retuning or selective retries. No new call after 55 chat calls or 2700 seconds.",
+  "pr_acceptance": "Every control matches with no model/schema error; proof/display quote equivalence and exact binding regressions pass; source review finds no material unsupported displayed claim or attribution error and both unanswerable controls refuse in the broader check. Other answerable refusals remain explicit product limitations; no general completeness improvement inferred.",
+  "product_acceptance": "The local-v1 requirement of five of six complete answers and both control refusals with no material unsupported claim is unchanged. Known r3 replay cannot satisfy fresh validation or approve v1.",
+  "limits": "Inspected questions, one stochastic trial, no baseline rerun or human review. Read-only current database and newly retrieved passages; not a performance baseline."
+}

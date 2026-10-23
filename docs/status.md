@@ -1,14 +1,14 @@
 # Project status
 
-**Last updated:** 2026-10-22
+**Last updated:** 2026-10-23
 
 **Application baseline:** `ecc6ba3` (2026-10-22)
 
 **Dependency update:** `certifi` 2026.10.19 (security only; `uv.lock`); GitHub alert #1 fixed
 
-**Decision:** local v1 remains open; PR #92 is blocked from merge. Engineering checks are usable, but the
-semantic quality gate has not passed. Do not tag v1 or describe answers as
-generally reliable.
+**Decision:** local v1 remains open. PR #92 has passed its focused development
+controls; the broader semantic quality gate has not passed. Do not tag v1 or
+describe answers as generally reliable.
 
 This page is the current status authority. It summarizes evidence; it does not
 replace the dated protocols, reports or historical findings linked below.
@@ -28,35 +28,38 @@ the release blockers.
 
 | Item | Current record |
 | --- | --- |
-| Application code | `ecc6ba3` (2026-10-22); v45 proof-window candidate in this draft; not approved |
+| Merged application code | `ecc6ba3` (2026-10-22), grounding v41 |
+| Evaluated PR #92 candidate | `c285cfa`, grounding v49; focused controls passed, product completeness target unmet |
 | Dependency security | `certifi` 2026.10.19 (patched); alert #1 fixed 2026-10-22; no open Dependabot alerts observed |
-| Latest end-to-end quality evaluation | Candidate `6b33f221`, 2026-10-12, grounding contract v40 |
-| Latest narrow verifier check | v45: the source-faithful VDAC1 comparison was rejected; the control gate blocked the eight-case saved-source grounding replay |
+| Latest reserved quality evaluation | Candidate `6b33f221`, 2026-10-12, grounding contract v40 |
+| Latest known-question end-to-end development check | v49, 2026-10-22: 2/6 answerable, both controls refused, no pipeline errors; not fresh validation |
+| Latest narrow verifier check | v49: supported comparison accepted; all six rejection controls rejected; three deterministic decisions, four model proofs |
 | Last recorded live startup check | `0b654537`, 2026-10-01 |
 | Merged grounding contract | `claim-grounding-v41` |
-| Draft candidate contract | `claim-grounding-v45`; positive control failed; see [architecture](architecture.md#grounding-module-contract) |
+| PR #92 candidate contract | `claim-grounding-v49`; see [architecture](architecture.md#grounding-module-contract) |
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
 
-The `ecc6ba3` baseline includes the v41 question-copy fix, performance
-instrumentation and the patched `certifi` lockfile. The v45 candidate labels
-source-window metadata and requires quoted wording to connect scope and outcome;
-it does not change retrieval, drafting, verification or evidence binding. Its
-source-faithful positive control failed. No end-to-end quality evaluation has
-been run against `ecc6ba3` or v45. The latest quality result therefore describes
-candidate `6b33f221`, not the current baseline.
+The merged `ecc6ba3` baseline includes the v41 question-copy fix, performance
+instrumentation and patched `certifi` lockfile. The v49 candidate has been checked
+on eight previously inspected questions with fresh retrieval from the existing
+read-only index. Its captured application, settings, Ollama, corpus and PDF
+fingerprints matched before and after generation. Its two complete answers out
+of six do not meet the product target or demonstrate a general improvement.
+The latest reserved result still describes v40; no fresh reserved check has been
+run on v49. No reindex is required because indexing and retrieval are unchanged.
 
 ## Engineering gates
 
 | Gate | Latest result |
 | --- | --- |
-| Python regressions | Draft v45: 483 test methods; 466 passed, 17 PostgreSQL contracts skipped locally |
+| Python regressions | v49: 494 test methods; 477 passed, 17 PostgreSQL contracts skipped locally |
 | JavaScript logic | 29 passed |
 | Real-browser smoke | 7 passed |
-| Static checks | Ruff and strict mypy pass; CodeQL runs on this change |
+| Static checks | Ruff and strict mypy (91 files) pass; CodeQL passes for `c285cfa` |
 | PostgreSQL contracts | Pass in the Ubuntu CI job against disposable pgvector |
 | Lockfile | `uv lock --check` passes |
-| CI workflows | Previous `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` passed at `ecc6ba3`; this change reruns them |
+| CI workflows | `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` pass for `c285cfa`; documentation follow-up reruns them |
 | Performance baseline | Pending; instrumentation exists, no measured baseline is recorded |
 | Live startup | Last recorded 2026-10-01; not repeated against current `main` |
 
@@ -73,13 +76,15 @@ as a synonym for AI review.
 | --- | --- | --- |
 | [Third reserved fresh-question check](local-v1-fresh-check-r3.md) | Eight AI-authored questions: 2 of 6 answerable cases supported, both controls refused, three safe refusals, one output-budget error; no material unsupported displayed claim or attribution error observed | **Failed** the unchanged stopping rule; see the [reservation protocol](../benchmarks/local-v1-fresh-check-2026-10-12-r3.json) |
 | [Question-copy typography replay](../benchmarks/verifier-question-typography-results-2026-10-21.json) | Two saved-source development cases: one supported answer, one answerable refusal; the target U+2011 failure was not reproduced | Development only; fresh reserved validation **not completed** |
-| [Proof-window v45 check](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) | Source-faithful positive rejected; three negative controls rejected; four calls, 139.71 seconds; gated eight-case replay not started | **Failed** development acceptance; candidate remains draft, not merge-ready |
+| [Proof-window v45 check](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) | Source-faithful positive rejected; broader replay not started | **Failed**, retained; superseded by a different v49 implementation |
+| [Complete-context v49 check](../benchmarks/verifier-context-v49-results-2026-10-22.json) | Seven targeted controls pass; known-question pipeline: 2/6 supported complete answers, four answerable refusals, both controls refused; no unsupported displayed claim or attribution error observed | Focused PR acceptance passed; product completeness rule **not met**; fresh validation not completed |
 | [AI-assisted development review](v1-readiness.md#development-review-protocol-frozen-before-new-generation) | 16 historical inspected cases: 12 passed, including 8 of 12 answerable cases and all 4 controls | Accepted as portfolio evidence; not current-code accuracy or independent validation; see the [review record](../benchmarks/v1-development-review.json) |
 | Optional human worksheet | Not completed | Outstanding |
 
 The r3 source review was performed by a separate AI reviewer. The question-copy
 replay source review was performed by the primary agent, not an independent or
-human reviewer. The historical review is AI-assisted. None of these results
+human reviewer. The v49 code and source reviews were performed by a separate AI
+reviewer. The historical review is AI-assisted. None of these results
 establishes general scientific accuracy.
 
 The latest reserved check used grounding contract v40. The 21 October
@@ -88,23 +93,23 @@ dash variants normalize to ASCII hyphen-minus, while numbers, words, spelling,
 conditions, study attribution and evidence checks remain exact. See
 [named identifiers and question-copy limits](question-identifiers.md#question-copy-typography).
 
-The 22 October v45 proof-window candidate is limited to how the isolated proof
-reads a claim's approved citations and labels source-window metadata. The v44
-positive check had accepted a no-effect overstatement; it is not a supported-answer
-quality result. It does not
-auto-approve evidence, add a repair, or combine qualifiers across different
-experiments, conditions, documents, or claims. It requires the
-claim text itself to state every requested qualifier. The fixed-draft checks are
-regression evidence, not a reliability claim; see the
-[v45 development check](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json).
+The v49 candidate keeps merged main's strict proof instruction text. It displays
+and proves all intervening source context between selected quotes, rather than
+infer experiment identity from a merged window's starting chunk number. Selected
+ID/duration guards still run before that assembly. Named question IDs must also
+occur in displayed claims; explicit effect-strength wording is required for
+absolute absence-of-effect or complete-restoration claims. These necessary
+lexical checks cannot resolve all semantics or aliases and can refuse valid
+paraphrases. See [architecture](architecture.md#grounding-module-contract) and the
+[development record](../benchmarks/verifier-context-v49-results-2026-10-22.json).
 
 ## Known blockers
 
 | Blocker | Evidence | Next action |
 | --- | --- | --- |
-| Answer completeness | r3 met 2 of 6 answerable cases against a 5-of-6 target; three safe refusals despite sufficient retrieval | Diagnose one refusal mechanism at a time without weakening evidence guards |
-| Verifier and proof reliability | r3 had one output-budget error; adjacent context and scope qualifiers can still cause false rejection or missing support. The v45 source-faithful positive control failed; merged source windows do not provide per-excerpt origins | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
-| Fresh validation | The v41 question-copy fix and v45 proof-window candidate have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
+| Answer completeness | r3 and the known-question v49 development check each met 2 of 6 answerable cases against a 5-of-6 target; the latter had four answerable refusals | Diagnose one refusal mechanism at a time without weakening evidence guards |
+| Verifier and proof reliability | v49 passes targeted controls but still rejects sufficient evidence and produces overstrong drafts that guards must stop; no broad reliability claim | Preserve failures, add adversarial tests and run repeated and fresh validation before claiming an improvement |
+| Fresh validation | The v41 question-copy fix and v49 complete-context candidate have development evidence but no newly reserved validation | Freeze a candidate and reserve different, not previously inspected questions; obtain independent human source review if available, otherwise report validation as not completed |
 | Human quality review | Optional worksheet is pending | Complete it or retain the limitation explicitly |
 | Performance | No matching local hardware/model/corpus baseline | Run the documented procedure after the semantic candidate is stable; do not cite latency until then |
 | Repository controls | Branch protection still needs owner configuration for PR-only merging and required checks | Apply the GitHub settings described in the [development guide](development.md#branch-and-pull-request-workflow) |
@@ -125,20 +130,19 @@ setup and operational constraints.
 
 ## Next experiment
 
-PR #92 remains a draft. The v45 source-faithful positive control failed, so its
-frozen gate blocks the eight-case saved-source grounding replay. No fresh
-validation or performance baseline is completed by this work.
+The focused PR check passed, but local v1 remains open. The known-case pipeline
+still returned only two of six complete supported answers; the historical
+five-of-six product target is unchanged. Do not reserve more questions or collect
+a performance baseline just to avoid these failures.
 
-1. Preserve actual per-excerpt origins or quoted connecting context before trying
-   another proof candidate. Do not rely on a merged window's starting chunk number.
-2. Keep the omitted-population, no-effect overstatement and hidden experiment-
-   boundary controls. Require the faithful positive to pass as well.
-3. Restore a usable local database before a retrieval-to-answer evaluation. A
-   saved-source replay cannot substitute for an end-to-end check.
-4. Freeze any later candidate before generation; preserve failures without
-   selective retries. Fresh reserved validation and any human review remain
-   separately outstanding.
-5. Collect the performance baseline only after the semantic candidate is stable.
+1. Choose one remaining completeness mechanism: false per-animal quantifier
+   rejection, premature draft refusal, repeated no-effect overstatement, or
+   omitted duration evidence. Isolate it before proposing another behavior change.
+2. Keep the supported and adversarial controls, exact context/proof/display
+   binding, and the single repair. Freeze each candidate and preserve failures.
+3. A known-question replay is development evidence. Fresh reserved validation and
+   any independent human source review remain separately outstanding.
+4. Collect the performance baseline only after the semantic candidate is stable.
 
 ## Decision log
 
@@ -154,6 +158,7 @@ validation or performance baseline is completed by this work.
 | 2026-10-22 | Refreshed the application baseline to `ecc6ba3`; confirmed `certifi` alert #1 fixed and no open Dependabot alerts observed | This page, GitHub alert #1 |
 | 2026-10-22 | Added the v44 adjacent-context proof clarification; fixed-draft acceptance and omitted-qualifier, different-population and cross-chunk controls passed; fresh reserved validation not completed | [Development check](../benchmarks/verifier-adjacent-context-development-2026-10-22.json) |
 | 2026-10-22 | v45 failed the source-faithful positive control; the eight-case replay was not started and PR #92 remains draft. The v44 retained positive also overstated no rescue as no effect | [Frozen protocol](../benchmarks/verifier-proof-window-v45-protocol-2026-10-22.json), [results](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) |
+| 2026-10-23 | Completed v49 source review: focused controls and PR acceptance pass; known-question pipeline has 2/6 complete answers and two appropriate controls. Local v1 remains open; earlier failed candidates retained | [Protocol and results](../benchmarks/verifier-context-v49-results-2026-10-22.json) |
 
 Historical reports and dated findings remain unchanged. Update this page only
 when a validated status transition occurs.

@@ -216,3 +216,51 @@ and [results](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) r
 four calls in 139.71 seconds: the positive was rejected and all three rejection
 controls were refused. These refusals often cited missing population scope, so
 they do not establish that each targeted failure mode was specifically detected.
+
+### Complete displayed source context (v49)
+
+The final candidate removes the experimental permission to transfer scope across
+separate excerpts. Its proof instruction text matches merged main. Instead, the
+application assembles the entire source span between selected quotes from one
+source, including every intervening word. Proof and display use that same span.
+This reveals an experiment boundary that sentence selection could otherwise hide.
+Ambiguous multi-quote positions or context exceeding the 4,000-character quote
+limit reject the attempt; sources never merge. This assembly can add source
+context to a citation, but cannot add facts to the answer or satisfy deterministic
+checks that still use only selected evidence IDs.
+
+Named alphanumeric question identifiers must also occur in the displayed answer.
+A necessary lexical guard rejects absence-of-effect and complete-restoration
+wording without explicit matching strength language in the selected excerpts.
+It handles specified English forms and immediate negation; it is not entailment
+or alias resolution and may refuse valid paraphrases. The existing semantic
+verifier, strict proof, duration checks and single repair remain required.
+The proof reason limit is 1,000 diagnostic characters; approval types, required
+fields and extra-field rejection stay strict. No timeout or token budget changed.
+
+The frozen v49 check passed its seven controls: one supported comparison, omitted
+population, no-effect overstatement, hidden experiment boundary, unsupported full
+rescue, different population and cross-document scope transfer. Three negative
+controls were rejected deterministically and four controls used live proof calls.
+Earlier v46–v48 candidates failed their controls and never started their broader
+runs; their original artifacts and failures remain preserved in the final record.
+
+The normal document-scoped retrieval-to-answer path then ran all eight known r3
+questions once, read-only against the existing index. It used 27 chat calls in
+1,212.32 seconds including controls. Two answerable questions returned answers;
+four answerable questions were refused, and both unanswerable controls refused.
+No pipeline error occurred. This is not a performance baseline or a paired
+comparison, and the unchanged five-of-six product target is not met.
+
+The inoculum proof incorrectly demanded an explicit per-mouse quantifier before
+repair refused. Ucp1 refused during drafting. The mitochondrial initial and repair
+drafts both overstated no rescue as no effect, and the strength guard stopped
+both. Activin repair still omitted selected duration evidence. These are retained
+completeness failures; the successful fixed-draft control does not turn them into
+successful end-to-end answers.
+
+See the [frozen protocol](../benchmarks/verifier-context-v49-protocol-2026-10-22.json)
+and [results](../benchmarks/verifier-context-v49-results-2026-10-22.json). Source
+review and engineering checks establish the scope of this PR, not general answer
+accuracy. Fresh reserved validation, optional human review and a performance
+baseline remain outstanding; local v1 stays open.

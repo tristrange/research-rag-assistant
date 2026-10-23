@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "kind": "bounded-complete-source-context-development-check",
+  "status": "complete",
+  "candidate_commit": "c285cfaefbb28198e33a5cd6fa77c40c01dcb22b",
+  "contract": "claim-grounding-v49",
+  "started_at": "2026-10-22T18:46:38.894828+00:00",
+  "finished_at": "2026-10-22T19:06:51.220578+00:00",
+  "elapsed_seconds": 1212.32,
+  "chat_calls": 27,
+  "frozen_inputs_verified": true,
+  "captured_inputs": [
+    "application files",
+    "effective settings",
+    "Ollama runtime/model digests",
+    "indexed text/vectors and provenance",
+    "source PDF hashes"
+  ],
+  "runtime": {
+    "ollama_version": "0.40.8",
+    "model_digests": {
+      "gpt-oss:20b": "9ba9cc2b4e02463b933096090530aef679d534dd91ecc9afadfb2dbfdc59f3c5",
+      "nomic-embed-text": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+    }
+  },
+  "settings": {
+    "strategy": "reranked",
+    "top_k": 6,
+    "answer_mode": "verified",
+    "verifier_model": "gpt-oss:20b",
+    "verifier_temperature": 1.0,
+    "verifier_think": "medium",
+    "grounding_context_tokens": 12288,
+    "grounding_output_tokens": 4096,
+    "grounding_sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0
+    },
+    "grounding_draft_timeout_seconds": 300.0,
+    "grounding_verifier_timeout_seconds": 300.0,
+    "candidate_count": 20,
+    "reserve_vector_page": true,
+    "generator_prompt_sha256": "27bfc93e52b08c780464d658ec7ed22e45b3d5140c9ec010a1215264e6e78e14",
+    "generator_temperature": "1.0",
+    "generator_think": "low",
+    "judge_temperature": 0.0,
+    "judge_think": false,
+    "neighbor_radius": 0,
+    "max_context_chars": null
+  },
+  "corpus": {
+    "sha256": "92a2f8def85239a9dd06020d59c725f9dae52817de25e3561d6d0b8285e9b9b8",
+    "chunks_by_document": {
+      "activin-receptor-2025.pdf": 233,
+      "housing-temperature.pdf": 216,
+      "mitochondrial-dynamics-2023.pdf": 387,
+      "sample.pdf": 207
+    }
+  },
+  "database_read_only": true,
+  "controls": [
+    {
+      "name": "source_faithful_comparison",
+      "expected_supported": true,
+      "supported": true,
+      "matched": true,
+      "decision_stage": "semantic_proof"
+    },
+    {
+      "name": "omitted_population",
+      "expected_supported": false,
+      "supported": false,
+      "matched": true,
+      "decision_stage": "deterministic_guard"
+    },
+    {
+      "name": "retained_v44_no_effect_overstatement",
+      "expected_supported": false,
+      "supported": false,
+      "matched": true,
+      "decision_stage": "deterministic_guard"
+    },
+    {
+      "name": "merged_window_hidden_experiment_boundary",
+      "expected_supported": false,
+      "supported": false,
+      "matched": true,
+      "decision_stage": "semantic_proof"
+    },
+    {
+      "name": "unsupported_full_rescue",
+      "expected_supported": false,
+      "supported": false,
+      "matched": true,
+      "decision_stage": "deterministic_guard"
+    },
+    {
+      "name": "different_population_in_adjacent_result",
+      "expected_supported": false,
+      "supported": false,
+      "matched": true,
+      "decision_stage": "semantic_proof"
+    },
+    {
+      "name": "cross_document_scope_transfer",
+      "expected_supported": false,
+      "supported": false,
+      "matched": true,
+      "decision_stage": "semantic_proof"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "r3-sample-cohort2-inoculum",
+      "elapsed_seconds": 167.51,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-sample-c26-grip-response",
+      "elapsed_seconds": 262.4,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-housing-ucp1-expression",
+      "elapsed_seconds": 13.37,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-housing-adiponectin-control",
+      "elapsed_seconds": 9.47,
+      "category": "appropriate_control_refusal",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-mito-vdac1-bax-ppid",
+      "elapsed_seconds": 229.37,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-mito-endosome-proximity",
+      "elapsed_seconds": 82.93,
+      "category": "supported_complete_answer",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-activin-dio-adipose-depots",
+      "elapsed_seconds": 367.45,
+      "category": "answerable_refusal",
+      "error_type": null
+    },
+    {
+      "case_id": "r3-activin-bone-density-control",
+      "elapsed_seconds": 6.91,
+      "category": "appropriate_control_refusal",
+      "error_type": null
+    }
+  ],
+  "counts": {
+    "supported_complete_answer": 2,
+    "answerable_refusal": 4,
+    "appropriate_control_refusal": 2,
+    "unsupported_or_incomplete_answer": 0,
+    "pipeline_error": 0,
+    "material_unsupported_displayed_claims": 0,
+    "attribution_errors": 0
+  },
+  "local_artifact_directory": "evaluation-results/proof-context-v49-20261022T184638567788Z",
+  "artifact_sha256": {
+    "run.json": "c870dbceebd3da9a508126780348f16221b36ebfe00e6d322f8fc7bf52f6bdf7",
+    "inputs.json": "c6853c60f260acb76272328d7e4f7098480b7a5e00790fcaf3dcc4c5bf2af13b",
+    "protocol.json": "96a84e86cc321332bc58a8a93f274668556ca55d8a0c5ca340072b705cb61a53",
+    "runner.py": "6e8ce1ecc496b6da31cee154998ccba64fe03fbc56259e9816015cd8695e9c92",
+    "source-review-first4.json": "5ffb6f263dd1da3d0ce9042f514a8dcbc23986221488f3f7cbc04cd9e703b9bf",
+    "source-review-last4.json": "6961903d69f085cf9c12270366ed2bd23e0f1b25bd192a0394eb144a2078fb17",
+    "source-review.json": "952ec0720478d6b24c54f5373acdbfeae57c649ef4c22a716ffef86a12322c47"
+  },
+  "earlier_failed_candidates": [
+    {
+      "contract": "claim-grounding-v46",
+      "candidate_commit": "aff34865eae86d96e3531e1fced347ccf4c7e209",
+      "status": "control_gate_failed",
+      "chat_calls": 7,
+      "elapsed_seconds": 186.28,
+      "control_false_approvals": [
+        "retained_v44_no_effect_overstatement"
+      ],
+      "control_errors": [],
+      "broader_cases_completed": 0,
+      "local_artifact_directory": "evaluation-results/proof-contiguous-v46-20261022T182740048928Z",
+      "artifact_sha256": {
+        "run.json": "4f46282a570d43b07e916eda27433c2fb24af393107b2078f9f36cda9d25a6f7",
+        "inputs.json": "37142a0a23ca5a7c64523297e875681a21c9868a590fa6577e9718bee7390642",
+        "protocol.json": "eb3ef825dab5f0d6ae7fa7e21a601355d24082da50f78da484b6b8dfc62a5336",
+        "runner.py": "dedb13ea31ffd380e9544785417abc73d00ea596e47599770144c8e2a98b878e"
+      }
+    },
+    {
+      "contract": "claim-grounding-v47",
+      "candidate_commit": "e612aea452b427200b0325eeb3353b0ca3432e51",
+      "status": "control_gate_failed",
+      "chat_calls": 5,
+      "elapsed_seconds": 117.92,
+      "control_false_approvals": [
+        "omitted_population",
+        "merged_window_hidden_experiment_boundary"
+      ],
+      "control_errors": [
+        {
+          "name": "different_population_in_adjacent_result",
+          "error_type": "ValidationError"
+        }
+      ],
+      "broader_cases_completed": 0,
+      "local_artifact_directory": "evaluation-results/proof-contiguous-v47-20261022T183446612321Z",
+      "artifact_sha256": {
+        "run.json": "1cb7c9dbbcb481c893e09e30219da7b40f034f5f8df89eb18b72f23d5f951e8f",
+        "inputs.json": "37142a0a23ca5a7c64523297e875681a21c9868a590fa6577e9718bee7390642",
+        "protocol.json": "57e919432c44e02cd48497f80a567b2ea2cca80e62fb39be74ea87d5d78c82c1",
+        "runner.py": "adeff6a005f2e7b3b779772f8d378fdd7a0df1beb47a92f6ad237325cb8afc88"
+      }
+    },
+    {
+      "contract": "claim-grounding-v48",
+      "candidate_commit": "d6419588a16c31d10cab180dff01c459a1219dfa",
+      "status": "control_gate_failed",
+      "chat_calls": 4,
+      "elapsed_seconds": 75.97,
+      "control_false_approvals": [
+        "merged_window_hidden_experiment_boundary"
+      ],
+      "control_errors": [],
+      "broader_cases_completed": 0,
+      "local_artifact_directory": "evaluation-results/proof-contiguous-v48-20261022T184132861681Z",
+      "artifact_sha256": {
+        "run.json": "a3f3c0dffd8bd99e261d954fcf92d8b673dc6464fe60ff599ed714b4b3e13bbe",
+        "inputs.json": "37142a0a23ca5a7c64523297e875681a21c9868a590fa6577e9718bee7390642",
+        "protocol.json": "8c5a7547bcf795a0087a349b87a6d9214701f299b3746a655b84f71937ec02c0",
+        "runner.py": "2f6edfc88b82da46fed89bb48a3e5f17455d9ce7dc9495ab5aebd613d2978155"
+      }
+    }
+  ],
+  "code_review": "Separate AI code review; actionable negation/plural cases fixed and retested; no remaining scoped findings.",
+  "source_review": "Separate AI review of final displayed evidence and relevant source context; not human review or fresh validation.",
+  "pr_acceptance_met": true,
+  "known_case_v1_numeric_rule_met": false,
+  "fresh_validation_completed": false,
+  "release_approved": false,
+  "after_run_environment_only": {
+    "python": "3.14.7",
+    "sentence-transformers": "6.1.0",
+    "torch": "2.14.0",
+    "pymupdf": "1.28.2",
+    "sqlalchemy": "2.1.5"
+  },
+  "limits": [
+    "Eight previously inspected questions; one stochastic run per candidate/case; no baseline rerun, no causal quality or latency claim.",
+    "Earlier failed candidates remain preserved; their outcomes were not counted as successful validation.",
+    "Reranker package version recorded after the run; weights not independently pinned by before/after Ollama snapshots.",
+    "Strength and identifier guards are necessary lexical checks, not entailment or alias resolution; valid paraphrases may be refused.",
+    "No independent human review, newly reserved validation or performance baseline."
+  ]
+}
