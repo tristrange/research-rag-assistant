@@ -199,14 +199,39 @@ grounded_answer
 └── _render_claims
 ```
 
-**Frozen behaviour.** `GROUNDING_CONTRACT_VERSION` (`claim-grounding-v41`), the
-prompt bytes built from equivalent inputs, the serialized response and claim
-evidence shape, the refusal text and the exception classes above are the
-contract. The stage fingerprint from `grounding_fingerprint()` binds evaluation
-resumes to these definitions. Replay provenance uses
-`grounding_code_fingerprint()`, a SHA-256 over every `app/grounding*.py` module,
-so changing any extracted component invalidates a frozen protocol instead of
-passing on the facade alone.
+**Frozen behaviour.** `GROUNDING_CONTRACT_VERSION` (`claim-grounding-v49`), the
+prompt/schema bytes, serialized response and claim evidence shape, refusal text
+and exception classes form the contract. The proof instruction text retains
+merged main's strict support/qualifier requirements; it grants no permission to
+transfer scope between excerpts based on metadata.
+
+Before proof, the application groups a claim's selected quotes by source. For
+multiple quotes, it includes the entire normalized source span from the first
+selected quote to the last, including every intervening word. This keeps omitted
+experiment boundaries visible. Ambiguous quote occurrences or a context span over
+4,000 characters reject the attempt and permit only the existing single repair.
+Different sources never merge. Proof and displayed citations use the same exact
+assembled context. `source_window_start_chunk` identifies only the beginning of
+a returned window, which may contain multiple stored chunks.
+
+Identifier and duration checks still use the original selected evidence IDs;
+newly included context cannot satisfy them. Named alphanumeric question IDs must
+also occur in the displayed answer text. A necessary lexical strength guard
+requires explicit absence-of-effect or complete-restoration language for claims
+using those phrases. It handles a bounded set of English forms and immediate
+negations, including contractions and common PDF split forms. It cannot establish
+subject identity, general entailment, or all paraphrases; semantic verification
+and proof remain mandatory. Valid paraphrases outside those forms may be refused.
+
+The proof's explanatory `reason` is bounded at 1,000 characters; its boolean,
+required fields, strict types and extra-field rejection remain unchanged. The
+larger diagnostic limit avoids discarding a correct negative verdict solely for
+an explanation longer than 300 characters. Model output-token and timeout budgets
+are unchanged.
+
+The stage fingerprint from `grounding_fingerprint()` binds evaluations to these
+rules, including strength patterns and flags. Replay provenance uses
+`grounding_code_fingerprint()`, a SHA-256 over every `app/grounding*.py` module.
 
 [`tests/test_grounding_contracts.py`](../tests/test_grounding_contracts.py)
 replays synthetic, license-safe cases from

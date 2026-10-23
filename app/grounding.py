@@ -60,6 +60,8 @@ from app.grounding_prompts import (
 from app.grounding_validation import (
     _INLINE_CITATION,
     _QUESTION_COPY_RULE,
+    _STRENGTH_NEGATION,
+    _STRENGTH_PATTERNS,
     _is_reference_source,
     _validate_draft,
     _validate_question_identifiers,
@@ -182,11 +184,11 @@ def generate_verification_json(
 
 
 def generate_approved_proof_json(
-    question: str, evidence: list[AnswerClaim]
+    question: str, evidence: list[AnswerClaim], sources: list[ChunkData]
 ) -> dict[str, object]:
     """Check only the excerpts that would be displayed, without previous verdicts."""
     return generate_verification_json(
-        build_proof_prompt(question, evidence), PROOF_SCHEMA
+        build_proof_prompt(question, evidence, sources), PROOF_SCHEMA
     )
 
 
@@ -261,7 +263,7 @@ def _verify_draft_with_feedback(
             attempt=attempt,
             contract_fingerprint=contract_fingerprint,
         ) as proof_diagnostic:
-            proof_data = generate_approved_proof_json(question, evidence)
+            proof_data = generate_approved_proof_json(question, evidence, sources)
             proof_entry["output"] = proof_data
             proof = ApprovedProof.model_validate(proof_data)
         # Semantic rejection stays outside the parsing context, so it is not reclassified.
@@ -441,7 +443,7 @@ def grounding_fingerprint() -> str:
         "duration_guard_sha256": duration_fingerprint(),
         "question_identifier_pattern": _IDENTIFIER_TOKEN.pattern,
         "question_identifier_filter": "Scan maximal Unicode word tokens, then require ASCII, letter-leading, alphanumeric question tokens containing a digit",
-        "question_identifier_guard": "Letter-leading contiguous ASCII alphanumeric question tokens containing a digit must occur as case-insensitive whole tokens in final approved claim quotes; lexical presence never replaces semantic proof",
+        "question_identifier_guard": "Letter-leading contiguous ASCII alphanumeric question tokens containing a digit must occur as case-insensitive whole tokens in both displayed claim text and final approved claim quotes; lexical presence never replaces semantic proof",
         "question_copy_rule": _QUESTION_COPY_RULE,
         "deterministic_repair_feedback": "Collect missing question identifiers and every claim's duration failures before the single repair",
         "model": GROUNDING_MODEL,
@@ -483,6 +485,15 @@ def grounding_fingerprint() -> str:
         "verifier_schema": VERIFIER_SCHEMA,
         "proof_instructions": _PROOF_INSTRUCTIONS,
         "proof_schema": PROOF_SCHEMA,
+        "effect_strength_patterns": {
+            label: [pattern.pattern, pattern.flags]
+            for label, pattern in _STRENGTH_PATTERNS
+        },
+        "effect_strength_negation": [
+            _STRENGTH_NEGATION.pattern,
+            _STRENGTH_NEGATION.flags,
+        ],
+        "effect_strength_guard": "Claims asserting no effect/no change/unchanged/unaffected/did not affect-alter-change or full-complete rescue/restoration require matching explicit absence-of-effect or complete-restoration wording in approved excerpts. Immediate negation excluded; necessary lexical condition, never semantic approval.",
         "proof_input": "Question and claim targets with only final approved display excerpts; no full sources or previous verifier output",
         "verifier_prompt_schema": "The same bounded response schema is serialized compactly before untrusted input and sent to the API",
         "verifier_source_selection": "Draft selects source IDs; application supplies exact source excerpts and eligible evidence IDs",
@@ -494,7 +505,8 @@ def grounding_fingerprint() -> str:
             "non_study_context": "Context: ",
         },
         "citation_render": "{document}, page {page}",
-        "evidence_text": "Application-owned whitespace-normalized source spans selected by verifier evidence IDs; drafts cannot supply quotes",
+        "evidence_text": "Bounded source context covers verifier-selected spans and all intervening text, with whitespace normalization only; proof and display use identical excerpts; drafts cannot supply quotes",
+        "display_quote_context_rule": "For each claim/source, display the entire normalized source span between the first and last selected quotes, including intervening text. Multiple quote occurrences or a span over MAX_QUOTE_CHARS refuse. Never combine sources. Proof receives exactly the same assembled excerpts as display; deterministic selection guards still run on selected evidence IDs.",
         "inline_citation_pattern": _INLINE_CITATION.pattern,
     }
     encoded = json.dumps(

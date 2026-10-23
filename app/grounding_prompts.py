@@ -390,9 +390,34 @@ def _bounded_verifier_schema(
     return schema
 
 
-def build_proof_prompt(question: str, evidence: list[AnswerClaim]) -> str:
-    """Build the isolated proof prompt from final approved display evidence."""
+def build_proof_prompt(
+    question: str,
+    evidence: list[AnswerClaim],
+    sources: list[ChunkData],
+) -> str:
+    """Build the isolated proof prompt with source-window metadata for each excerpt."""
+    claims: list[dict[str, object]] = []
+    for claim in evidence:
+        citations: list[dict[str, object]] = []
+        for citation in claim["citations"]:
+            source = sources[citation["source_index"]]
+            citations.append(
+                {
+                    "source_index": citation["source_index"],
+                    "document": source["document"],
+                    "page": source["page"],
+                    "source_window_start_chunk": source["chunk_index"],
+                    "quote": citation["quote"],
+                }
+            )
+        claims.append(
+            {
+                "text": claim["text"],
+                "attribution": claim["attribution"],
+                "citations": citations,
+            }
+        )
     return (
         f"{_PROOF_INSTRUCTIONS}\nResponse schema:\n{json.dumps(PROOF_SCHEMA)}"
-        f"\nUntrusted input JSON:\n{json.dumps({'question': question, 'claims': evidence}, ensure_ascii=False)}"
+        f"\nUntrusted input JSON:\n{json.dumps({'question': question, 'claims': claims}, ensure_ascii=False)}"
     )

@@ -164,3 +164,103 @@ Neither run recorded an uncaught error, transport timeout or output-limit failur
 The verifier comparison's fenced response is the failure that motivated v41's
 single-fence handling; the fence check is an analysis of that retained response,
 not a new generation trial.
+
+## 22 October adjacent-context proof check
+
+The r3 mitochondrial case showed the isolated proof rejecting a repair claim
+because the population was established in one approved excerpt and the Bax/PPID
+outcome in another excerpt from the same claim. The v44 proof instructions add
+document/page/chunk provenance and read all citations for one claim together
+when they come from the same source chunk. The claim text itself must state every
+requested qualifier; qualifier combinations across different source chunks,
+experiments, conditions, documents or claims remain prohibited.
+
+The retained r3 repair claim with the population qualifier was accepted. Three
+controls were rejected: the same evidence with the population removed from the
+claim text; an outcome reported for control myoblasts instead of the requested
+Mfn1KD myoblasts; and a Bax result from a different source chunk combined with
+the VDAC1 excerpt. These are fixed-draft proof checks, not a final end-to-end
+replay; pipeline-level answer completeness remains open. This is development
+regression evidence, not fresh reserved validation or independent review. Raw
+artifacts remain in the ignored `evaluation-results/` directory; the public
+aggregate and artifact hashes are in
+[`benchmarks/verifier-adjacent-context-development-2026-10-22.json`](../benchmarks/verifier-adjacent-context-development-2026-10-22.json).
+
+### Follow-up: merged source windows (v45)
+
+Review found that context expansion can merge several stored chunks into one
+returned source. Its `chunk_index` identifies only the start of that window;
+it cannot establish the original chunk of each quote. The v45 candidate labels
+this field `source_window_start_chunk` in the isolated proof and removes the
+same-chunk inference. The quoted wording must establish the connection between
+scope and outcome; shared metadata, adjacency and omitted intervening text are
+not evidence of continuity. The public citation shape and retrieval stay unchanged.
+
+Source review also found that the retained v44 repair claim's PPID wording
+strengthened no rescue into no effect on expression. Its earlier proof approval
+is an observation, not evidence that every detail was supported. The v45 positive
+control uses no-rescue wording, and the original stronger claim is retained as a
+rejection control. A synthetic merged window hides a separate control-population
+experiment between selected quotes to test the review finding directly.
+
+The source-faithful positive control was rejected, so v45 does not resolve the
+known refusal. Its gate blocks the eight-case grounding replay. Keep PR #92 in
+draft; do not merge this candidate or count the blocked replay as validation.
+The next implementation should preserve actual per-excerpt origins or enough
+quoted connecting context, rather than infer continuity from a window's starting
+chunk number. The local database was also unavailable during setup; saved-source
+checks do not establish that current retrieval works end to end.
+
+The frozen [v45 protocol](../benchmarks/verifier-proof-window-v45-protocol-2026-10-22.json)
+and [results](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) record
+four calls in 139.71 seconds: the positive was rejected and all three rejection
+controls were refused. These refusals often cited missing population scope, so
+they do not establish that each targeted failure mode was specifically detected.
+
+### Complete displayed source context (v49)
+
+The final candidate removes the experimental permission to transfer scope across
+separate excerpts. Its proof instruction text matches merged main. Instead, the
+application assembles the entire source span between selected quotes from one
+source, including every intervening word. Proof and display use that same span.
+This reveals an experiment boundary that sentence selection could otherwise hide.
+Ambiguous multi-quote positions or context exceeding the 4,000-character quote
+limit reject the attempt; sources never merge. This assembly can add source
+context to a citation, but cannot add facts to the answer or satisfy deterministic
+checks that still use only selected evidence IDs.
+
+Named alphanumeric question identifiers must also occur in the displayed answer.
+A necessary lexical guard rejects absence-of-effect and complete-restoration
+wording without explicit matching strength language in the selected excerpts.
+It handles specified English forms and immediate negation; it is not entailment
+or alias resolution and may refuse valid paraphrases. The existing semantic
+verifier, strict proof, duration checks and single repair remain required.
+The proof reason limit is 1,000 diagnostic characters; approval types, required
+fields and extra-field rejection stay strict. No timeout or token budget changed.
+
+The frozen v49 check passed its seven controls: one supported comparison, omitted
+population, no-effect overstatement, hidden experiment boundary, unsupported full
+rescue, different population and cross-document scope transfer. Three negative
+controls were rejected deterministically and four controls used live proof calls.
+Earlier v46–v48 candidates failed their controls and never started their broader
+runs; their original artifacts and failures remain preserved in the final record.
+
+The normal document-scoped retrieval-to-answer path then ran all eight known r3
+questions once, read-only against the existing index. It used 27 chat calls in
+1,212.32 seconds including controls. Two answerable questions returned answers;
+four answerable questions were refused, and both unanswerable controls refused.
+No pipeline error occurred. This is not a performance baseline or a paired
+comparison, and the unchanged five-of-six product target is not met.
+
+The inoculum proof incorrectly demanded an explicit per-mouse quantifier before
+repair refused. Ucp1 refused during drafting. The mitochondrial initial and repair
+drafts both overstated no rescue as no effect, and the strength guard stopped
+both. Activin repair still omitted selected duration evidence. These are retained
+completeness failures; the successful fixed-draft control does not turn them into
+successful end-to-end answers.
+
+See the [frozen protocol](../benchmarks/verifier-context-v49-protocol-2026-10-22.json)
+and [results](../benchmarks/verifier-context-v49-results-2026-10-22.json). Source
+review and engineering checks establish the scope of this PR, not general answer
+accuracy. Fresh reserved validation, optional human review and a performance
+baseline remain outstanding; local v1 stays open.

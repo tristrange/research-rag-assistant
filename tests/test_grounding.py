@@ -25,6 +25,7 @@ from app.grounding import (
     _normalize_whitespace,
     _validate_question_identifiers,
     build_draft_prompt,
+    build_proof_prompt,
     build_verifier_evidence,
     build_verifier_prompt,
     generate_draft_json,
@@ -280,8 +281,10 @@ class GroundingTests(unittest.TestCase):
                     "text": "The cited treatment delayed weight loss.",
                     "attribution": "external_publication",
                     "citations": [
-                        {"source_index": 1, "quote": "Treatment delayed weight loss."},
-                        {"source_index": 1, "quote": "Ten mice received treatment."},
+                        {
+                            "source_index": 1,
+                            "quote": "Ten mice received treatment. Treatment delayed weight loss.",
+                        },
                     ],
                 }
             ],
@@ -1991,7 +1994,7 @@ class ApprovedProofTests(unittest.TestCase):
                 "answerable": True,
                 "claims": [
                     {
-                        "text": "Uptake increased.",
+                        "text": "Uptake increased in C26-bearing mice.",
                         "attribution": "this_document_authors",
                         "citations": [{"source_id": 1}],
                     }
@@ -2106,6 +2109,79 @@ class ApprovedProofTests(unittest.TestCase):
             )
         proof.assert_called_once()
 
+    def test_proof_keeps_strict_scope_rules_without_transfer_permission(self) -> None:
+        source = ChunkData(
+            document="study.pdf",
+            page=4,
+            chunk_index=2,
+            text="VDAC1 and Bax rescued expression in Mfn1KD myoblasts.",
+        )
+        claim = AnswerClaim(
+            text="In Mfn1KD myoblasts, VDAC1 and Bax both rescued expression.",
+            attribution="this_document_authors",
+            citations=[
+                {
+                    "source_index": 0,
+                    "quote": "VDAC1 rescued expression in Mfn1KD myoblasts.",
+                },
+                {
+                    "source_index": 0,
+                    "quote": "Bax downregulation produced a rescue effect.",
+                },
+            ],
+        )
+        prompt = build_proof_prompt("How did VDAC1 and Bax compare?", [claim], [source])
+        self.assertIn("Scope must connect to the reported outcome", prompt)
+        self.assertIn("Missing evidence means supported=false", prompt)
+        self.assertNotIn(
+            "A qualifier established in one cited excerpt can apply", prompt
+        )
+        self.assertIn('"document": "study.pdf"', prompt)
+        self.assertIn('"page": 4', prompt)
+        self.assertIn('"source_window_start_chunk": 2', prompt)
+
+    def test_proof_does_not_treat_merged_window_as_one_stored_chunk(self) -> None:
+        from app.db.models import Chunk
+        from app.retrieval.context import merge_selected_chunks
+
+        sources = merge_selected_chunks(
+            [
+                Chunk(
+                    document="study.pdf",
+                    page=4,
+                    chunk_index=2,
+                    text="We studied Mfn1KD myoblasts. VDAC1 rescued expression.",
+                ),
+                Chunk(
+                    document="study.pdf",
+                    page=4,
+                    chunk_index=3,
+                    text="In a separate experiment we studied control myoblasts. Bax rescued expression.",
+                ),
+            ]
+        )
+        self.assertEqual(len(sources), 1)
+        claim = AnswerClaim(
+            text="In Mfn1KD myoblasts, VDAC1 and Bax rescued expression.",
+            attribution="this_document_authors",
+            citations=[
+                {"source_index": 0, "quote": "We studied Mfn1KD myoblasts."},
+                {"source_index": 0, "quote": "Bax rescued expression."},
+            ],
+        )
+        prompt = build_proof_prompt(
+            "How did VDAC1 and Bax compare in Mfn1KD myoblasts?", [claim], sources
+        )
+        payload = json.loads(prompt.split("Untrusted input JSON:\n", 1)[1])
+        citation = payload["claims"][0]["citations"][0]
+        self.assertEqual(citation["source_window_start_chunk"], 2)
+        self.assertNotIn("chunk_index", citation)
+        self.assertIn("Scope must connect to the reported outcome", prompt)
+        self.assertNotIn(
+            "A qualifier established in one cited excerpt can apply", prompt
+        )
+        self.assertNotIn("same cited source chunk", prompt)
+
     def test_proof_sees_only_displayed_excerpts_and_not_prior_approval(self) -> None:
         source = ChunkData(
             document="study.pdf",
@@ -2152,7 +2228,13 @@ class ApprovedProofTests(unittest.TestCase):
                         "text": "Uptake increased in male mice.",
                         "attribution": "this_document_authors",
                         "citations": [
-                            {"source_index": 0, "quote": "Uptake increased."}
+                            {
+                                "source_index": 0,
+                                "document": "study.pdf",
+                                "page": 1,
+                                "source_window_start_chunk": 0,
+                                "quote": "Uptake increased.",
+                            }
                         ],
                     }
                 ],
@@ -2193,12 +2275,104 @@ class ApprovedProofTests(unittest.TestCase):
         self.assertEqual(
             evidence[0]["citations"],
             [
-                {"source_index": 0, "quote": "Asp et al. reported the study."},
-                {"source_index": 0, "quote": "Treatment delayed weight loss."},
+                {
+                    "source_index": 0,
+                    "quote": "Asp et al. reported the study. Treatment delayed weight loss.",
+                },
             ],
+        )
+        final_proof = json.loads(
+            model.call_args_list[5].args[0].split("Untrusted input JSON:\n", 1)[1]
+        )
+        self.assertEqual(
+            [q["quote"] for q in final_proof["claims"][0]["citations"]],
+            [q["quote"] for q in evidence[0]["citations"]],
         )
         self.assertEqual(trace[-1]["stage"], "repair_verification_proof")
         self.assertIn("Missing study identity.", model.call_args_list[3].args[0])
+
+    def test_effect_overstatement_cannot_reach_proof_even_if_verifier_approves(
+        self,
+    ) -> None:
+        question = "How did treatment affect expression?"
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="Treatment did not rescue expression.",
+        )
+        draft = {
+            "answerable": True,
+            "claims": [
+                {
+                    "text": "Treatment had no effect on expression.",
+                    "attribution": "this_document_authors",
+                    "citations": [{"source_id": 1}],
+                }
+            ],
+        }
+        verdict = approved(question)
+        for part in [
+            verdict["requested_answer"],
+            *cast(list[object], verdict["requirements"]),
+            *cast(list[object], verdict["verdicts"]),
+        ]:
+            cast(dict[str, object], part)["supporting_evidence_ids"] = [1]
+        evidence: list[AnswerClaim] = []
+        with (
+            patch(
+                "app.grounding.generate_json",
+                side_effect=[draft, verdict, draft, verdict],
+            ),
+            patch("app.grounding.generate_approved_proof_json") as proof,
+        ):
+            self.assertEqual(
+                grounded_answer(question, [source], claim_evidence=evidence),
+                INSUFFICIENT_EVIDENCE,
+            )
+        proof.assert_not_called()
+        self.assertEqual(evidence, [])
+
+    def test_missing_named_population_in_claim_cannot_reach_proof(self) -> None:
+        question = "How did VDAC1 affect expression in Mfn1KD myoblasts?"
+        source = ChunkData(
+            document="study.pdf",
+            page=1,
+            chunk_index=0,
+            text="VDAC1 rescued expression in Mfn1KD myoblasts.",
+        )
+        draft = GroundedDraft.model_validate(
+            {
+                "answerable": True,
+                "claims": [
+                    {
+                        "text": "VDAC1 rescued expression.",
+                        "attribution": "this_document_authors",
+                        "citations": [{"source_id": 1}],
+                    }
+                ],
+            }
+        )
+        verdict = approved(question)
+        for part in [
+            verdict["requested_answer"],
+            *cast(list[object], verdict["requirements"]),
+            *cast(list[object], verdict["verdicts"]),
+        ]:
+            cast(dict[str, object], part)["supporting_evidence_ids"] = [1]
+        with patch("app.grounding.generate_approved_proof_json") as proof:
+            self.assertFalse(
+                verify_draft(question, draft, [source], verifier=lambda _p, _s: verdict)
+            )
+        proof.assert_not_called()
+
+    def test_proof_reason_is_bounded_diagnostic_text(self) -> None:
+        from app.grounding_models import ApprovedProof
+
+        proof = ApprovedProof.model_validate({"supported": False, "reason": "x" * 350})
+        self.assertFalse(proof.supported)
+        with self.assertRaises(ValueError):
+            ApprovedProof.model_validate({"supported": False, "reason": "x" * 1001})
 
     def test_invalid_proof_and_rejected_repair_fail_closed(self) -> None:
         for proof in [

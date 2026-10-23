@@ -12,7 +12,7 @@ from app.grounding_models import (
     VerifierEvidence,
 )
 from app.ingestion.chunking import _SENTENCE_END, _is_abbreviation_period
-from app.types import AnswerClaim, ChunkData
+from app.types import AnswerClaim, ChunkData, EvidenceQuote
 
 
 def build_verifier_evidence(
@@ -81,13 +81,45 @@ def _evidence_spans(text: str) -> list[str]:
     return spans
 
 
+def _assemble_citation_context(
+    citations: list[EvidenceQuote], sources: list[ChunkData]
+) -> list[EvidenceQuote]:
+    """Show all text between selected quotes so experiment boundaries stay visible."""
+    by_source: dict[int, list[str]] = {}
+    for citation in citations:
+        by_source.setdefault(citation["source_index"], []).append(citation["quote"])
+    assembled: list[EvidenceQuote] = []
+    for source_index, quotes in by_source.items():
+        text = _normalize_whitespace(sources[source_index]["text"])
+        if len(quotes) == 1:
+            context = quotes[0]
+        else:
+            positions = [text.find(quote) for quote in quotes]
+            if any(
+                start < 0 or text.find(quote, start + 1) != -1
+                for quote, start in zip(quotes, positions)
+            ):
+                raise ValueError(
+                    "selected quotes do not identify unambiguous source context"
+                )
+            start = min(positions)
+            end = max(start + len(quote) for quote, start in zip(quotes, positions))
+            if end - start > MAX_QUOTE_CHARS:
+                raise ValueError(
+                    "selected quote context exceeds the quote limit; select a smaller evidence span"
+                )
+            context = text[start:end]
+        assembled.append({"source_index": source_index, "quote": context})
+    return assembled
+
+
 def _record_accepted_evidence(
     draft: GroundedDraft,
     sources: list[ChunkData],
     feedback: list[dict[str, object]],
     claim_evidence: list[AnswerClaim] | None,
 ) -> None:
-    """Expose only the final approved verifier's source-bound evidence selections."""
+    """Assemble source-bound context around the final verifier's selections."""
     if claim_evidence is None:
         return
     verification = VerificationResult.model_validate(feedback[0]["output"])
@@ -101,13 +133,16 @@ def _record_accepted_evidence(
             {
                 "text": claim.text,
                 "attribution": claim.attribution,
-                "citations": [
-                    {
-                        "source_index": catalogue[evidence_id]["source_id"] - 1,
-                        "quote": catalogue[evidence_id]["quote"],
-                    }
-                    for evidence_id in verdicts[index].supporting_evidence_ids
-                ],
+                "citations": _assemble_citation_context(
+                    [
+                        {
+                            "source_index": catalogue[evidence_id]["source_id"] - 1,
+                            "quote": catalogue[evidence_id]["quote"],
+                        }
+                        for evidence_id in verdicts[index].supporting_evidence_ids
+                    ],
+                    sources,
+                ),
             }
         )
 

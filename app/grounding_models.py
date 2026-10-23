@@ -16,7 +16,7 @@ from app.config import SETTINGS
 INSUFFICIENT_EVIDENCE = (
     "I do not have enough evidence in the provided sources to answer this question."
 )
-GROUNDING_CONTRACT_VERSION = "claim-grounding-v41"
+GROUNDING_CONTRACT_VERSION = "claim-grounding-v49"
 # Keep the existing evaluation-facing names, derived from the shared snapshot.
 GROUNDING_MODEL = SETTINGS.grounding_model
 DRAFT_THINK = SETTINGS.draft_think
@@ -142,7 +142,7 @@ class VerificationResult(StrictModel):
 
 class ApprovedProof(StrictModel):
     supported: bool
-    reason: str = Field(min_length=1, max_length=300)
+    reason: str = Field(min_length=1, max_length=1000)
 
 
 DRAFT_SCHEMA: dict[str, object] = GroundedDraft.model_json_schema()
