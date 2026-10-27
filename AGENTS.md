@@ -34,16 +34,22 @@ current commands rather than copying its full instructions here.
 
 ## Status and evidence
 
-- `docs/status.md` is the current status authority. Update it only on a validated
-  transition: a completed reserved check, a merged behavior change with evidence,
-  a measured baseline, or a resolved blocker. Keep historical reports and dated
-  findings unchanged; link to them rather than rewriting them.
+- `docs/status.md` is the current status authority. Keep historical reports and
+  dated findings unchanged; link to them rather than rewriting them.
+- Update `docs/status.md` only for a validated transition or a factual correction
+  supported by the current repository state: a completed reserved check, a merged
+  behavior change with evidence, a measured baseline, a resolved blocker, or a
+  correction of an outdated factual statement. A correction must not overstate
+  quality or turn development evidence into validation.
 - Do not claim release readiness or general answer accuracy from green CI,
   development replays, or a passing synthetic regression. See the status decision
   log for the current position.
 
 ## Evidence and evaluation
 
+- Obtain explicit user approval before sending private PDF content, paper excerpts
+  or derived passages to an external model or service. Local processing is the
+  default; do not assume a hosted model is permitted.
 - Keep findings from the paper being queried distinct from findings in its
   references. Claims need support from the cited passage and correct attribution.
   A supported negative result can answer a yes/no question; missing evidence
