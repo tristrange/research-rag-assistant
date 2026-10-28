@@ -138,20 +138,43 @@ scripts. The application does not load it automatically.
 
 ### 3. Index a PDF and open the assistant
 
-Create `data/` and add a text-based PDF you are permitted to use. Replace
-`my-paper.pdf` below with its filename; use distinct filenames for distinct papers.
-PDFs are ignored by Git and are not included in this repository.
+To try the assistant without a real paper, generate the synthetic example:
+
+```bash
+uv run python -m scripts.generate_example_pdf
+uv run python -m scripts.index_pdf data/synthetic-portfolio-example.pdf
+```
+
+The generator creates `data/` if needed and refuses to overwrite an existing
+file. The PDF is marked synthetic and provides one straightforward fact; a second
+question has an answer that is intentionally absent. Ask:
+
+- “What improvement in recall did the synthetic example report?”
+- “What was the dropout rate in the synthetic trial?”
+
+These are examples, not a guarantee of answer quality. Inspect the selected
+evidence or refusal.
+
+To use your own text-based PDF, create `data/` and add a paper you are permitted
+to use. Replace `my-paper.pdf` with its filename; use distinct filenames for
+distinct papers. PDFs are ignored by Git and are not included in this repository.
 
 ```bash
 mkdir -p data
 uv run python -m scripts.index_pdf data/my-paper.pdf
+```
+
+Start the assistant:
+
+```bash
 uv run uvicorn app.main:app --host 127.0.0.1 --reload --reload-dir app
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000), choose your paper and ask a
-focused question, such as “What methods were used in the study?” Inspect the
-selected evidence and surrounding passages. For findings from every indexed
-paper, choose **Each paper (overview)**; across-paper top matches may omit papers.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000), choose the synthetic example
+or your paper, and ask a focused question, such as “What methods were used in the
+study?” Inspect the selected evidence and surrounding passages. For findings from
+every indexed paper, choose **Each paper (overview)**; across-paper top matches may
+omit papers.
 
 Local generation and verification can take several minutes. The page shows
 elapsed time, service checks and recovery guidance. Use **Refresh papers** after

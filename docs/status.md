@@ -1,6 +1,6 @@
 # Project status
 
-**Last updated:** 2026-10-27
+**Last updated:** 2026-10-28
 
 **Application code baseline:** `5b95dfd` (2026-10-25)
 
@@ -68,7 +68,7 @@ code as the same corpus input.
 | Lockfile | `uv lock --check` passes on the current application code |
 | CI workflows | Last recorded pass: `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` for `c285cfa`; the current application code and this documentation update are not yet represented in that record |
 | Performance baseline | Pending; instrumentation exists, no measured baseline is recorded |
-| Live startup | 2026-10-27 on `5b95dfd` with an isolated synthetic paper and disposable PostgreSQL; not a quality evaluation |
+| Live startup and example trial | 2026-10-27 on `5b95dfd` with an isolated synthetic paper and disposable PostgreSQL: startup and indexing passed; both example questions returned `insufficient_evidence`; not a quality evaluation |
 
 The local checks on `5b95dfd` used the supported Apple Silicon macOS target and
 Python 3.14; the JavaScript suite ran on the locally installed Node.js 26. The
@@ -179,6 +179,7 @@ extraction provenance.
 | 2026-10-23 | Merged PR #92; grounding v49 became current `main` code. Focused controls pass; known-question completeness remains 2/6 and local v1 remains open | [v49 results](../benchmarks/verifier-context-v49-results-2026-10-22.json), `a2c869d` |
 | 2026-10-25 | Updated FastAPI and PyMuPDF through Dependabot; no new evaluation. PyMuPDF 2.0 changes extraction provenance, so reindex before comparing new results | `5b95dfd`, `uv.lock` |
 | 2026-10-27 | Corrected the status record so v49 is described as current `main` code rather than an unmerged candidate; no quality transition | This page, `app/grounding_models.py` |
+| 2026-10-27 | Added a locally generated synthetic example PDF and ran one local trial. Indexing succeeded; the fact-bearing example question and the absent-answer question both refused with `insufficient_evidence`. No retry or model tuning was applied; this is not a quality evaluation | This page, `scripts/generate_example_pdf.py` |
 
 Historical reports and dated findings remain unchanged. Update this page for
 validated transitions or factual corrections supported by the current repository
