@@ -10,7 +10,7 @@ supported 2 of 6 answerable cases, and the later v49 known-question development
 check also supported 2 of 6. Both fall short of the unchanged 5-of-6 v1 target;
 both also refused their controls appropriately. No fresh reserved validation has
 been run on current `main`, no independent human review has been completed, and
-the performance baseline is pending. This branch records a documentation stopping
+the performance baseline is pending. The project is at a documentation stopping
 point; further experiments are optional. See [project status](docs/status.md) for
 the evidence, limitations and optional future work.
 

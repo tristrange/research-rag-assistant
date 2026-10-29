@@ -9,10 +9,10 @@
 
 **Decision:** local v1 remains open. Current `main` includes the merged grounding
 contract v49 from PR #92; its focused development controls passed, but the broader
-semantic quality gate has not passed. This branch records a stopping point for an
-experimental local portfolio prototype: no further model experiments or
-application changes are included, and further experiments are optional. Do not tag
-v1 or describe answers as generally reliable.
+semantic quality gate has not passed. The project is at a documentation stopping
+point for an experimental local portfolio prototype. The portfolio milestone
+includes no further model experiments or application changes; further experiments
+are optional. Do not tag v1 or describe answers as generally reliable.
 
 This page is the current status authority. It summarizes evidence; it does not
 replace the dated protocols, reports or historical findings linked below.
@@ -55,9 +55,10 @@ target or demonstrate a general improvement. The latest reserved result still
 describes v40; no fresh reserved check has been run on v49 or on the current
 application code.
 
-The PyMuPDF 2.0 upgrade changes the recorded extraction version. Reindex before
-comparing a new evaluation with the v49 run or treating the current application
-code as the same corpus input.
+The PyMuPDF 2.0 upgrade changes the recorded extraction version. A future
+evaluation should use a freshly indexed corpus, and any comparison with the earlier
+v49 run must acknowledge changed extraction provenance or chunks. Reindexing alone
+does not make the inputs identical.
 
 ## Engineering gates
 
@@ -146,15 +147,17 @@ setup and operational constraints.
 
 ## Optional future work
 
-This branch stops at an experimental local portfolio prototype. The focused v49
-check passed, but local v1 remains open: the known-case v49 pipeline still returned
-only two of six complete supported answers, and the historical five-of-six product
-target is unchanged. The current application code has not been re-evaluated since
-the v49 merge and later dependency updates. Further experiments are optional, not
-required for this branch.
+This is the portfolio stopping point: an experimental local prototype. The focused
+v49 check passed, but local v1 remains open: the known-case v49 pipeline still
+returned only two of six complete supported answers, and the historical five-of-six
+product target is unchanged. The current application code has not been re-evaluated
+since the v49 merge and later dependency updates. Further experiments are optional,
+not required for the portfolio milestone.
 
-Before a new evaluation, reindex the corpus: the PyMuPDF 2.0 upgrade changes
-extraction provenance.
+Before a new evaluation, use a freshly indexed corpus. The PyMuPDF 2.0 upgrade
+changes extraction provenance and can change chunks; a comparison with the earlier
+v49 run must record those differences. Reindexing alone does not make the inputs
+identical.
 
 1. Choose one remaining completeness mechanism: false per-animal quantifier
    rejection, premature draft refusal, repeated no-effect overstatement, or
@@ -181,7 +184,7 @@ extraction provenance.
 | 2026-10-22 | v45 failed the source-faithful positive control; the eight-case replay was not started and PR #92 remains draft. The v44 retained positive also overstated no rescue as no effect | [Frozen protocol](../benchmarks/verifier-proof-window-v45-protocol-2026-10-22.json), [results](../benchmarks/verifier-proof-window-v45-results-2026-10-22.json) |
 | 2026-10-23 | Completed v49 source review: focused controls and PR acceptance pass; known-question pipeline has 2/6 complete answers and two appropriate controls. Local v1 remains open; earlier failed candidates retained | [Protocol and results](../benchmarks/verifier-context-v49-results-2026-10-22.json) |
 | 2026-10-23 | Merged PR #92; grounding v49 became current `main` code. Focused controls pass; known-question completeness remains 2/6 and local v1 remains open | [v49 results](../benchmarks/verifier-context-v49-results-2026-10-22.json), `a2c869d` |
-| 2026-10-25 | Updated FastAPI and PyMuPDF through Dependabot; no new evaluation. PyMuPDF 2.0 changes extraction provenance, so reindex before comparing new results | `5b95dfd`, `uv.lock` |
+| 2026-10-25 | Updated FastAPI and PyMuPDF through Dependabot; no new evaluation. PyMuPDF 2.0 changes extraction provenance and can change chunks. Future evaluations should use a freshly indexed corpus, and comparisons with the v49 run must acknowledge those differences; reindexing alone does not make the inputs identical | `5b95dfd`, `uv.lock` |
 | 2026-10-27 | Corrected the status record so v49 is described as current `main` code rather than an unmerged candidate; no quality transition | This page, `app/grounding_models.py` |
 | 2026-10-27 | Tried a locally generated synthetic example PDF; the generator, its tests and the example are not included in this change. Indexing succeeded; the fact-bearing example question and the absent-answer question both refused with `insufficient_evidence`. No retry or model tuning was applied; this is not a quality evaluation | This page |
 | 2026-10-29 | Recorded the portfolio stopping point: removed the unvalidated synthetic example from the proposed change and documented further experiments as optional; no application or model change | This page, `README.md` |
