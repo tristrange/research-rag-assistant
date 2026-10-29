@@ -5,7 +5,7 @@
 **Application code baseline:** `5b95dfd` (2026-10-25)
 
 **Dependency update:** `pymupdf` 2.0 and `fastapi` 0.156.3 (`uv.lock`);
-`certifi` 2026.10.19 security update retained; GitHub alert #1 fixed
+the `certifi` 2026.10.19 security update is retained.
 
 **Decision:** local v1 remains open. Current `main` includes the merged grounding
 contract v49 from PR #92; its focused development controls passed, but the broader
@@ -36,7 +36,7 @@ verifier reliability remain open.
 | Current application code | `5b95dfd` (2026-10-25), grounding v49 |
 | Historical v49 evaluation commit | `c285cfa` (2026-10-22), grounding v49; focused controls passed, product completeness target unmet |
 | Previous merged baseline | `ecc6ba3` (2026-10-22), grounding v41; superseded by PR #92 |
-| Dependency security | `certifi` 2026.10.19 (patched); alert #1 fixed 2026-10-22; no open Dependabot alerts observed |
+| Dependency security | GitHub reported four open Dependabot alerts on 2026-10-29: three for `filelock` (one high, two low) and one low for `setuptools`. The earlier `certifi` alert #1 was later withdrawn. See [Dependabot alerts](https://github.com/tristrange/research-rag-assistant/security/dependabot). |
 | Latest reserved quality evaluation | Commit `6b33f221`, 2026-10-12, grounding contract v40 |
 | Latest known-question end-to-end development check | v49 at `c285cfa`, 2026-10-22: 2/6 answerable cases supported (four answerable refusals), both controls refused, no pipeline errors; not fresh validation |
 | Latest narrow verifier check | v49 at `c285cfa`: supported comparison accepted; all six rejection controls rejected; three deterministic decisions, four model proofs |
