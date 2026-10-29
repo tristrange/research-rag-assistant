@@ -4,18 +4,25 @@ Ask questions about academic PDFs and inspect the passages behind each answer.
 This local-first research assistant combines semantic retrieval, reranking and
 claim-level evidence checks in a FastAPI application with a browser interface.
 
-**Status:** Local v1 engineering checks pass, but the semantic quality gate is still open.
-The latest reserved fresh-question check (2026-10-12) met 2 of 6 answerable cases
-and both controls refused appropriately; three safe refusals and one verifier
-output-budget error remain.
-No independent human review has been completed, and the performance baseline is
-pending. This remains an experimental research tool. See
-[project status](docs/status.md) for current evidence, blockers and the next experiment.
+**Status:** Experimental local portfolio prototype. Current `main` uses grounding
+contract v49. The latest reserved fresh-question check (2026-10-12, contract v40)
+supported 2 of 6 answerable cases, and the later v49 known-question development
+check also supported 2 of 6. Both fall short of the unchanged 5-of-6 v1 target;
+both also refused their controls appropriately. No fresh reserved validation has
+been run on current `main`, no independent human review has been completed, and
+the performance baseline is pending. The project is at a documentation stopping
+point; further experiments are optional. See [project status](docs/status.md) for
+the evidence, limitations and optional future work.
 
 ![Browser interface showing a synthetic answer and its selected evidence](docs/assets/research-assistant.png)
 
 *Illustrative UI example using synthetic paper content and a stubbed answer;
 this screenshot demonstrates the interface, not model performance.*
+
+Academic papers are dense, and a fluent answer is hard to check. This project
+keeps the evidence in view: which passages support each claim, whether a claim
+comes from the paper or its references, and when the retrieved evidence is too
+weak to answer.
 
 ## What it does
 
@@ -25,9 +32,6 @@ this screenshot demonstrates the interface, not model performance.*
   checks do not establish sufficient evidence.
 - Show accepted claim evidence separately from all retrieved passages, with
   page links for inspecting context and a button to copy the answer.
-
-The model's evidence check can be wrong. “Verified” describes the application's
-checking process, not independent factual verification.
 
 ## How it works
 
@@ -43,16 +47,29 @@ flowchart LR
     Check --> Result[Answer or refusal with sources]
 ```
 
+The pipeline extracts text and section metadata, embeds overlapping chunks into
+PostgreSQL/pgvector, retrieves candidates and reranks them. A local model drafts
+claims; a separate verification pass checks each claim against the selected
+excerpts and their surrounding context. When the checks do not establish support,
+the result is a refusal rather than a completed answer. The evidence rules are
+versioned as a frozen grounding contract; current `main` uses v49.
+
 Key engineering choices:
 
-- **Evidence and attribution:** accepted claims retain exact selected excerpts;
-  checks distinguish the paper's own findings from cited literature.
+- **Claim-level evidence:** displayed claims carry exact supporting quotes. Checks
+  include the surrounding source context and distinguish the paper's own findings
+  from cited literature.
+- **Explicit refusal:** when the checks do not establish support, the assistant
+  returns an insufficient-evidence response rather than filling the gap.
 - **Safe index replacement:** chunks and processing provenance are saved
   atomically. Failed extraction, embedding or saving preserves the previous index.
 - **Bounded local inference:** indexing batches embeddings using one HTTP client;
   each question computes one embedding shared across its paper searches.
 - **Regression coverage:** Python tests, JavaScript logic tests, real-browser
   smoke tests, PostgreSQL contracts and strict typing run in CI.
+
+The model's evidence check can be wrong. “Verified” describes the application's
+checking process, not independent factual verification.
 
 See [architecture and component responsibilities](docs/architecture.md) for the
 full data flow, grounding contract and service boundaries.
@@ -120,7 +137,7 @@ uv run python -m scripts.init_db
 Source `.env` again in each new terminal before running the API or database
 scripts. The application does not load it automatically.
 
-### 3. Index a PDF and open the assistant
+### 3. Index your PDF and open the assistant
 
 Create `data/` and add a text-based PDF you are permitted to use. Replace
 `my-paper.pdf` below with its filename; use distinct filenames for distinct papers.
@@ -129,6 +146,11 @@ PDFs are ignored by Git and are not included in this repository.
 ```bash
 mkdir -p data
 uv run python -m scripts.index_pdf data/my-paper.pdf
+```
+
+Start the assistant:
+
+```bash
 uv run uvicorn app.main:app --host 127.0.0.1 --reload --reload-dir app
 ```
 
@@ -176,7 +198,7 @@ have separate setup steps in the [development guide](docs/development.md).
 
 ## Documentation
 
-- [Project status](docs/status.md): current evidence, blockers and next experiment.
+- [Project status](docs/status.md): current evidence, limitations and optional future work.
 - [Local usage](docs/local-usage.md): library management, API scopes and troubleshooting.
 - [Configuration](docs/configuration.md): model roles, inference settings and environment variables.
 - [Architecture](docs/architecture.md): ingestion, retrieval and evidence-checking design.
