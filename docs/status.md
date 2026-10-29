@@ -1,6 +1,6 @@
 # Project status
 
-**Last updated:** 2026-10-28
+**Last updated:** 2026-10-29
 
 **Application code baseline:** `5b95dfd` (2026-10-25)
 
@@ -9,8 +9,10 @@
 
 **Decision:** local v1 remains open. Current `main` includes the merged grounding
 contract v49 from PR #92; its focused development controls passed, but the broader
-semantic quality gate has not passed. Do not tag v1 or describe answers as
-generally reliable.
+semantic quality gate has not passed. This branch records a stopping point for an
+experimental local portfolio prototype: no further model experiments or
+application changes are included, and further experiments are optional. Do not tag
+v1 or describe answers as generally reliable.
 
 This page is the current status authority. It summarizes evidence; it does not
 replace the dated protocols, reports or historical findings linked below.
@@ -23,8 +25,9 @@ The assistant is a local-first, single-user research tool for text-based academi
 PDFs. It indexes papers into PostgreSQL/pgvector, retrieves and reranks passages,
 drafts claims, checks evidence and returns a refusal when the checks do not
 establish sufficient support. Engineering and review tooling are complete enough
-for continued development. Answer completeness and verifier reliability remain
-the release blockers.
+to demonstrate the approach. This is an experimental local portfolio prototype,
+and the original v1 answer-quality target remains unmet; answer completeness and
+verifier reliability remain open.
 
 ## Evaluated code and contracts
 
@@ -37,7 +40,7 @@ the release blockers.
 | Latest reserved quality evaluation | Commit `6b33f221`, 2026-10-12, grounding contract v40 |
 | Latest known-question end-to-end development check | v49 at `c285cfa`, 2026-10-22: 2/6 answerable cases supported (four answerable refusals), both controls refused, no pipeline errors; not fresh validation |
 | Latest narrow verifier check | v49 at `c285cfa`: supported comparison accepted; all six rejection controls rejected; three deterministic decisions, four model proofs |
-| Last recorded live startup check | `5b95dfd`, 2026-10-27: isolated synthetic paper and disposable PostgreSQL; startup, indexing, query and evidence inspection passed; not a quality evaluation |
+| Last recorded live startup check | `5b95dfd`, 2026-10-27: isolated synthetic paper (not included in the repository) and disposable PostgreSQL; startup, indexing, query and evidence inspection passed; not a quality evaluation |
 | Current grounding contract | `claim-grounding-v49`; see [architecture](architecture.md#grounding-module-contract) |
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
@@ -68,7 +71,7 @@ code as the same corpus input.
 | Lockfile | `uv lock --check` passes on the current application code |
 | CI workflows | Last recorded pass: `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` for `c285cfa`; the current application code and this documentation update are not yet represented in that record |
 | Performance baseline | Pending; instrumentation exists, no measured baseline is recorded |
-| Live startup and example trial | 2026-10-27 on `5b95dfd` with an isolated synthetic paper and disposable PostgreSQL: startup and indexing passed; both example questions returned `insufficient_evidence`; not a quality evaluation |
+| Live startup and synthetic example trial | 2026-10-27 on `5b95dfd` with an isolated synthetic paper (not included) and disposable PostgreSQL: startup and indexing passed; both example questions returned `insufficient_evidence`; not a quality evaluation |
 
 The local checks on `5b95dfd` used the supported Apple Silicon macOS target and
 Python 3.14; the JavaScript suite ran on the locally installed Node.js 26. The
@@ -141,13 +144,14 @@ paraphrases. See [architecture](architecture.md#grounding-module-contract) and t
 See the [local security boundary](local-usage.md#local-security-boundary) for
 setup and operational constraints.
 
-## Next experiment
+## Optional future work
 
-The focused v49 check passed, but local v1 remains open. The known-case v49
-pipeline still returned only two of six complete supported answers; the historical
-five-of-six product target is unchanged. The current application code has not been
-re-evaluated since the v49 merge and later dependency updates. Do not reserve more
-questions or collect a performance baseline just to avoid these failures.
+This branch stops at an experimental local portfolio prototype. The focused v49
+check passed, but local v1 remains open: the known-case v49 pipeline still returned
+only two of six complete supported answers, and the historical five-of-six product
+target is unchanged. The current application code has not been re-evaluated since
+the v49 merge and later dependency updates. Further experiments are optional, not
+required for this branch.
 
 Before a new evaluation, reindex the corpus: the PyMuPDF 2.0 upgrade changes
 extraction provenance.
@@ -179,7 +183,8 @@ extraction provenance.
 | 2026-10-23 | Merged PR #92; grounding v49 became current `main` code. Focused controls pass; known-question completeness remains 2/6 and local v1 remains open | [v49 results](../benchmarks/verifier-context-v49-results-2026-10-22.json), `a2c869d` |
 | 2026-10-25 | Updated FastAPI and PyMuPDF through Dependabot; no new evaluation. PyMuPDF 2.0 changes extraction provenance, so reindex before comparing new results | `5b95dfd`, `uv.lock` |
 | 2026-10-27 | Corrected the status record so v49 is described as current `main` code rather than an unmerged candidate; no quality transition | This page, `app/grounding_models.py` |
-| 2026-10-27 | Added a locally generated synthetic example PDF and ran one local trial. Indexing succeeded; the fact-bearing example question and the absent-answer question both refused with `insufficient_evidence`. No retry or model tuning was applied; this is not a quality evaluation | This page, `scripts/generate_example_pdf.py` |
+| 2026-10-27 | Tried a locally generated synthetic example PDF; the generator, its tests and the example are not included in this change. Indexing succeeded; the fact-bearing example question and the absent-answer question both refused with `insufficient_evidence`. No retry or model tuning was applied; this is not a quality evaluation | This page |
+| 2026-10-29 | Recorded the portfolio stopping point: removed the unvalidated synthetic example from the proposed change and documented further experiments as optional; no application or model change | This page, `README.md` |
 
 Historical reports and dated findings remain unchanged. Update this page for
 validated transitions or factual corrections supported by the current repository

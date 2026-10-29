@@ -5,8 +5,8 @@ describe current usage; dated studies preserve the configurations and limitation
 of earlier development experiments.
 
 **Current status:** [Project status](status.md) records the current commit,
-engineering gates, latest review evidence, blockers, decision log and next
-experiment.
+engineering gates, latest review evidence, blockers, decision log and optional
+future work.
 
 ## Use and understand the assistant
 
@@ -29,7 +29,7 @@ experiment.
 ## Evaluation and validation
 
 - [Project status](status.md): current commit, engineering gates, latest review
-  evidence, blockers, decision log and next experiment.
+  evidence, blockers, decision log and optional future work.
 - [Retrieval evaluation](retrieval-evaluation.md): comparison commands, page-level
   metrics and the dated baseline measurement.
 - [Answer-quality evaluation](answer-evaluation.md): benchmark commands, strategies,
