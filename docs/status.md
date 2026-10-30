@@ -67,13 +67,13 @@ does not make the inputs identical.
 
 | Gate | Latest result |
 | --- | --- |
-| Python regressions | Current application code: 494 test methods; 477 passed, 17 PostgreSQL contracts skipped locally (2026-10-27 local rerun) |
-| JavaScript logic | 29 passed on the current application code (2026-10-27 local rerun) |
-| Real-browser smoke | 7 passed on the current application code (2026-10-27 local rerun) |
-| Static checks | Ruff and strict mypy (91 files) pass on the current application code; CodeQL last recorded for `c285cfa` |
-| PostgreSQL contracts | Pass in the Ubuntu CI job against disposable pgvector (last recorded for `c285cfa`) |
-| Lockfile | `uv lock --check` passes on the current application code |
-| CI workflows | Last recorded pass: `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` for `c285cfa`; the current application code and this documentation update are not yet represented in that record |
+| Python regressions | PR #96 head `3e37627`: 494 test methods; 477 passed, 17 PostgreSQL contracts skipped locally; the CI job passed |
+| JavaScript logic | 29 passed locally on `5b95dfd`; the PR #96 CI job passed on `3e37627` |
+| Real-browser smoke | 7 passed locally on `5b95dfd`; the PR #96 CI job passed on `3e37627` |
+| Static checks | Ruff and strict mypy (91 files) passed locally on `3e37627`; CodeQL passed in PR #96 |
+| PostgreSQL contracts | Passed in the PR #96 Ubuntu CI job against disposable pgvector |
+| Lockfile | `uv lock --check` passed locally on `3e37627` |
+| CI workflows | `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` passed for PR #96 head `3e37627`; this documentation update is not represented in that record |
 | Performance baseline | Pending; instrumentation exists, no measured baseline is recorded |
 | Live startup and synthetic example trial | 2026-10-27 on `5b95dfd` with an isolated synthetic paper (not included) and disposable PostgreSQL: startup and indexing passed; both example questions returned `insufficient_evidence`; not a quality evaluation |
 
@@ -81,6 +81,7 @@ The local checks on `5b95dfd` used the supported Apple Silicon macOS target and
 Python 3.14; the JavaScript suite ran on the locally installed Node.js 26. The
 documented target and CI use Node.js 24. Full commands and setup are in the
 [development guide](development.md) and [fresh-install checks](install-smoke-test.md).
+The PR #96 head and merge commit `38e474a` have identical file contents.
 
 ## Review evidence
 
@@ -192,7 +193,7 @@ identical.
 | 2026-10-27 | Tried a locally generated synthetic example PDF; the generator, its tests and the example are not included in this change. Indexing succeeded; the fact-bearing example question and the absent-answer question both refused with `insufficient_evidence`. No retry or model tuning was applied; this is not a quality evaluation | This page |
 | 2026-10-29 | Recorded the portfolio stopping point: removed the unvalidated synthetic example from the proposed change and documented further experiments as optional; no application or model change | This page, `README.md` |
 | 2026-10-29 | Observed four open Dependabot alerts: three for `filelock` (one high, two low) and one low for `setuptools`; the earlier `certifi` alert #1 had been withdrawn | GitHub alerts #2–#5 |
-| 2026-10-30 | Merged PR #96 updating `filelock` 3.32.5 → 4.2.4 and `setuptools` 84.0.0 → 84.2.1; GitHub marked alerts #2–#5 fixed on 2026-10-29. No application code or model change | `38e474a`, `uv.lock` |
+| 2026-10-29 | Merged PR #96 updating `filelock` 3.32.5 → 4.2.4 and `setuptools` 84.0.0 → 84.2.1; GitHub marked alerts #2–#5 fixed on the same date. No application code or model change | `38e474a`, `uv.lock` |
 
 Historical reports and dated findings remain unchanged. Update this page for
 validated transitions or factual corrections supported by the current repository
