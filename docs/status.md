@@ -1,11 +1,12 @@
 # Project status
 
-**Last updated:** 2026-10-29
+**Last updated:** 2026-10-30
 
-**Application code baseline:** `5b95dfd` (2026-10-25)
+**Application code baseline:** `38e474a` (2026-10-29)
 
 **Dependency update:** `pymupdf` 2.0 and `fastapi` 0.156.3 (`uv.lock`);
-the `certifi` 2026.10.19 security update is retained.
+`filelock` 4.2.4 and `setuptools` 84.2.1 security patches (PR #96); the
+`certifi` 2026.10.19 security update is retained.
 
 **Decision:** local v1 remains open. Current `main` includes the merged grounding
 contract v49 from PR #92; its focused development controls passed, but the broader
@@ -33,10 +34,10 @@ verifier reliability remain open.
 
 | Item | Current record |
 | --- | --- |
-| Current application code | `5b95dfd` (2026-10-25), grounding v49 |
+| Current application code | `38e474a` (2026-10-29), grounding v49; dependency-only change since `5b95dfd` |
 | Historical v49 evaluation commit | `c285cfa` (2026-10-22), grounding v49; focused controls passed, product completeness target unmet |
-| Previous merged baseline | `ecc6ba3` (2026-10-22), grounding v41; superseded by PR #92 |
-| Dependency security | GitHub reported four open Dependabot alerts on 2026-10-29: three for `filelock` (one high, two low) and one low for `setuptools`. The earlier `certifi` alert #1 was later withdrawn. See [Dependabot alerts](https://github.com/tristrange/research-rag-assistant/security/dependabot). |
+| Previous merged baseline | `5b95dfd` (2026-10-25), grounding v49 with FastAPI and PyMuPDF updates; superseded by PR #96 |
+| Dependency security | GitHub marked four Dependabot alerts (#2–#5) fixed on 2026-10-29 after PR #96 updated `filelock` to 4.2.4 and `setuptools` to 84.2.1: three `filelock` alerts (one high, two low) and one low `setuptools` alert. The earlier `certifi` alert #1 had been withdrawn. See [Dependabot alerts](https://github.com/tristrange/research-rag-assistant/security/dependabot). |
 | Latest reserved quality evaluation | Commit `6b33f221`, 2026-10-12, grounding contract v40 |
 | Latest known-question end-to-end development check | v49 at `c285cfa`, 2026-10-22: 2/6 answerable cases supported (four answerable refusals), both controls refused, no pipeline errors; not fresh validation |
 | Latest narrow verifier check | v49 at `c285cfa`: supported comparison accepted; all six rejection controls rejected; three deterministic decisions, four model proofs |
@@ -45,10 +46,12 @@ verifier reliability remain open.
 | Current verified-answer settings | `gpt-oss:20b`; draft thinking low, verifier thinking medium; temperature/top-p 1; 12,288 context; 4,096 output; 300-second stage timeout |
 | Retrieval | `nomic-embed-text`; `BAAI/bge-reranker-base`; 20 vector candidates; six sources, normally five reranked plus one page-reserve candidate |
 
-Current application code is `5b95dfd` (2026-10-25). It includes the v49 grounding
-code merged from PR #92 (`c285cfa`) and later FastAPI and PyMuPDF dependency
-updates. The v49 evaluation was run at `c285cfa` on eight previously inspected
-questions with fresh retrieval from the existing read-only index. Its captured
+Current application code is `38e474a` (2026-10-29). It includes the v49 grounding
+code merged from PR #92 (`c285cfa`), later FastAPI and PyMuPDF dependency
+updates, and the PR #96 `filelock` and `setuptools` security patches; the change
+since `5b95dfd` is dependency-only. The v49 evaluation was run at `c285cfa` on
+eight previously inspected questions with fresh retrieval from the existing
+read-only index. Its captured
 application, settings, Ollama, corpus and PDF fingerprints matched before and
 after generation. Its two complete answers out of six do not meet the product
 target or demonstrate a general improvement. The latest reserved result still
@@ -64,13 +67,13 @@ does not make the inputs identical.
 
 | Gate | Latest result |
 | --- | --- |
-| Python regressions | Current application code: 494 test methods; 477 passed, 17 PostgreSQL contracts skipped locally (2026-10-27 local rerun) |
-| JavaScript logic | 29 passed on the current application code (2026-10-27 local rerun) |
-| Real-browser smoke | 7 passed on the current application code (2026-10-27 local rerun) |
-| Static checks | Ruff and strict mypy (91 files) pass on the current application code; CodeQL last recorded for `c285cfa` |
-| PostgreSQL contracts | Pass in the Ubuntu CI job against disposable pgvector (last recorded for `c285cfa`) |
-| Lockfile | `uv lock --check` passes on the current application code |
-| CI workflows | Last recorded pass: `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` for `c285cfa`; the current application code and this documentation update are not yet represented in that record |
+| Python regressions | PR #96 head `3e37627`: 494 test methods; 477 passed, 17 PostgreSQL contracts skipped locally; the CI job passed |
+| JavaScript logic | 29 passed locally on `5b95dfd`; the PR #96 CI job passed on `3e37627` |
+| Real-browser smoke | 7 passed locally on `5b95dfd`; the PR #96 CI job passed on `3e37627` |
+| Static checks | Ruff and strict mypy (91 files) passed locally on `3e37627`; CodeQL passed in PR #96 |
+| PostgreSQL contracts | Passed in the PR #96 Ubuntu CI job against disposable pgvector |
+| Lockfile | `uv lock --check` passed locally on `3e37627` |
+| CI workflows | `Python, UI and types`, `PostgreSQL contracts` and `CodeQL` passed for PR #96 head `3e37627`; this documentation update is not represented in that record |
 | Performance baseline | Pending; instrumentation exists, no measured baseline is recorded |
 | Live startup and synthetic example trial | 2026-10-27 on `5b95dfd` with an isolated synthetic paper (not included) and disposable PostgreSQL: startup and indexing passed; both example questions returned `insufficient_evidence`; not a quality evaluation |
 
@@ -78,6 +81,7 @@ The local checks on `5b95dfd` used the supported Apple Silicon macOS target and
 Python 3.14; the JavaScript suite ran on the locally installed Node.js 26. The
 documented target and CI use Node.js 24. Full commands and setup are in the
 [development guide](development.md) and [fresh-install checks](install-smoke-test.md).
+The PR #96 head and merge commit `38e474a` have identical file contents.
 
 ## Review evidence
 
@@ -188,6 +192,8 @@ identical.
 | 2026-10-27 | Corrected the status record so v49 is described as current `main` code rather than an unmerged candidate; no quality transition | This page, `app/grounding_models.py` |
 | 2026-10-27 | Tried a locally generated synthetic example PDF; the generator, its tests and the example are not included in this change. Indexing succeeded; the fact-bearing example question and the absent-answer question both refused with `insufficient_evidence`. No retry or model tuning was applied; this is not a quality evaluation | This page |
 | 2026-10-29 | Recorded the portfolio stopping point: removed the unvalidated synthetic example from the proposed change and documented further experiments as optional; no application or model change | This page, `README.md` |
+| 2026-10-29 | Observed four open Dependabot alerts: three for `filelock` (one high, two low) and one low for `setuptools`; the earlier `certifi` alert #1 had been withdrawn | GitHub alerts #2–#5 |
+| 2026-10-29 | Merged PR #96 updating `filelock` 3.32.5 → 4.2.4 and `setuptools` 84.0.0 → 84.2.1; GitHub marked alerts #2–#5 fixed on the same date. No application code or model change | `38e474a`, `uv.lock` |
 
 Historical reports and dated findings remain unchanged. Update this page for
 validated transitions or factual corrections supported by the current repository
